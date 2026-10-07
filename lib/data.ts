@@ -10,8 +10,8 @@ import type {
   User,
 } from './types'
 
-export const BRAND = 'AIT Circular'
-export const BRAND_FULL = 'AIT Circular Marketplace'
+export const BRAND = 'PassItOn'
+export const BRAND_FULL = 'PassItOn — Student Marketplace'
 
 export const CURRENT_USER_ID = 'u_me'
 

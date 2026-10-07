@@ -23,7 +23,7 @@ const playfair = Playfair_Display({
 export const metadata: Metadata = {
   title: `${BRAND_FULL} — Buy, Sell & Rent on campus`,
   description:
-    'The circular student marketplace for the Asian Institute of Technology. Buy, sell and rent furniture, electronics, bikes, textbooks and kitchen gear, with rental deposits held in escrow and outgoing students matched to incoming ones.',
+    'PassItOn is the circular student marketplace for the Asian Institute of Technology. Buy, sell and rent furniture, electronics, bikes, textbooks and kitchen gear, with rental deposits held in escrow and outgoing students matched to incoming ones.',
 }
 
 export const viewport: Viewport = {

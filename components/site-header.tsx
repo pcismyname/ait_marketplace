@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useRef, useEffect } from 'react'
 import {
@@ -9,7 +10,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMarketplace } from '@/lib/store'
-import { BRAND, CATEGORIES, getUser } from '@/lib/data'
+import { CATEGORIES, getUser } from '@/lib/data'
 import { initials } from '@/lib/format'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { AnnouncementBar } from '@/components/announcement-bar'
@@ -54,13 +55,28 @@ export function SiteHeader() {
         {/* ── Main nav row ── */}
         <div className="mx-auto flex h-12 max-w-7xl items-center gap-0 px-4 md:px-6">
 
-          {/* Wordmark */}
+          {/* Logo */}
           <Link
             href="/"
-            className="mr-6 shrink-0 font-display text-[14px] font-bold italic tracking-tight text-foreground"
-            aria-label="AIT Circular home"
+            className="mr-6 shrink-0"
+            aria-label="PassItOn home"
           >
-            {BRAND}
+            <Image
+              src="/logo/passiton-logo.svg"
+              alt="PassItOn"
+              width={108}
+              height={32}
+              priority
+              className="h-7 w-auto dark:hidden"
+            />
+            <Image
+              src="/logo/passiton-logo-reversed.svg"
+              alt="PassItOn"
+              width={108}
+              height={32}
+              priority
+              className="h-7 w-auto hidden dark:block"
+            />
           </Link>
 
           {/* Category nav — desktop */}
@@ -197,7 +213,20 @@ export function SiteHeader() {
           />
           <div className="fixed inset-y-0 right-0 z-50 flex w-72 flex-col bg-background shadow-2xl">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
-              <span className="font-display text-[14px] font-bold italic">{BRAND}</span>
+              <Image
+                src="/logo/passiton-logo.svg"
+                alt="PassItOn"
+                width={90}
+                height={28}
+                className="h-6 w-auto dark:hidden"
+              />
+              <Image
+                src="/logo/passiton-logo-reversed.svg"
+                alt="PassItOn"
+                width={90}
+                height={28}
+                className="h-6 w-auto hidden dark:block"
+              />
               <button onClick={() => setDrawerOpen(false)} aria-label="Close menu">
                 <X className="h-5 w-5 text-muted-foreground" />
               </button>

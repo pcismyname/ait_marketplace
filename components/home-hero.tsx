@@ -25,7 +25,7 @@ export function HomeHero({ listingCount }: { listingCount: number }) {
           <div className="lg:flex-[3]">
             {/* Section tag */}
             <p className="label-tag mb-5">
-              Asian Institute of Technology · Circular Marketplace
+              Asian Institute of Technology · PassItOn Marketplace
             </p>
 
             {/* Headline — mix weight for rhythm, one serif italic moment */}

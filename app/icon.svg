@@ -1,7 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
-  <rect width="64" height="64" rx="16" fill="#3f8f6d"/>
-  <path d="M20 26a12 12 0 0 1 21.5-4.5" stroke="#f4f7f2" stroke-width="4.5" stroke-linecap="round"/>
-  <path d="M42 15v8h-8" stroke="#f4f7f2" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M44 38a12 12 0 0 1-21.5 4.5" stroke="#f4f7f2" stroke-width="4.5" stroke-linecap="round"/>
-  <path d="M22 49v-8h8" stroke="#f4f7f2" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="PassItOn">
+  <rect width="64" height="64" rx="14" fill="#f5f3ee"/>
+  <circle cx="24" cy="32" r="12" fill="none" stroke="#2F4A2B" stroke-width="5"/>
+  <circle cx="40" cy="32" r="12" fill="none" stroke="#8FAE8B" stroke-width="5"/>
 </svg>

@@ -3,6 +3,7 @@
 import { Suspense, useMemo, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Inbox, RotateCcw, Search } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
 import { BRAND, CATEGORIES, categoryLabel } from '@/lib/data'
@@ -176,7 +177,20 @@ function HomeInner() {
         <div className="mx-auto max-w-7xl px-4 py-10 md:px-6">
           <div className="flex flex-col gap-8 sm:flex-row sm:gap-16">
             <div className="sm:w-44 shrink-0">
-              <p className="font-display text-[15px] font-bold italic text-foreground">{BRAND}</p>
+              <Image
+                src="/logo/passiton-logo.svg"
+                alt="PassItOn"
+                width={108}
+                height={32}
+                className="h-7 w-auto dark:hidden"
+              />
+              <Image
+                src="/logo/passiton-logo-reversed.svg"
+                alt="PassItOn"
+                width={108}
+                height={32}
+                className="h-7 w-auto hidden dark:block"
+              />
               <p className="mt-2 text-[12px] text-muted-foreground leading-relaxed">
                 Student-only circular marketplace for AIT.
                 Buy, sell, and rent — cohort to cohort.
