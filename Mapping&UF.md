@@ -1,11 +1,13 @@
-# AIT Circular Marketplace
+# Pass It On (AIT Circular Marketplace)
 
 Buy, Sell & Rent for the AIT Student Community
 
-A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, enabling students to buy, sell, and rent everyday items — with platform-mediated escrow and commission on every transaction.
+A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, enabling students to buy, sell, and rent everyday items. Listing is free; the platform earns where it provides trust: deposit escrow on rentals, optional buyer protection on sales, and premium placement.
 
 **Course:** AST02.21 — E-Business Development and Technology
 **Team:** Samichi Rungta · Chidsanuphong Pengchai (Admin) · Lucja Wojtowicz
+
+> **Money rules live in [BusinessRules.md](BusinessRules.md).** Fees, deposits, escrow, payouts and disputes in this file summarise that one; if they ever disagree, BusinessRules.md wins. The routes below are the planned full app; the routes that exist today are listed in [UserFlows.md](UserFlows.md).
 
 ---
 
@@ -14,7 +16,7 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
 - **Frontend/Framework:** Next.js (App Router)
 - **Database & Auth:** Supabase (Postgres, Auth, Storage, Realtime)
 - **Deployment:** Vercel
-- **Payments:** Omise / 2C2P (Thailand-compatible payment gateway)
+- **Payments:** Omise (PromptPay QR + cards). Simulated or Omise test mode for the course build.
 
 ---
 
@@ -27,6 +29,7 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
    - [Buyer Perspective — Buying an Item](#buyer-perspective--buying-an-item)
    - [Owner Perspective — Renting Out an Item](#owner-perspective--renting-out-an-item)
    - [Renter Perspective — Renting an Item](#renter-perspective--renting-an-item)
+4. [Revenue Model](#revenue-model)
 
 ---
 
@@ -57,7 +60,7 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
 ### Selling / Listing Management
 | Route | Purpose |
 |---|---|
-| `/sell/new` | Create listing (multi-step: Sale/Rent → category → photos → price/deposit → condition → pickup location) |
+| `/sell/new` | Create listing (multi-step: Sale/Rent → category → photos → price → deposit for rentals, pre-filled with the category's suggested amount and limited to ฿200–3,000 → condition → pickup location → optional premium placement) |
 | `/dashboard/listings` | My listings (active / sold / rented / draft) |
 | `/dashboard/listings/[id]/edit` | Edit a listing |
 | `/dashboard/listings/[id]/requests` | Incoming buy/rent requests for a listing |
@@ -72,9 +75,9 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
 ### Transactions
 | Route | Purpose |
 |---|---|
-| `/listing/[id]/checkout` | Checkout for both sales and rentals — total = listing price + 10% commission (+ deposit for rentals) |
+| `/listing/[id]/checkout` | **Rental:** total = rental fee + 10% commission + escrow fee + deposit. **Sale:** buyer chooses *Pay in person* (free, no escrow) or *Pay with protection* (price + ฿10 + 3%, held in escrow) |
 | `/transaction/[id]` | Transaction status page (escrow held, dispute window countdown, pickup/return instructions) |
-| `/transaction/[id]/confirm` | Buyer/renter confirms receipt or return condition |
+| `/transaction/[id]/confirm` | Buyer/renter confirms receipt; owner confirms return condition with photos |
 | `/dispute/[id]` | Dispute filing/tracking flow |
 | `/dashboard/orders` | My purchases & sales history |
 | `/dashboard/rentals` | My rentals — as renter and as owner |
@@ -91,21 +94,21 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
 | `/profile/[userId]` | Public profile — ratings, item history, verification badge |
 | `/dashboard/profile` | Edit own profile |
 | `/dashboard/settings` | Notification prefs, linked AIT email, payment methods |
-| `/dashboard/wallet` | Escrow balance, transaction history, payouts |
+| `/dashboard/wallet` | Escrow balance, refunded deposits, transaction history, payouts |
 | `/dashboard/reviews` | Reviews given/received |
 
 ### Notifications
 | Route | Purpose |
 |---|---|
-| `/notifications` | Match alerts, chat pings, dispute-window reminders, seasonal surge alerts |
+| `/notifications` | Match alerts, chat pings, dispute-window reminders, return-due and late reminders, seasonal surge alerts |
 
 ### Admin (internal, moderation/dispute team)
 | Route | Purpose |
 |---|---|
 | `/admin/dashboard` | Overview stats |
-| `/admin/disputes` | Dispute resolution queue |
+| `/admin/disputes` | Dispute resolution queue (decides deposit splits and refunds) |
 | `/admin/users` | User verification/moderation |
-| `/admin/listings` | Listing moderation queue |
+| `/admin/listings` | Listing moderation queue, including rental approval for items worth over ~฿6,000 |
 
 ---
 
@@ -114,11 +117,13 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
 **Authentication & Verification**
 - AIT email-restricted signup (Supabase Auth, domain-gated magic link/OTP)
 - Verification badge on profile
+- Campus shops join as partner sellers (`UserKind = 'shop'`) under the same rules
 
 **Listings**
-- Create/edit/delete listing (Sale or Rent)
+- Create/edit/delete listing (Sale or Rent), always free to list
 - Multi-photo upload (Supabase Storage)
-- Condition, price/deposit, category, pickup location fields
+- Condition, price, category, pickup location fields
+- Rentals: deposit suggested by category, adjustable by the owner within ฿200–3,000 (30–50% of replacement value); a rental can't be published without a deposit
 - Draft/active/sold/rented status states
 
 **Search & Discovery**
@@ -132,30 +137,35 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
 - Seasonal surge highlighting (auto-promote move-out/new-arrival listings near semester dates)
 
 **Transactions & Payments**
-- All transactions (sales **and** rentals) route through the platform payment gateway — no in-person cash exchange
-- 10% platform commission on every transaction: buyer/renter pays listing price + commission; seller/owner receives the listing price
-- Escrow holding for all payments until handover/return is confirmed
-- Optional premium placement fee for frequent listers
+- **Rentals always go through the platform.** Renter pays rental fee + 10% commission + escrow fee (`max(฿30, 3% of deposit)`) + refundable deposit.
+- **Sales: the buyer chooses.** *Pay in person*: free, paid directly to the seller, no escrow or dispute support. *Pay with protection*: price + ฿10 + 3%, held in escrow.
+- The seller/owner always receives their full listing price; platform fees are paid by the buyer/renter on top.
+- Payment methods: PromptPay QR (default, cheapest) and cards (for incoming international students without a Thai bank account)
+- Gateway fees are absorbed by the platform; deposits are always refunded in full
+- Optional premium placement: ฿49 for 7 days
 
 **Escrow & Auto-Release**
-- Funds held in escrow from checkout until a dispute window closes
-- 24–48 hour dispute window opens at handover (sales) or return (rentals)
-- Auto-release to seller/owner if no dispute is filed within the window (via scheduled Supabase function)
+- Funds are held by the licensed payment gateway, never by the owner or the team's own bank account
+- 48-hour dispute window opens at handover (protected sales) or at return (rentals)
+- Rental fee is paid out to the owner 48 hours after handover if no dispute is filed; the deposit stays held until return
+- Auto-release when the window closes with no dispute (via scheduled Supabase function)
 - Manual early confirmation also releases funds immediately
 
 **Rental-Specific**
-- Booking request → owner approval flow
-- Deposit hold and scheduled release alongside rental fee
-- Return confirmation flow (photo-based condition check)
+- Rental periods: per week, per month, per semester
+- Booking request → owner approval → payment → handover
+- Return confirmation flow (owner compares photos from handover and return)
+- Late return: daily late fee taken from the deposit; more than 7 days late counts as missing and the full deposit goes to the owner
 
 **Trust & Safety**
 - Rating system (buyer/seller/renter, post-transaction)
 - Item lifecycle/ownership history view
 - Dispute filing and resolution workflow with admin review
+- Owner can never receive more than the deposit
 
 **Communication**
 - In-platform real-time chat (Supabase Realtime), scoped per listing
-- Push/email notifications for messages, matches, dispute-window deadlines
+- Push/email notifications for messages, matches, dispute-window deadlines, return-due dates
 
 **Admin/Moderation**
 - Listing moderation queue
@@ -166,36 +176,36 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
 
 ## User Flow Diagrams
 
-All four flows share the same escrow pattern: **payment held → dispute window opens at handover/return → auto-release if silent, dispute path if raised.** This is a single reusable mechanism (a scheduled Supabase function checking window expiry) applied consistently across sale and rental transaction types.
+Rentals and protected sales share one escrow pattern: **payment held → 48-hour dispute window opens at handover/return → auto-release if silent, dispute path if raised.** It is a single reusable mechanism (a scheduled Supabase function checking window expiry). Sales paid in person skip it entirely.
 
 ### Seller Perspective — Selling an Item
 
 ```mermaid
 flowchart TD
     A[Seller logs in] --> B["Create Listing (select 'For Sale')"]
-    B --> C[Set listing price, upload photos, condition, pickup location]
-    C --> D["Platform calculates buyer price = listing price + 10% commission"]
-    D --> E[Listing published to marketplace]
-    E --> F{Buyer interested?}
-    F -- No --> E
-    F -- Yes --> G[Buyer sends chat message]
-    G --> H[Negotiate details & confirm pickup time via chat]
-    H --> I[Buyer proceeds to checkout and pays total price]
-    I --> J[Payment held in escrow by platform]
-    J --> K[Seller and buyer meet at pickup location]
-    K --> L[Item handed over to buyer]
-    L --> M["Return/dispute window opens (24-48 hrs)"]
-    M --> N{Buyer files dispute within window?}
-    N -- No dispute filed - window expires --> O["Funds auto-released: seller gets listing price"]
-    N -- Buyer confirms early --> O
-    O --> P["Platform retains 10% commission"]
-    P --> Q[Seller rates buyer]
-    Q --> R[Buyer rates seller]
-    R --> S[Item lifecycle updated: new owner recorded]
-    N -- Yes, dispute filed --> T[Platform reviews dispute]
-    T --> U{Resolved in buyer's favor?}
-    U -- Yes --> V[Full or partial refund to buyer]
-    U -- No --> O
+    B --> C[Set price, upload photos, condition, pickup location]
+    C --> D[Listing published to marketplace - free to list]
+    D --> E{Buyer interested?}
+    E -- No --> D
+    E -- Yes --> F[Buyer sends chat message]
+    F --> G[Negotiate details & confirm pickup time via chat]
+    G --> H{How does the buyer pay?}
+    H -- Pay in person --> I[Buyer pays seller directly at pickup]
+    I --> J[Item handed over - seller marks listing sold]
+    J --> Q
+    H -- Pay with protection --> K["Buyer pays price + ฿10 + 3% via gateway"]
+    K --> L[Payment held in escrow by the gateway]
+    L --> M[Item handed over at pickup location]
+    M --> N["48-hour dispute window opens"]
+    N --> O{Buyer files dispute within window?}
+    O -- No dispute - window expires --> P["Funds auto-released: seller gets full price"]
+    O -- Buyer confirms early --> P
+    P --> Q[Seller and buyer rate each other]
+    Q --> R[Item lifecycle updated: new owner recorded]
+    O -- Yes, dispute filed --> S[Admin reviews dispute]
+    S --> T{Resolved in buyer's favor?}
+    T -- Yes --> U[Full or partial refund to buyer]
+    T -- No --> P
 ```
 
 ### Buyer Perspective — Buying an Item
@@ -204,26 +214,27 @@ flowchart TD
 flowchart TD
     A[Buyer logs in] --> B[Browse/Search marketplace]
     B --> C[Filter by category, price, location]
-    C --> D["View listing detail page (shows price + commission = total)"]
+    C --> D[View listing detail page]
     D --> E{Interested?}
     E -- No --> B
     E -- Yes --> F[Send chat message to seller]
     F --> G[Negotiate pickup time/logistics via chat]
-    G --> H[Proceed to checkout]
-    H --> I["Pay total price (listing price + 10% commission) via payment gateway"]
-    I --> J[Payment held in escrow by platform]
-    J --> K[Meet seller at agreed pickup location]
-    K --> L[Receive item from seller]
-    L --> M["Return/dispute window opens (24-48 hrs)"]
+    G --> H{Choose how to pay}
+    H -- Pay in person --> I[Pay seller directly at pickup - free, no protection]
+    I --> Q
+    H -- Pay with protection --> J["Pay price + ฿10 + 3% via PromptPay or card"]
+    J --> K[Payment held in escrow by the gateway]
+    K --> L[Meet seller, receive item]
+    L --> M["48-hour dispute window opens"]
     M --> N{Item matches listing description?}
     N -- Yes --> O[Buyer confirms receipt - or takes no action and window expires]
     O --> P[Escrow releases payout to seller]
     P --> Q[Buyer rates seller]
     Q --> R[Item added to buyer's owned items - lifecycle updated]
     N -- No --> S[Buyer files dispute with evidence before window closes]
-    S --> T[Platform reviews dispute]
+    S --> T[Admin reviews dispute]
     T --> U{Resolved in buyer's favor?}
-    U -- Yes --> V[Refund issued to buyer]
+    U -- Yes --> V[Full or partial refund to buyer]
     U -- No --> P
 ```
 
@@ -232,28 +243,34 @@ flowchart TD
 ```mermaid
 flowchart TD
     A[Owner logs in] --> B["Create Listing (select 'For Rent')"]
-    B --> C[Set rental price + deposit, condition, pickup location]
+    B --> C["Set rental price + period; deposit pre-filled by category (฿200-3,000)"]
     C --> D[Listing published to marketplace]
     D --> E{Renter requests booking?}
     E -- No --> D
     E -- Yes --> F[Renter sends booking request]
     F --> G[Owner approves request]
-    G --> H[Platform collects rental fee + deposit via payment gateway]
-    H --> I[Funds held in escrow]
-    I --> J[Item handed over at pickup]
-    J --> K[Rental period active]
-    K --> L[Renter returns item at/before due date]
-    L --> M["Return dispute window opens (24-48 hrs)"]
-    M --> N{Owner files damage dispute within window?}
-    N -- No dispute filed - window expires --> O["Funds auto-released: deposit refunded to renter, rental fee minus commission paid to owner"]
-    N -- Owner confirms early, good condition --> O
-    O --> P[Both parties rate each other]
-    P --> Q[Item history updated]
-    N -- Yes, dispute filed --> R[Owner files dispute with evidence before window closes]
-    R --> S[Platform reviews dispute]
-    S --> T{Resolved in owner's favor?}
-    T -- Yes --> U[Deposit partially/fully released to owner]
-    T -- No --> O
+    G --> H["Renter pays rental fee + 10% + escrow fee + deposit via gateway"]
+    H --> I[Funds held in escrow by the gateway]
+    I --> J[Item handed over at pickup - handover photos taken]
+    J --> K{"Dispute within 48 hrs of handover?"}
+    K -- No --> L[Owner receives full rental fee]
+    K -- Yes --> X[Admin reviews handover dispute]
+    L --> M[Rental period active - deposit still held]
+    M --> N{Returned by due date?}
+    N -- More than 7 days late --> Y[Counted as missing - full deposit to owner]
+    N -- Late, under 7 days --> Z[Daily late fee taken from deposit]
+    Z --> O
+    N -- On time --> O[Owner checks condition against handover photos]
+    O --> P{"Owner files damage claim within 48 hrs?"}
+    P -- No claim - window expires --> Q[Remaining deposit refunded to renter]
+    P -- Owner confirms good condition --> Q
+    Q --> R[Both parties rate each other]
+    R --> S[Item history updated]
+    P -- Yes, claim filed --> T[Admin reviews photos and chat]
+    T --> U{Outcome}
+    U -- Normal wear --> Q
+    U -- Repairable damage --> V[Repair cost to owner, rest refunded to renter]
+    U -- Lost or destroyed --> W[Full deposit to owner]
 ```
 
 ### Renter Perspective — Renting an Item
@@ -262,32 +279,39 @@ flowchart TD
 flowchart TD
     A[Renter logs in] --> B[Browse/Search rentals]
     B --> C[Filter by category, dates, location]
-    C --> D[View listing - rental price + deposit shown]
+    C --> D["View listing - rental price, fees and deposit shown"]
     D --> E{Interested?}
     E -- No --> B
     E -- Yes --> F[Send booking request to owner]
     F --> G{Owner approves?}
     G -- No --> B
-    G -- Yes --> H[Pay rental fee + deposit online]
-    H --> I[Funds held in escrow]
+    G -- Yes --> H["Pay rental fee + 10% + escrow fee + deposit (PromptPay or card)"]
+    H --> I[Funds held in escrow by the gateway]
     I --> J[Meet owner, receive item]
     J --> K[Use item during rental period]
-    K --> L[Return item before due date]
-    L --> M["Return dispute window opens (24-48 hrs)"]
-    M --> N{Owner raises damage dispute within window?}
-    N -- No dispute filed - window expires --> O["Deposit auto-refunded to renter"]
-    N -- Owner confirms early, good condition --> O
-    O --> P[Renter rates owner]
-    N -- Yes, dispute filed --> Q[Dispute process initiated]
-    Q --> R{Resolved?}
-    R -- Renter's favor --> O
-    R -- Owner's favor --> S[Deposit forfeited to owner per resolution]
+    K --> L{Returned by due date?}
+    L -- Late --> M[Daily late fee taken from deposit]
+    M --> N
+    L -- On time --> N["48-hour dispute window opens at return"]
+    N --> O{Owner raises damage claim within window?}
+    O -- No claim - window expires --> P["Remaining deposit refunded to renter"]
+    O -- Owner confirms early, good condition --> P
+    P --> Q[Renter rates owner]
+    O -- Yes, claim filed --> R[Admin reviews dispute]
+    R --> S{Outcome}
+    S -- Normal wear --> P
+    S -- Repairable damage --> T[Repair cost deducted, rest refunded]
+    S -- Lost or destroyed --> U[Deposit forfeited to owner]
 ```
 
 ---
 
 ## Revenue Model
 
-- **10% platform commission on every transaction** — both sales and rentals. Buyer/renter pays listing price + commission; seller/owner receives the listing price.
-- **Escrow/deposit handling** — built into the commission-bearing transaction flow for rentals (deposit held and released alongside the rental fee).
-- **Optional premium placement** — frequent listers can pay a small fee for better visibility in search/matching results.
+Full formulas and amounts are in [BusinessRules.md](BusinessRules.md#2-fees).
+
+- **Free to list** — every sale and rental listing is free, keeping the "Facebook group replacement" use case frictionless.
+- **Rental commission** — 10% of the rental fee, paid by the renter at booking. Primary revenue stream.
+- **Escrow handling fee** — `max(฿30, 3% of deposit)` per rental, paid by the renter, for holding the deposit and running disputes. It scales so gateway fees on large deposits are covered.
+- **Buyer protection fee** — ฿10 + 3% on sales where the buyer chooses *Pay with protection*. Sales paid in person stay free.
+- **Premium placement** — ฿49 for 7 days at the top of search and matching, for frequent listers.
