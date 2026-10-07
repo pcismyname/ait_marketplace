@@ -3,54 +3,22 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { toast } from 'sonner'
-import {
-  ShieldCheck,
-  HandCoins,
-  CircleCheck,
-  TriangleAlert,
-  Clock,
-  ArrowRight,
-  Receipt,
-} from 'lucide-react'
+import { ShieldCheck, HandCoins, CircleCheck, TriangleAlert, Clock, ArrowRight } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
 import { BRAND, getUser, paymentMethodLabel } from '@/lib/data'
 import type { Rental, RentalPhase } from '@/lib/types'
 import { formatPrice } from '@/lib/format'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-const PHASE_META: Record<
-  RentalPhase,
-  { label: string; className: string; icon: typeof Clock }
-> = {
-  active: {
-    label: 'Rental active',
-    className: 'bg-primary/10 text-primary',
-    icon: Clock,
-  },
-  'return-pending': {
-    label: 'Return pending confirmation',
-    className: 'bg-surge-muted text-surge-foreground',
-    icon: HandCoins,
-  },
-  released: {
-    label: 'Deposit released',
-    className: 'bg-primary/10 text-primary',
-    icon: CircleCheck,
-  },
-  disputed: {
-    label: 'Dispute open',
-    className: 'bg-destructive/10 text-destructive',
-    icon: TriangleAlert,
-  },
+const PHASE_META: Record<RentalPhase, { label: string; color: string; icon: typeof Clock }> = {
+  active:           { label: 'Active',                  color: 'text-primary',      icon: Clock },
+  'return-pending': { label: 'Return pending',          color: 'text-amber-700',    icon: HandCoins },
+  released:         { label: 'Deposit released',        color: 'text-primary',      icon: CircleCheck },
+  disputed:         { label: 'Dispute open',            color: 'text-destructive',  icon: TriangleAlert },
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export default function RentalsPage() {
@@ -61,154 +29,150 @@ export default function RentalsPage() {
     .reduce((sum, r) => sum + r.deposit, 0)
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 md:px-6">
-      <div className="mb-6 border-b border-border pb-6">
-        <p className="label-tag mb-1">Rentals & escrow</p>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          My rentals & deposits
-        </h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">
-          Track rented items and the deposits held safely in escrow until return.
+    <div className="mx-auto max-w-7xl px-4 py-8 md:px-6">
+      {/* Page header */}
+      <div className="mb-6 border-b border-border pb-5">
+        <h1 className="text-lg font-semibold tracking-tight">My rentals</h1>
+        <p className="mt-0.5 text-[12px] text-muted-foreground">
+          Track rented items and deposits held in escrow.
         </p>
       </div>
 
-      <div className="mb-6 flex items-center gap-3 rounded-xl border border-border bg-card p-4">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <ShieldCheck className="h-5 w-5" />
-        </span>
-        <div>
-          <p className="text-sm text-muted-foreground">Total deposits in escrow</p>
-          <p className="font-display text-2xl font-bold">{formatPrice(totalHeld)}</p>
-        </div>
-        <p className="ml-auto hidden max-w-xs text-xs text-muted-foreground sm:block">
-          Deposits are held by {BRAND}, never by the owner, and released back to you once
-          the item is returned in good condition.
-        </p>
-      </div>
-
-      {rentals.length > 0 ? (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
-          {rentals.map((rental) => (
-            <RentalCard
-              key={rental.id}
-              rental={rental}
-              listing={listings.find((l) => l.id === rental.listingId)}
-              onPhase={(phase) => {
-                setRentalPhase(rental.id, phase)
-                if (phase === 'return-pending')
-                  toast('Marked as returned', {
-                    description: 'Waiting for the owner to confirm condition.',
-                  })
-                if (phase === 'released')
-                  toast.success('Deposit released', {
-                    description: `${formatPrice(rental.deposit)} refunded to you.`,
-                  })
-                if (phase === 'disputed')
-                  toast.error('Dispute opened', {
-                    description: `${BRAND} will review the item condition.`,
-                  })
-              }}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center">
-          <HandCoins className="mx-auto h-8 w-8 text-muted-foreground" />
-          <p className="mt-3 font-medium">No active rentals</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Rent furniture, appliances or gear for the semester.
+      {/* Escrow summary strip */}
+      {totalHeld > 0 && (
+        <div className="mb-8 flex items-center gap-4 border-b border-border pb-6">
+          <ShieldCheck className="h-5 w-5 text-primary shrink-0" />
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total held in escrow</p>
+            <p className="text-xl font-semibold text-foreground">{formatPrice(totalHeld)}</p>
+          </div>
+          <p className="ml-auto hidden max-w-xs text-[11px] text-muted-foreground sm:block text-right">
+            Deposits are held by {BRAND}, never by the owner, and released once the item is returned in good condition.
           </p>
-          <Button
-            render={<Link href="/browse?type=rent" />}
-            nativeButton={false}
-            className="mt-5"
-          >
-            Browse rentals
-          </Button>
         </div>
       )}
-    </div>
-  )
-}
 
-function RentalCard({
-  rental,
-  listing,
-  onPhase,
-}: {
-  rental: Rental
-  listing: ReturnType<typeof useMarketplace>['listings'][number] | undefined
-  onPhase: (phase: RentalPhase) => void
-}) {
-  if (!listing) return null
-  const owner = getUser(listing.sellerId)
-  const meta = PHASE_META[rental.phase]
-  const Icon = meta.icon
+      {/* Rental grid */}
+      {rentals.length > 0 ? (
+        <div className="grid grid-cols-2 gap-x-3 gap-y-10 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {rentals.map((rental) => {
+            const listing = listings.find((l) => l.id === rental.listingId)
+            if (!listing) return null
+            const owner = getUser(listing.sellerId)
+            const meta = PHASE_META[rental.phase]
+            const Icon = meta.icon
 
-  return (
-    <div className="group flex flex-col">
-      <Link
-        href={`/listing/${listing.id}`}
-        className="relative aspect-[3/4] w-full overflow-hidden bg-surface-tinted block"
-      >
-        <Image
-          src={listing.images[0] || '/placeholder.svg'}
-          alt={listing.title}
-          fill
-          className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-        />
-      </Link>
+            const onPhase = (phase: RentalPhase) => {
+              setRentalPhase(rental.id, phase)
+              if (phase === 'return-pending') toast('Marked as returned', { description: 'Waiting for owner to confirm.' })
+              if (phase === 'released') toast.success('Deposit released', { description: `${formatPrice(rental.deposit)} refunded.` })
+              if (phase === 'disputed') toast.error('Dispute opened')
+            }
 
-      <div className="mt-3 flex flex-col min-w-0">
-        <Link
-          href={`/listing/${listing.id}`}
-          className="truncate text-[13px] font-medium leading-snug hover:underline underline-offset-2 text-foreground"
-        >
-          {listing.title}
-        </Link>
-        <p className="text-[13px] text-muted-foreground mt-0.5">
-          From {owner.name}
-        </p>
+            return (
+              <div key={rental.id} className="group flex flex-col">
+                {/* Image */}
+                <div className="relative aspect-[3/4] w-full overflow-hidden bg-surface-tinted">
+                  <Link href={`/listing/${listing.id}`} className="absolute inset-0">
+                    <Image
+                      src={listing.images[0] || '/placeholder.svg'}
+                      alt={listing.title}
+                      fill
+                      className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                    />
+                  </Link>
+                  {/* Phase badge */}
+                  <span className={cn(
+                    'absolute bottom-2 left-2 flex items-center gap-1 rounded-sm bg-background/85 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider backdrop-blur-sm',
+                    meta.color,
+                  )}>
+                    <Icon className="h-2.5 w-2.5" />
+                    {meta.label}
+                  </span>
+                </div>
 
-        <div className="mt-1 flex items-center gap-1.5">
-          <Icon className={cn('h-3.5 w-3.5', meta.className.split(' ')[1])} />
-          <span className={cn('text-[11px] font-semibold uppercase tracking-wider', meta.className.split(' ')[1])}>
-            {meta.label}
-          </span>
+                {/* Info */}
+                <div className="mt-2 flex flex-col min-w-0">
+                  <Link
+                    href={`/listing/${listing.id}`}
+                    className="truncate text-[13px] font-medium leading-snug hover:underline underline-offset-2 text-foreground"
+                  >
+                    {listing.title}
+                  </Link>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    From {owner.name} · {listing.rentalPeriod}
+                  </p>
+                  <p className="text-[13px] font-semibold text-foreground mt-0.5">
+                    Deposit: {formatPrice(rental.deposit)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">Due {formatDate(rental.dueDate)}</p>
+
+                  {/* Actions */}
+                  <div className="mt-2.5 flex flex-col gap-1.5">
+                    {rental.phase === 'active' && (
+                      <button
+                        onClick={() => onPhase('return-pending')}
+                        className="h-7 rounded-sm border border-border text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors"
+                      >
+                        Mark returned
+                      </button>
+                    )}
+                    {rental.phase === 'return-pending' && (
+                      <>
+                        <button
+                          onClick={() => onPhase('released')}
+                          className="h-7 rounded-sm bg-primary text-[10px] font-semibold uppercase tracking-wider text-primary-foreground hover:opacity-90 transition-opacity"
+                        >
+                          Confirm &amp; release
+                        </button>
+                        <button
+                          onClick={() => onPhase('disputed')}
+                          className="h-7 rounded-sm border border-destructive/40 text-[10px] font-semibold uppercase tracking-wider text-destructive hover:bg-destructive/5 transition-colors"
+                        >
+                          Report damage
+                        </button>
+                      </>
+                    )}
+                    {rental.phase === 'disputed' && (
+                      <button
+                        onClick={() => onPhase('released')}
+                        className="h-7 rounded-sm border border-border text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Resolve dispute
+                      </button>
+                    )}
+                    {rental.phase === 'released' && (
+                      <span className="flex items-center gap-1 text-[11px] font-semibold text-primary">
+                        <CircleCheck className="h-3 w-3" />
+                        {formatPrice(rental.deposit)} refunded
+                      </span>
+                    )}
+                    {rental.phase === 'disputed' && (
+                      <Link href="/chat" className="flex items-center gap-1 text-[10px] text-primary hover:underline underline-offset-2">
+                        <ArrowRight className="h-3 w-3" />
+                        Message owner
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
-
-        <p className="text-[13px] font-semibold text-foreground mt-1">
-          Deposit: {formatPrice(rental.deposit)}
-        </p>
-
-        <div className="mt-3 flex flex-col gap-2">
-          {rental.phase === 'active' && (
-            <Button size="sm" variant="outline" className="w-full text-[11px] h-8 rounded-sm" onClick={() => onPhase('return-pending')}>
-              Mark returned
-            </Button>
-          )}
-          {rental.phase === 'return-pending' && (
-            <>
-              <Button size="sm" className="w-full text-[11px] h-8 rounded-sm" onClick={() => onPhase('released')}>
-                Confirm & release
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full text-[11px] h-8 rounded-sm text-destructive hover:text-destructive"
-                onClick={() => onPhase('disputed')}
-              >
-                Report damage
-              </Button>
-            </>
-          )}
-          {rental.phase === 'disputed' && (
-            <Button size="sm" variant="outline" className="w-full text-[11px] h-8 rounded-sm" onClick={() => onPhase('released')}>
-              Resolve dispute
-            </Button>
-          )}
+      ) : (
+        <div className="flex flex-col items-center py-24 text-center">
+          <HandCoins className="h-7 w-7 text-muted-foreground/30" strokeWidth={1.25} />
+          <p className="mt-5 text-[14px] font-medium">No active rentals</p>
+          <p className="mt-1 text-[12px] text-muted-foreground">Rent furniture, appliances or gear for the semester.</p>
+          <Link
+            href="/?type=rent"
+            className="mt-5 flex items-center gap-2 rounded-sm bg-primary px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            Browse rentals
+          </Link>
         </div>
-      </div>
+      )}
     </div>
   )
 }

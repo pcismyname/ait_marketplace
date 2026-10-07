@@ -94,9 +94,9 @@ export default function SellPage() {
                 type="button"
                 onClick={() => setType(value)}
                 className={cn(
-                  'flex items-start gap-3 rounded-xl border p-4 text-left transition-all duration-150',
+                  'flex items-start gap-3 border p-4 text-left transition-all duration-150',
                   type === value
-                    ? 'border-primary bg-primary-muted ring-1 ring-primary'
+                    ? 'border-primary bg-primary-muted'
                     : 'border-border bg-card hover:border-primary/30',
                 )}
               >
@@ -115,7 +115,7 @@ export default function SellPage() {
           <Label className="label-tag">Photos <span className="normal-case font-normal text-muted-foreground">(up to 5)</span></Label>
           <div className="flex flex-wrap gap-2.5">
             {images.map((url) => (
-              <div key={url} className="relative h-20 w-20 overflow-hidden rounded-lg border border-border bg-surface-tinted">
+              <div key={url} className="relative h-20 w-20 overflow-hidden border border-border bg-surface-tinted">
                 <Image src={url} alt="Upload preview" fill className="object-cover" />
                 <button
                   type="button"
@@ -131,7 +131,7 @@ export default function SellPage() {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-muted-foreground transition hover:border-primary/40 hover:bg-surface-tinted hover:text-foreground"
+                className="flex h-20 w-20 flex-col items-center justify-center gap-1 border border-dashed border-border text-muted-foreground transition hover:border-primary/40 hover:bg-surface-tinted hover:text-foreground"
               >
                 <ImagePlus className="h-4 w-4" />
                 <span className="text-[11px]">Add photo</span>
@@ -223,7 +223,7 @@ export default function SellPage() {
 
         {/* Contextual info note */}
         {type === 'rent' ? (
-          <div className="flex items-start gap-2.5 rounded-xl border border-surge/20 bg-surge-surface p-4">
+          <div className="flex items-start gap-2.5 border border-amber-200/50 bg-amber-50/50 p-4">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-surge-foreground" />
             <p className="text-[12px] leading-relaxed text-surge-foreground">
               The renter&apos;s deposit is held in escrow by {BRAND} and released when you confirm
@@ -233,7 +233,7 @@ export default function SellPage() {
             </p>
           </div>
         ) : (
-          <div className="flex items-start gap-2.5 rounded-xl border border-border bg-surface p-4">
+          <div className="flex items-start gap-2.5 border border-border bg-surface p-4">
             <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-[12px] leading-relaxed text-muted-foreground">
               Free to list, free to sell. No platform fee on peer-to-peer sales.
@@ -248,9 +248,9 @@ export default function SellPage() {
           aria-checked={premium}
           onClick={() => setPremium((p) => !p)}
           className={cn(
-            'flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-all duration-150',
+            'flex w-full items-start gap-3 border p-4 text-left transition-all duration-150',
             premium
-              ? 'border-primary bg-primary-muted ring-1 ring-primary'
+              ? 'border-primary bg-primary-muted'
               : 'border-border bg-card hover:border-primary/30',
           )}
         >
