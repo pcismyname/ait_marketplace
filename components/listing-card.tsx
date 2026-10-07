@@ -38,10 +38,10 @@ export function ProductCard({ listing }: { listing: Listing }) {
   return (
     <article className="group relative">
       {/* ── Image area — edge-to-edge, no border, no shadow ── */}
-      <div className="relative overflow-hidden bg-surface-tinted">
+      <div className="relative aspect-[3/4] w-full overflow-hidden bg-surface-tinted">
         <Link
           href={`/listing/${listing.id}`}
-          className="block aspect-[3/4] w-full"
+          className="absolute inset-0"
           tabIndex={-1}
           aria-hidden
         >
@@ -59,7 +59,7 @@ export function ProductCard({ listing }: { listing: Listing }) {
           ) : (
             <ImagePlaceholder
               category={listing.category}
-              aspectClass="aspect-[3/4] w-full"
+              aspectClass="h-full w-full"
               className={isUnavailable ? 'opacity-60' : ''}
             />
           )}
@@ -87,6 +87,7 @@ export function ProductCard({ listing }: { listing: Listing }) {
           <Heart className={cn('h-3.5 w-3.5', isFav && 'fill-current')} />
         </button>
       </div>
+
 
       {/* ── Minimal text below image — no box, no padding container ── */}
       <div className="mt-2 space-y-0.5">
