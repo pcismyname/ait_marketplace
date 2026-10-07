@@ -42,14 +42,14 @@ function Chip({
       <button
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px] font-semibold uppercase tracking-wider transition-colors',
+          'flex h-9 items-center gap-2 rounded-full border px-4 text-[12px] font-semibold uppercase tracking-wider transition-all',
           active
-            ? 'border-foreground bg-foreground text-background'
-            : 'border-border bg-background text-muted-foreground hover:border-foreground/40 hover:text-foreground',
+            ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+            : 'border-border/60 bg-surface text-muted-foreground hover:border-foreground/40 hover:text-foreground hover:shadow-sm',
         )}
       >
         {label}
-        <ChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} />
+        <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} />
       </button>
       {open && (
         <>
@@ -87,8 +87,8 @@ export function FilterBar({ filters, resultCount, onChange, onReset }: FilterBar
   return (
     <>
       {/* ── Slim filter bar ── */}
-      <div className="sticky top-12 z-30 border-b border-border bg-background">
-        <div className="mx-auto flex h-10 max-w-7xl items-center gap-2 overflow-x-auto px-4 md:px-6 no-scrollbar">
+      <div className="sticky top-16 z-30 border-b border-border bg-background/95 backdrop-blur-md">
+        <div className="w-full px-4 lg:px-12 xl:px-20 flex h-16 items-center gap-3 overflow-x-auto no-scrollbar">
 
           {/* Type chip */}
           <Chip
@@ -142,12 +142,12 @@ export function FilterBar({ filters, resultCount, onChange, onReset }: FilterBar
           {/* All filters drawer trigger */}
           <button
             onClick={() => setDrawerOpen(true)}
-            className="flex h-8 shrink-0 items-center gap-1.5 rounded-sm border border-border px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+            className="flex h-9 shrink-0 items-center gap-2 rounded-full border border-border px-4 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground hover:shadow-sm"
           >
-            <SlidersHorizontal className="h-3 w-3" />
+            <SlidersHorizontal className="h-3.5 w-3.5" />
             All filters
             {hasActiveFilters && (
-              <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-primary-foreground">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                 !
               </span>
             )}

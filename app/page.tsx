@@ -4,9 +4,9 @@ import { Suspense, useMemo, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Inbox, RotateCcw, Search } from 'lucide-react'
+import { Inbox, RotateCcw, ArrowRight, Search } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
-import { BRAND, CATEGORIES, categoryLabel } from '@/lib/data'
+import { CATEGORIES, categoryLabel } from '@/lib/data'
 import type { CategoryId, ListingType } from '@/lib/types'
 import { ProductCard } from '@/components/listing-card'
 import { FilterBar, type FilterState } from '@/components/filter-bar'
@@ -17,6 +17,17 @@ const DEFAULT_FILTERS: FilterState = {
   condition: 'all',
   location: '',
   sort: 'recent',
+}
+
+// Category icons mapping (simple emoji-free visual chips)
+const CATEGORY_ICONS: Record<string, string> = {
+  furniture: '🪑',
+  electronics: '🔌',
+  bicycles: '🚲',
+  textbooks: '📚',
+  kitchen: '🍳',
+  sports: '🏸',
+  other: '📦',
 }
 
 function HomeInner() {
@@ -31,38 +42,22 @@ function HomeInner() {
     location: '',
     sort: 'recent',
   })
-  const [query, setQuery] = useState(searchParams.get('q') ?? '')
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 20
-
-  const onSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Update URL so it's shareable, but also update local state
-    const params = new URLSearchParams()
-    if (query.trim()) params.set('q', query.trim())
-    if (filters.category !== 'all') params.set('category', filters.category)
-    router.push(`/?${params.toString()}`)
-    setPage(1)
-  }
 
   const onChange = (partial: Partial<FilterState>) => {
     setFilters((prev) => ({ ...prev, ...partial }))
     setPage(1)
   }
-  const onReset = () => { setFilters(DEFAULT_FILTERS); setQuery(''); setPage(1) }
+  const onReset = () => { setFilters(DEFAULT_FILTERS); setPage(1) }
 
   const results = useMemo(() => {
     let out = listings.filter((l) => {
-      // hide paused/sold items unless status filter active
       if (l.status === 'paused' || l.status === 'sold') return false
       if (filters.type !== 'all' && l.type !== filters.type) return false
       if (filters.category !== 'all' && l.category !== filters.category) return false
       if (filters.condition !== 'all' && l.condition !== filters.condition) return false
       if (filters.location && l.pickupLocation !== filters.location) return false
-      if (query.trim()) {
-        const q = query.toLowerCase()
-        if (!l.title.toLowerCase().includes(q) && !l.description.toLowerCase().includes(q)) return false
-      }
       return true
     })
     return [...out].sort((a, b) => {
@@ -71,59 +66,49 @@ function HomeInner() {
       if (filters.sort === 'price-desc') return b.price - a.price
       return +new Date(b.createdAt) - +new Date(a.createdAt)
     })
-  }, [listings, filters, query])
+  }, [listings, filters])
 
   const visible = results.slice(0, page * PAGE_SIZE)
   const hasMore = visible.length < results.length
 
+  const activeCount = listings.filter((l) => l.status === 'available').length
+
   return (
     <div>
-      {/* ── Minimal Search Hero ── */}
-      <section className="border-b border-border bg-background pt-10 pb-8">
-        <div className="mx-auto max-w-4xl px-4 text-center md:px-6">
-          {/* Search */}
-          <form onSubmit={onSearch} className="mx-auto flex max-w-2xl gap-2">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search furniture, electronics, bikes..."
-                className="h-12 w-full rounded-full border border-input bg-card pl-11 pr-4 text-[14px] outline-none shadow-sm transition focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
-                aria-label="Search listings"
-              />
-            </div>
-            <button
-              type="submit"
-              className="rounded-full bg-primary px-6 text-[12px] font-semibold uppercase tracking-wider text-primary-foreground hover:opacity-90 transition-opacity"
-            >
+      {/* ── Editorial Search Hero ── */}
+      <div className="bg-background pt-12 pb-16">
+        <div className="w-full px-4 lg:px-12 xl:px-20">
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault()
+              router.push(searchParams.get('q') ? `/?q=${searchParams.get('q')}` : '/')
+            }}
+            className="flex w-full md:max-w-4xl mx-auto items-center gap-4 bg-surface rounded-full px-6 py-4 md:px-8 md:py-6 shadow-sm transition-all focus-within:ring-4 focus-within:ring-primary/20 focus-within:shadow-md"
+          >
+            <Search className="h-6 w-6 md:h-8 md:w-8 text-primary shrink-0" />
+            <input
+              type="search"
+              placeholder="Search everything..."
+              className="w-full bg-transparent text-xl md:text-3xl font-display outline-none placeholder:text-muted-foreground/60 text-foreground"
+              defaultValue={searchParams.get('q') || ''}
+              onChange={(e) => {
+                const url = new URL(window.location.href)
+                if (e.target.value) {
+                  url.searchParams.set('q', e.target.value)
+                } else {
+                  url.searchParams.delete('q')
+                }
+                router.replace(url.pathname + url.search)
+              }}
+            />
+            <button type="submit" className="hidden md:flex shrink-0 bg-primary text-primary-foreground rounded-full px-6 py-3 text-[13px] font-bold tracking-wider uppercase hover:opacity-90 transition-opacity">
               Search
             </button>
           </form>
-
-          {/* Inline Categories */}
-          <div className="mt-6 flex flex-wrap justify-center items-center gap-3 text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
-            {CATEGORIES.filter((c) => c.id !== 'other').map((cat, index, array) => {
-              const isActive = filters.category === cat.id
-              return (
-                <span key={cat.id} className="flex items-center gap-3">
-                  <button
-                    onClick={() => onChange({ category: cat.id })}
-                    className={`hover:text-primary transition-colors ${isActive ? 'text-foreground font-bold' : ''}`}
-                  >
-                    {cat.label}
-                  </button>
-                  {index < array.length - 1 && (
-                    <span className="text-border">|</span>
-                  )}
-                </span>
-              )
-            })}
-          </div>
         </div>
-      </section>
+      </div>
 
-      {/* Filter bar — sticky under header */}
+      {/* Filter bar */}
       <FilterBar
         filters={filters}
         resultCount={results.length}
@@ -131,11 +116,20 @@ function HomeInner() {
         onReset={onReset}
       />
 
-      <div className="mx-auto max-w-7xl px-4 py-8 md:px-6">
+      <div className="w-full px-4 py-16 lg:px-12 xl:px-20 min-h-screen">
+        {/* Section label */}
+        {filters.category !== 'all' && (
+          <div className="mb-10">
+            <h2 className="font-display text-4xl font-bold tracking-tight">
+              {categoryLabel(filters.category as CategoryId)}
+            </h2>
+          </div>
+        )}
+
         {/* Product grid */}
         {visible.length > 0 ? (
           <>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-3">
               {visible.map((listing) => (
                 <ProductCard key={listing.id} listing={listing} />
               ))}
@@ -172,31 +166,36 @@ function HomeInner() {
         )}
       </div>
 
+
       {/* ── Footer ── */}
-      <footer className="border-t border-border bg-surface mt-16">
-        <div className="mx-auto max-w-7xl px-4 py-10 md:px-6">
-          <div className="flex flex-col gap-8 sm:flex-row sm:gap-16">
-            <div className="sm:w-44 shrink-0">
+      <footer className="border-t border-border bg-surface">
+        <div className="mx-auto max-w-7xl px-4 py-12 md:px-6">
+          <div className="flex flex-col gap-10 sm:flex-row sm:gap-16">
+            <div className="sm:w-52 shrink-0">
               <Image
                 src="/logo/passiton-logo.svg"
                 alt="PassItOn"
-                width={108}
-                height={32}
-                className="h-7 w-auto dark:hidden"
+                width={120}
+                height={36}
+                className="h-8 w-auto dark:hidden"
               />
               <Image
                 src="/logo/passiton-logo-reversed.svg"
                 alt="PassItOn"
-                width={108}
-                height={32}
-                className="h-7 w-auto hidden dark:block"
+                width={120}
+                height={36}
+                className="h-8 w-auto hidden dark:block"
               />
-              <p className="mt-2 text-[12px] text-muted-foreground leading-relaxed">
+              <p className="mt-3 text-[12px] text-muted-foreground leading-relaxed">
                 Student-only circular marketplace for AIT.
                 Buy, sell, and rent — cohort to cohort.
               </p>
+              <div className="mt-4 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                AIT email verified only
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-x-12 gap-y-6 sm:grid-cols-3 flex-1">
+            <div className="grid grid-cols-2 gap-x-12 gap-y-8 sm:grid-cols-3 flex-1">
               <FooterGroup title="Marketplace" links={[
                 { href: '/', label: 'Browse all' },
                 { href: '/?type=rent', label: 'For rent' },
@@ -214,8 +213,8 @@ function HomeInner() {
               ]} />
             </div>
           </div>
-          <div className="mt-8 flex items-center justify-between border-t border-border pt-5 text-[11px] text-muted-foreground">
-            <p>© {new Date().getFullYear()} AIT Circular Marketplace</p>
+          <div className="mt-10 flex items-center justify-between border-t border-border pt-6 text-[11px] text-muted-foreground">
+            <p>© {new Date().getFullYear()} PassItOn</p>
             <p className="hidden sm:block">For students, by students · Asian Institute of Technology</p>
           </div>
         </div>
@@ -228,7 +227,7 @@ function FooterGroup({ title, links }: { title: string; links: { href?: string; 
   return (
     <div>
       <p className="label-tag mb-3">{title}</p>
-      <ul className="space-y-2">
+      <ul className="space-y-2.5">
         {links.map((l) => (
           <li key={l.label}>
             {l.href
@@ -246,7 +245,6 @@ export default function HomePage() {
   return (
     <Suspense fallback={
       <div className="mx-auto max-w-7xl px-4 py-8 md:px-6">
-        {/* Skeleton grid */}
         <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="space-y-2">

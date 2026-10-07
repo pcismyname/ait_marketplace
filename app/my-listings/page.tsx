@@ -100,26 +100,26 @@ export default function MyListingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 md:px-6">
+    <div className="w-full px-4 py-16 lg:px-12 xl:px-20 min-h-screen">
       {/* Page header */}
-      <div className="mb-6 flex items-baseline justify-between gap-4 border-b border-border pb-5">
+      <div className="mb-16 flex flex-col md:flex-row md:items-end justify-between gap-8">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">My listings</h1>
-          <p className="mt-0.5 text-[12px] text-muted-foreground">
+          <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tight">My Listings</h1>
+          <p className="mt-4 text-[13px] font-semibold uppercase tracking-widest text-muted-foreground">
             {myListings.length} item{myListings.length !== 1 ? 's' : ''} posted by you
           </p>
         </div>
         <Link
           href="/sell"
-          className="flex items-center gap-1.5 rounded-sm bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-primary-foreground transition-opacity hover:opacity-90"
+          className="flex w-fit items-center gap-1.5 border border-foreground px-6 py-3 text-[11px] font-semibold uppercase tracking-widest text-foreground transition-colors hover:bg-foreground hover:text-background"
         >
           <Plus className="h-3 w-3" />
-          List item
+          List an item
         </Link>
       </div>
 
       {/* Status tabs */}
-      <div className="mb-8 flex gap-0 overflow-x-auto border-b border-border no-scrollbar">
+      <div className="mb-12 flex gap-0 overflow-x-auto border-b border-border no-scrollbar pb-2">
         {STATUS_TABS.map(({ value, label }) => (
           <button
             key={value}
@@ -141,9 +141,9 @@ export default function MyListingsPage() {
         ))}
       </div>
 
-      {/* Listing grid — same 4-col grid as home/browse */}
+      {/* Listing grid */}
       {visible.length > 0 ? (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-10 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {visible.map((listing) => {
             const hasImage = hasRealImage(listing.images[0])
             const hasThread = !!threadsByListing[listing.id]
@@ -203,43 +203,41 @@ export default function MyListingsPage() {
                   </div>
 
                   {/* Action row */}
-                  <div className="mt-2.5 flex gap-1.5">
-                    {listing.status === 'available' && (
-                      <button
-                        onClick={() => onPause(listing)}
-                        className="flex-1 h-7 rounded-sm border border-border text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
-                      >
-                        Pause
-                      </button>
-                    )}
-                    {listing.status === 'paused' && (
-                      <button
-                        onClick={() => onRepublish(listing)}
-                        className="flex-1 h-7 rounded-sm bg-primary text-[10px] font-semibold uppercase tracking-wider text-primary-foreground hover:opacity-90 transition-opacity"
-                      >
-                        Republish
-                      </button>
-                    )}
-                    {listing.status === 'sold' || listing.status === 'rented' ? (
-                      <Link
-                        href={`/listing/${listing.id}`}
-                        className="flex-1 h-7 flex items-center justify-center rounded-sm border border-border text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        View
-                      </Link>
-                    ) : null}
+                  <div className="mt-3 flex items-center justify-between border-t border-border pt-2.5">
+                    <div className="flex gap-3">
+                      {listing.status === 'available' && (
+                        <button
+                          onClick={() => onPause(listing)}
+                          className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          Pause
+                        </button>
+                      )}
+                      {listing.status === 'paused' && (
+                        <button
+                          onClick={() => onRepublish(listing)}
+                          className="text-[11px] font-semibold uppercase tracking-wider text-primary hover:opacity-80 transition-opacity"
+                        >
+                          Republish
+                        </button>
+                      )}
+                      {(listing.status === 'sold' || listing.status === 'rented') && (
+                        <Link
+                          href={`/listing/${listing.id}`}
+                          className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          View details
+                        </Link>
+                      )}
+                    </div>
 
                     {/* More menu */}
                     <DropdownMenu>
                       <DropdownMenuTrigger
-                        render={
-                          <button
-                            className="h-7 w-7 flex items-center justify-center rounded-sm border border-border text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                            aria-label="More actions"
-                          />
-                        }
+                        className="flex items-center text-muted-foreground hover:text-foreground transition-colors p-1 -mr-1"
+                        aria-label="More actions"
                       >
-                        <MoreHorizontal className="h-3.5 w-3.5" />
+                        <MoreHorizontal className="h-4 w-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-44 rounded-sm p-1">
                         <DropdownMenuItem
@@ -250,11 +248,18 @@ export default function MyListingsPage() {
                           View listing
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          render={<Link href={`/sell?edit=${listing.id}`} />}
+                          render={<Link href={`/dashboard/listings/${listing.id}/edit`} />}
                           className="flex items-center gap-2 rounded-sm px-3 py-2 text-[12px]"
                         >
                           <Pencil className="h-3.5 w-3.5" />
                           Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          render={<Link href={`/dashboard/listings/${listing.id}/requests`} />}
+                          className="flex items-center gap-2 rounded-sm px-3 py-2 text-[12px]"
+                        >
+                          <PackageSearch className="h-3.5 w-3.5" />
+                          View requests
                         </DropdownMenuItem>
                         {listing.status === 'available' && (
                           <DropdownMenuItem

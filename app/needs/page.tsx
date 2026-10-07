@@ -47,12 +47,12 @@ export default function NeedsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 md:px-6">
+    <div className="w-full px-4 py-16 lg:px-12 xl:px-20 min-h-screen">
       {/* Header */}
-      <div className="mb-8 border-b border-border pb-5 max-w-2xl">
-        <h1 className="text-lg font-semibold tracking-tight">Pre-arrival needs</h1>
-        <p className="mt-1 text-[13px] text-muted-foreground text-pretty">
-          Tell the community what you need before you arrive. We'll match you against items that outgoing students are listing as they move out.
+      <div className="mb-16">
+        <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tight">Pre-arrival Needs</h1>
+        <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
+          Tell the community what you need before you arrive. We’ll match you against items that outgoing students are listing as they move out.
         </p>
       </div>
 
@@ -60,7 +60,7 @@ export default function NeedsPage() {
         {/* Form — sharp bordered box */}
         <form
           onSubmit={onSubmit}
-          className="h-fit border border-border p-6 space-y-4 lg:sticky lg:top-20"
+          className="h-fit space-y-4 lg:sticky lg:top-20"
         >
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-4">Register a need</p>
 
@@ -127,7 +127,7 @@ export default function NeedsPage() {
                         )}
                       </div>
                       {matches.length > 0 && (
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-3">
+                        <div className="grid grid-cols-1 gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-3 mt-8">
                           {matches.slice(0, 3).map((l) => (
                             <ProductCard key={l.id} listing={l} />
                           ))}
@@ -138,7 +138,7 @@ export default function NeedsPage() {
                 })}
               </div>
             ) : (
-              <div className="border border-dashed border-border p-8 text-center text-[13px] text-muted-foreground">
+              <div className="py-12 text-[13px] text-muted-foreground">
                 You haven&apos;t registered any needs yet.
               </div>
             )}

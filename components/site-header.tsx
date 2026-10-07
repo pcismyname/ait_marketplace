@@ -13,6 +13,13 @@ import { useMarketplace } from '@/lib/store'
 import { CATEGORIES, getUser } from '@/lib/data'
 import { initials } from '@/lib/format'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { AnnouncementBar } from '@/components/announcement-bar'
 
 export function SiteHeader() {
@@ -53,9 +60,9 @@ export function SiteHeader() {
       <header className="sticky top-0 z-40 border-b border-border bg-background">
 
         {/* ── Main nav row ── */}
-        <div className="mx-auto flex h-12 max-w-7xl items-center gap-0 px-4 md:px-6">
+        <div className="relative mx-auto flex h-16 w-full items-center justify-between px-4 md:px-8 xl:px-12">
 
-          {/* Logo */}
+          {/* Logo (Left) */}
           <Link
             href="/"
             className="mr-6 shrink-0"
@@ -79,8 +86,8 @@ export function SiteHeader() {
             />
           </Link>
 
-          {/* Category nav — desktop */}
-          <nav className="hidden items-center lg:flex gap-1" aria-label="Main navigation">
+          {/* Category nav — desktop (Centered) */}
+          <nav className="hidden absolute left-1/2 -translate-x-1/2 lg:flex items-center gap-6" aria-label="Main navigation">
             {NAV_PAGES.map((page) => {
               const active = pathname === page.href || pathname.startsWith(`${page.href}?`)
               return (
@@ -88,8 +95,8 @@ export function SiteHeader() {
                   key={page.href}
                   href={page.href}
                   className={cn(
-                    'px-3 py-3 text-[11px] font-semibold uppercase tracking-widest transition-colors whitespace-nowrap',
-                    active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+                    'text-[12px] font-semibold uppercase tracking-widest transition-colors whitespace-nowrap',
+                    active ? 'text-foreground border-b-2 border-foreground py-1' : 'text-muted-foreground hover:text-foreground py-1 border-b-2 border-transparent',
                   )}
                 >
                   {page.label}
@@ -149,14 +156,41 @@ export function SiteHeader() {
               List
             </Link>
 
-            {/* Avatar */}
-            <button className="ml-2 flex h-7 w-7 items-center justify-center" aria-label="Profile">
-              <Avatar className="h-7 w-7 ring-1 ring-border">
-                <AvatarFallback className="bg-primary-muted text-[10px] font-bold text-primary">
-                  {initials(me.name === 'You' ? 'SR' : me.name)}
-                </AvatarFallback>
-              </Avatar>
-            </button>
+            {/* Avatar Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger className="ml-2 flex h-7 w-7 items-center justify-center hover:opacity-80 transition-opacity outline-none" aria-label="Profile">
+                <Avatar className="h-7 w-7 ring-1 ring-border">
+                  <AvatarFallback className="bg-primary-muted text-[10px] font-bold text-primary">
+                    {initials(me.name === 'You' ? 'SR' : me.name)}
+                  </AvatarFallback>
+                </Avatar>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 p-1 rounded-md mt-2">
+                <div className="px-2 py-2 border-b border-border mb-1">
+                  <p className="text-[13px] font-medium">{me.name === 'You' ? 'Sami R.' : me.name}</p>
+                  <p className="text-[11px] text-muted-foreground">{me.email || 'st123456@ait.asia'}</p>
+                </div>
+                <DropdownMenuItem render={<Link href="/my-listings" />} className="flex cursor-pointer items-center px-3 py-2 text-[12px] hover:bg-muted rounded-sm">
+                  My Listings
+                </DropdownMenuItem>
+                <DropdownMenuItem render={<Link href="/rentals" />} className="flex cursor-pointer items-center px-3 py-2 text-[12px] hover:bg-muted rounded-sm">
+                  My Rentals
+                </DropdownMenuItem>
+                <DropdownMenuItem render={<Link href="/dashboard/orders" />} className="flex cursor-pointer items-center px-3 py-2 text-[12px] hover:bg-muted rounded-sm">
+                  Orders
+                </DropdownMenuItem>
+                <DropdownMenuItem render={<Link href="/dashboard/wallet" />} className="flex cursor-pointer items-center px-3 py-2 text-[12px] hover:bg-muted rounded-sm">
+                  Wallet & Escrow
+                </DropdownMenuItem>
+                <DropdownMenuItem render={<Link href="/dashboard/settings" />} className="flex cursor-pointer items-center px-3 py-2 text-[12px] hover:bg-muted rounded-sm">
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="my-1 border-border" />
+                <DropdownMenuItem render={<Link href="/login" />} className="flex cursor-pointer items-center px-3 py-2 text-[12px] text-destructive focus:text-destructive hover:bg-destructive/10 rounded-sm">
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* Mobile right */}

@@ -31,6 +31,7 @@ export interface Category {
 export interface User {
   id: string
   name: string
+  email?: string
   avatar: string
   program: string
   batch: string

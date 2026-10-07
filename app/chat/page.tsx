@@ -72,14 +72,14 @@ function ChatInner() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
+    <div className="w-full px-4 py-16 lg:px-12 xl:px-20 min-h-screen">
       {/* Page title */}
-      <div className="mb-4 border-b border-border pb-4">
-        <h1 className="text-lg font-semibold tracking-tight">Messages</h1>
+      <div className="mb-12">
+        <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tight">Messages</h1>
       </div>
 
       {/* Two-panel chat */}
-      <div className="grid h-[calc(100vh-10rem)] overflow-hidden border border-border md:grid-cols-[280px_1fr]">
+      <div className="grid h-[calc(100vh-16rem)] min-h-[500px] overflow-hidden border border-border md:grid-cols-[320px_1fr]">
         {/* Thread list */}
         <aside className={cn('flex-col border-r border-border', selected ? 'hidden md:flex' : 'flex')}>
           <div className="flex-1 overflow-y-auto divide-y divide-border">

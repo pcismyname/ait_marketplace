@@ -68,12 +68,11 @@ export default function SellPage() {
   }
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-10 md:px-6">
+    <div className="w-full max-w-3xl mx-auto px-4 py-16 lg:py-24 min-h-screen">
       {/* Header */}
-      <div className="mb-8 border-b border-border pb-6">
-        <p className="label-tag mb-1">Marketplace</p>
-        <h1 className="text-2xl font-semibold tracking-tight">List an item</h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">
+      <div className="mb-16">
+        <h1 className="font-display text-5xl md:text-6xl font-bold tracking-tight">List an Item</h1>
+        <p className="mt-6 text-[15px] leading-relaxed text-muted-foreground">
           Selling before you fly home, or renting out for the semester?
           Post it for the AIT community.
         </p>
@@ -84,27 +83,30 @@ export default function SellPage() {
         {/* Sale vs Rent — two option cards */}
         <div>
           <p className="label-tag mb-3">Listing type</p>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="flex gap-6 border-b border-border pb-4">
             {[
-              { value: 'sale' as ListingType, Icon: Tag, title: 'For sale', sub: 'One-time sale, no platform fee.' },
-              { value: 'rent' as ListingType, Icon: HandCoins, title: 'For rent', sub: 'Deposit held in escrow.' },
-            ].map(({ value, Icon, title: t, sub }) => (
+              { value: 'sale' as ListingType, title: 'For sale', sub: 'No platform fee.' },
+              { value: 'rent' as ListingType, title: 'For rent', sub: 'Deposit in escrow.' },
+            ].map(({ value, title: t, sub }) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setType(value)}
                 className={cn(
-                  'flex items-start gap-3 border p-4 text-left transition-all duration-150',
+                  'flex items-center gap-2 transition-all duration-150',
                   type === value
-                    ? 'border-primary bg-primary-muted'
-                    : 'border-border bg-card hover:border-primary/30',
+                    ? 'text-foreground'
+                    : 'text-muted-foreground hover:text-foreground/80',
                 )}
               >
-                <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', type === value ? 'text-primary' : 'text-muted-foreground')} />
-                <span>
-                  <span className="block text-[13px] font-semibold">{t}</span>
-                  <span className="block text-[12px] text-muted-foreground">{sub}</span>
-                </span>
+                <div className={cn(
+                  'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
+                  type === value ? 'border-primary border-[5px]' : 'border-border',
+                )} />
+                <div className="text-left">
+                  <span className="block text-[13px] font-semibold leading-none">{t}</span>
+                  <span className="block text-[11px] mt-1">{sub}</span>
+                </div>
               </button>
             ))}
           </div>
@@ -242,34 +244,30 @@ export default function SellPage() {
         )}
 
         {/* Premium placement toggle */}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={premium}
-          onClick={() => setPremium((p) => !p)}
-          className={cn(
-            'flex w-full items-start gap-3 border p-4 text-left transition-all duration-150',
-            premium
-              ? 'border-primary bg-primary-muted'
-              : 'border-border bg-card hover:border-primary/30',
-          )}
-        >
-          <Sparkles className={cn('mt-0.5 h-4 w-4 shrink-0', premium ? 'text-primary' : 'text-muted-foreground')} />
-          <span className="flex-1 min-w-0">
-            <span className="block text-[13px] font-semibold">
-              Premium placement · {formatPrice(PREMIUM_PLACEMENT_FEE)} for 7 days
+        <div className="border-t border-border pt-6">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={premium}
+            onClick={() => setPremium((p) => !p)}
+            className="group flex w-full items-start gap-3 text-left transition-all duration-150"
+          >
+            <div className={cn(
+              'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center border transition-colors',
+              premium ? 'border-primary bg-primary text-primary-foreground' : 'border-border group-hover:border-foreground/40',
+            )}>
+              {premium && <Check className="h-3 w-3" />}
+            </div>
+            <span className="flex-1 min-w-0">
+              <span className="block text-[13px] font-semibold text-foreground">
+                Premium placement · {formatPrice(PREMIUM_PLACEMENT_FEE)} for 7 days
+              </span>
+              <span className="block text-[12px] text-muted-foreground mt-0.5">
+                Appear first in search and pre-arrival matching. Useful when clearing a whole room.
+              </span>
             </span>
-            <span className="block text-[12px] text-muted-foreground">
-              Appear first in search and pre-arrival matching. Useful when clearing a whole room.
-            </span>
-          </span>
-          <span className={cn(
-            'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border',
-            premium ? 'border-primary bg-primary text-primary-foreground' : 'border-border',
-          )}>
-            {premium && <Check className="h-2.5 w-2.5" />}
-          </span>
-        </button>
+          </button>
+        </div>
 
         {/* Submit */}
         <div className="flex gap-3 pt-1">

@@ -7,17 +7,16 @@ import { useState } from 'react'
 import {
   ChevronRight, MapPin, MessageCircle, ShieldCheck,
   BadgeCheck, HandCoins, Clock, Heart, ChevronDown,
-  ChevronUp, Store, Repeat,
+  ChevronUp, Store, Repeat, CreditCard, Package
 } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
 import { getUser, getSellerReviews, categoryLabel, CONDITION_LABELS } from '@/lib/data'
 import { computeRentalQuote, RENTAL_COMMISSION_RATE } from '@/lib/fees'
 import { formatPrice, relativeTime, initials } from '@/lib/format'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Rating } from '@/components/rating'
 import { ContactSellerDialog } from '@/components/contact-seller-dialog'
-import { RentCheckoutDialog } from '@/components/rent-checkout-dialog'
 import { ProductCard } from '@/components/listing-card'
 import { ImagePlaceholder } from '@/components/image-placeholder'
 import { cn } from '@/lib/utils'
@@ -92,7 +91,7 @@ export default function ListingDetailPage() {
   const displayImages = images.length > 0 ? images : []
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 md:px-6">
+    <div className="w-full px-4 py-12 lg:px-12 xl:px-20 min-h-screen">
       {/* Breadcrumb */}
       <nav className="mb-6 flex items-center gap-1.5 text-[11px] text-muted-foreground" aria-label="Breadcrumb">
         <Link href="/browse" className="hover:text-foreground transition-colors">Browse</Link>
@@ -105,7 +104,7 @@ export default function ListingDetailPage() {
       </nav>
 
       {/* Two-column layout */}
-      <div className="grid gap-10 lg:grid-cols-[1fr_380px] xl:grid-cols-[1fr_420px]">
+      <div className="grid gap-16 lg:grid-cols-[1.2fr_1fr] xl:grid-cols-[1.5fr_1fr] lg:gap-24">
 
         {/* ── Left: image gallery ── */}
         <div className="space-y-3">
@@ -229,10 +228,10 @@ export default function ListingDetailPage() {
         <div className="lg:sticky lg:top-24 lg:self-start">
 
           {/* Type label + title */}
-          <p className="label-tag text-muted-foreground">
+          <p className="font-semibold uppercase tracking-widest text-[11px] text-muted-foreground mb-4">
             {isRent ? 'For rent' : 'For sale'} &middot; {categoryLabel(listing.category)}
           </p>
-          <h1 className="mt-1.5 text-xl font-semibold leading-snug tracking-tight text-balance">
+          <h1 className="font-display text-4xl md:text-5xl font-bold leading-tight tracking-tight text-balance">
             {listing.title}
           </h1>
 
@@ -270,30 +269,27 @@ export default function ListingDetailPage() {
             {isRent ? (
               isRented ? (
                 <Button size="lg" className="w-full" disabled>
-                  <Clock className="h-4 w-4" aria-hidden />
+                  <Clock className="h-4 w-4 mr-2" aria-hidden />
                   Rented out
                 </Button>
               ) : (
-                <RentCheckoutDialog
-                  listing={listing}
-                  trigger={
-                    <Button size="lg" className="w-full">
-                      <HandCoins className="h-4 w-4" aria-hidden />
-                      Request to rent · {formatPrice(quote?.totalDueNow ?? listing.price)}
-                    </Button>
-                  }
-                />
+                <Link href={`/listing/${listing.id}/checkout`} className={cn(buttonVariants({ size: "lg" }), "w-full")}>
+                  <HandCoins className="h-4 w-4 mr-2" aria-hidden />
+                  Request to rent · {formatPrice(quote?.totalDueNow ?? listing.price)}
+                </Link>
               )
             ) : (
-              <ContactSellerDialog
-                listing={listing}
-                trigger={
-                  <Button size="lg" className="w-full">
-                    <MessageCircle className="h-4 w-4" aria-hidden />
-                    Message seller
-                  </Button>
-                }
-              />
+              listing.status === 'sold' ? (
+                <Button size="lg" className="w-full" disabled>
+                  <Package className="h-4 w-4 mr-2" aria-hidden />
+                  Sold out
+                </Button>
+              ) : (
+                <Link href={`/listing/${listing.id}/checkout`} className={cn(buttonVariants({ size: "lg" }), "w-full")}>
+                  <CreditCard className="h-4 w-4 mr-2" aria-hidden />
+                  Buy now · {formatPrice(listing.price)}
+                </Link>
+              )
             )}
             <ContactSellerDialog
               listing={listing}
@@ -392,7 +388,7 @@ export default function ListingDetailPage() {
           <h2 className="mb-5 text-base font-semibold">
             More from {seller.name.split(' ')[0]}
           </h2>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-4">
             {sellerListings.map((l) => <ProductCard key={l.id} listing={l} />)}
           </div>
         </section>
@@ -404,7 +400,7 @@ export default function ListingDetailPage() {
           <h2 className="mb-5 text-base font-semibold">
             More in {categoryLabel(listing.category)}
           </h2>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-4">
             {related.map((l) => <ProductCard key={l.id} listing={l} />)}
           </div>
         </section>

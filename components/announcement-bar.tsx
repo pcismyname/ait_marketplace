@@ -9,9 +9,9 @@ export function AnnouncementBar() {
   return (
     <div className="relative bg-primary text-primary-foreground">
       <p className="px-4 py-2 text-center text-[11px] font-medium tracking-wide">
-        Pickup at campus locations only. Move-out listings increase in Nov–Dec.{' '}
-        <a href="/browse" className="underline underline-offset-2 opacity-90 hover:opacity-100">
-          Browse now
+        PassItOn — campus pickup only. Move-out listings surge in Nov–Dec.{' '}
+        <a href="/sell" className="underline underline-offset-2 opacity-90 hover:opacity-100">
+          List your items before you leave
         </a>
       </p>
       <button

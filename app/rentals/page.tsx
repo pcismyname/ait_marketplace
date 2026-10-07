@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { toast } from 'sonner'
 import { ShieldCheck, HandCoins, CircleCheck, TriangleAlert, Clock, ArrowRight } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
-import { BRAND, getUser, paymentMethodLabel } from '@/lib/data'
+import { getUser, paymentMethodLabel } from '@/lib/data'
 import type { Rental, RentalPhase } from '@/lib/types'
 import { formatPrice } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -29,32 +29,32 @@ export default function RentalsPage() {
     .reduce((sum, r) => sum + r.deposit, 0)
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 md:px-6">
+    <div className="w-full px-4 py-16 lg:px-12 xl:px-20 min-h-screen">
       {/* Page header */}
-      <div className="mb-6 border-b border-border pb-5">
-        <h1 className="text-lg font-semibold tracking-tight">My rentals</h1>
-        <p className="mt-0.5 text-[12px] text-muted-foreground">
-          Track rented items and deposits held in escrow.
+      <div className="mb-16">
+        <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tight">My Rentals</h1>
+        <p className="mt-4 text-[13px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Track rented items and deposits held in escrow
         </p>
       </div>
 
       {/* Escrow summary strip */}
       {totalHeld > 0 && (
-        <div className="mb-8 flex items-center gap-4 border-b border-border pb-6">
-          <ShieldCheck className="h-5 w-5 text-primary shrink-0" />
+        <div className="mb-10 flex items-center gap-5 rounded-xl bg-primary-muted p-5">
+          <ShieldCheck className="h-6 w-6 text-primary shrink-0" />
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total held in escrow</p>
-            <p className="text-xl font-semibold text-foreground">{formatPrice(totalHeld)}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Total held in escrow</p>
+            <p className="text-2xl font-semibold text-foreground">{formatPrice(totalHeld)}</p>
           </div>
-          <p className="ml-auto hidden max-w-xs text-[11px] text-muted-foreground sm:block text-right">
-            Deposits are held by {BRAND}, never by the owner, and released once the item is returned in good condition.
+          <p className="ml-auto hidden max-w-xs text-[12px] text-muted-foreground sm:block text-right leading-relaxed">
+            Deposits are held by PassItOn, never by the owner, and released once the item is returned in good condition.
           </p>
         </div>
       )}
 
       {/* Rental grid */}
       {rentals.length > 0 ? (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-10 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {rentals.map((rental) => {
             const listing = listings.find((l) => l.id === rental.listingId)
             if (!listing) return null
@@ -109,35 +109,35 @@ export default function RentalsPage() {
                   <p className="text-[10px] text-muted-foreground">Due {formatDate(rental.dueDate)}</p>
 
                   {/* Actions */}
-                  <div className="mt-2.5 flex flex-col gap-1.5">
+                  <div className="mt-3 flex flex-col gap-2 border-t border-border pt-2.5">
                     {rental.phase === 'active' && (
                       <button
                         onClick={() => onPhase('return-pending')}
-                        className="h-7 rounded-sm border border-border text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors"
+                        className="w-fit text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                       >
                         Mark returned
                       </button>
                     )}
                     {rental.phase === 'return-pending' && (
-                      <>
+                      <div className="flex gap-4">
                         <button
                           onClick={() => onPhase('released')}
-                          className="h-7 rounded-sm bg-primary text-[10px] font-semibold uppercase tracking-wider text-primary-foreground hover:opacity-90 transition-opacity"
+                          className="text-[11px] font-semibold uppercase tracking-wider text-primary hover:opacity-80 transition-opacity"
                         >
                           Confirm &amp; release
                         </button>
                         <button
                           onClick={() => onPhase('disputed')}
-                          className="h-7 rounded-sm border border-destructive/40 text-[10px] font-semibold uppercase tracking-wider text-destructive hover:bg-destructive/5 transition-colors"
+                          className="text-[11px] font-semibold uppercase tracking-wider text-destructive hover:opacity-80 transition-opacity"
                         >
                           Report damage
                         </button>
-                      </>
+                      </div>
                     )}
                     {rental.phase === 'disputed' && (
                       <button
                         onClick={() => onPhase('released')}
-                        className="h-7 rounded-sm border border-border text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                        className="w-fit text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                       >
                         Resolve dispute
                       </button>

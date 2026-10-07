@@ -1,4 +1,4 @@
-# AIT Circular Marketplace — Design System
+# PassItOn — Design System
 **Single source of truth for all visual and UX decisions.**
 Update this file whenever a design decision changes.
 
@@ -481,3 +481,83 @@ Gap: `gap-x-3 gap-y-8` (tight horizontal, breathing vertical)
 - Don't use a permanent left sidebar for filters
 - Don't put a search box inside the browse area (search is in header only)
 - Don't use `ListingCard` (component renamed to `ProductCard`)
+
+---
+
+## Pass 3 — E-Commerce Visual Overhaul & PassItOn Rebrand (2026-10-07)
+
+**Problem:** The app felt like an admin dashboard, not a storefront.
+**Fix:** Full-bleed branded hero, category tab strip, enriched page headers, and a brand CTA banner.
+
+### Key Changes
+
+| Area | Before | After |
+|---|---|---|
+| App name | AIT Circular / AIT Circular Marketplace | **PassItOn** / PassItOn — Student Marketplace |
+| Logo | Text wordmark `font-display italic` | SVG logo files from `/public/logo/` (light + reversed for dark mode) |
+| Home hero | Plain search box + `\|`-separated category links | Full-bleed deep green hero banner with PassItOn mark, headline, trust stats |
+| Category navigation | Inline text links | Underline-tab strip between hero and filter bar |
+| Page headers | `text-lg` H1 with thin border | `label-tag` eyebrow + `text-2xl sm:text-3xl` H1 + descriptive subtitle |
+| Announcement bar | Generic campus notice | Branded "PassItOn" message, links to `/sell` |
+| Footer copyright | "AIT Circular Marketplace" | "PassItOn" |
+| Escrow strip (Rentals) | Flat border-b line | `rounded-xl bg-primary-muted` card with larger number |
+| Hero CTA banner | None | Green `bg-primary rounded-xl` "Pass it on" banner before footer |
+| Header height | `h-12` (48px) | `h-14` (56px) — taller, more premium feel |
+| Filter bar sticky offset | `top-12` | `top-14` (matches taller header) |
+| hover-lift shadow | `0 6px 20px` at 8% | `0 8px 24px` at 10% (slightly stronger lift) |
+
+### Hero Banner Spec
+
+```
+[bg-primary full-bleed with dot-grid texture overlay at 4% opacity]
+  [PassItOn mark (passiton-mark.svg) + eyebrow label: "Asian Institute of Technology"]
+  [H1 headline — primary-foreground, serif italic on 'everything']
+  [Sub copy — primary-foreground/70]
+  [CTAs: "Browse items" (inverted bg) + "Rent for a semester" (border outline)]
+  [Right: stats panel — active count | avg rating | verified %]
+```
+
+### Category Tab Strip Spec
+
+```
+[border-b bg-background — sits between hero and sticky filter bar]
+  [Overflow-x scroll, no-scrollbar]
+  ['All' tab + one tab per CATEGORY]
+  [Active: border-b-2 border-foreground text-foreground]
+  [Inactive: border-b-2 border-transparent text-muted-foreground hover:text-foreground]
+```
+
+### Page Header Spec (all non-home pages)
+
+```jsx
+<p className="label-tag mb-2">{context}</p>  // "My account" | "Incoming students" | "PassItOn marketplace"
+<h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+<p className="mt-2 text-[14px] text-muted-foreground">{description}</p>
+```
+
+Context tags by page:
+- My Listings, Rentals, Messages → `"My account"`
+- Needs → `"Incoming students"`
+- Sell → `"PassItOn marketplace"`
+
+### New CSS Utility
+
+```css
+.dot-grid {
+  background-image: radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0);
+  background-size: 24px 24px;
+}
+```
+
+Used only on the hero banner at ~4% opacity for subtle texture depth. Never on content areas.
+
+### Updated Logo Usage
+
+| Context | File | Size |
+|---|---|---|
+| Site header (desktop + mobile drawer) | `passiton-logo.svg` / `passiton-logo-reversed.svg` | `h-7` |
+| Footer | `passiton-logo.svg` / `passiton-logo-reversed.svg` | `h-8` |
+| Hero banner (mark only) | `passiton-mark.svg` | `h-9 opacity-80` |
+| App favicon | `app/icon.svg` (two-circle mark recreation) | 64×64 |
+
+Dark mode: always swap `.svg` → `-reversed.svg` via `dark:hidden` / `hidden dark:block` class pair.
