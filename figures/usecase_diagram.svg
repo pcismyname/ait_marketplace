@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1720" height="990" viewBox="0 0 1720 990" font-family="Segoe UI, Arial, sans-serif">
 <rect width="1720" height="990" fill="#ffffff"/>
-<text x="40" y="52" font-size="30" font-weight="700" fill="#1f2a37">AIT Circular Marketplace - Use Case Diagram</text>
+<text x="40" y="52" font-size="30" font-weight="700" fill="#1f2a37">Pass It On - Use Case Diagram</text>
 <text x="40" y="84" font-size="16" fill="#5b6675">Each row shows what one type of user can do. Seller, Buyer and Incoming Student are all AIT Students, so they can also do everything in the first row.</text>
 <rect x="40" y="126" width="1640" height="138" rx="12" fill="#f1f5f9"/>
 <rect x="40" y="126" width="8" height="138" rx="4" fill="#475569"/>
