@@ -16,7 +16,7 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
 - **Frontend/Framework:** Next.js (App Router)
 - **Database & Auth:** Supabase (Postgres, Auth, Storage, Realtime)
 - **Deployment:** Vercel
-- **Payments:** Omise (PromptPay QR + cards). Simulated or Omise test mode for the course build.
+- **Payments:** simulated in the course build, with no payment gateway integration. A real launch would use Omise (PromptPay QR + cards); the "gateway" steps in the flows below are simulated state changes until then.
 
 ---
 

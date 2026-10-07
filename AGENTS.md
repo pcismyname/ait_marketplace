@@ -8,9 +8,13 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+# Project docs
+
+The project's source of truth lives in [docs/](docs/README.md): the proposal (what and why), business rules (money), timeline (scope and dates), design system, and page/flow maps. Read the relevant one before changing behaviour, and update it when a decision changes.
+
 # Follow the business rules
 
-Before changing anything that charges, holds, releases or refunds money (fees, deposits, escrow, rentals, disputes, payouts, payment methods), read [BusinessRules.md](BusinessRules.md) and implement what it says. If the code and that file disagree, the file wins: fix the code, or ask the user before changing a rule. Rules marked **(open)** are undecided, so build only a placeholder for them. When a rule changes, update BusinessRules.md first, then the code.
+Before changing anything that charges, holds, releases or refunds money (fees, deposits, escrow, rentals, disputes, payouts, payment methods), read [docs/BusinessRules.md](docs/BusinessRules.md) and implement what it says. If the code and that file disagree, the file wins: fix the code, or ask the user before changing a rule. Rules marked **(open)** are undecided, so build only a placeholder for them. When a rule changes, update BusinessRules.md first, then the code. Do not integrate a payment gateway (no Omise, 2C2P or test mode): payments, escrow, payouts and refunds stay simulated as in-app state changes. Check [docs/Timeline.md](docs/Timeline.md) for what is in scope and when.
 
 # Refer to figures during implementation
 

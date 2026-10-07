@@ -3,9 +3,11 @@
 **Single source of truth for money, deposit, escrow and dispute logic.**
 Code that charges, holds, releases or refunds money must follow this file. Update this file first whenever a rule changes, then the code.
 
-**Status:** proposed on 2026-10-07, pending team sign-off. Rules marked **(open)** are not decided yet; don't build them beyond a placeholder.
+**Status:** decided by the team on 2026-10-07. The team went with these rules as written. Rules marked **(open)** are still undecided; don't build them beyond a placeholder.
 
-Related: [Design.md](Design.md) (visuals), [UserFlows.md](UserFlows.md) (routes and flows), [Mapping&UF.md](Mapping&UF.md) (early page map; where it disagrees with this file, this file wins).
+**No payment gateway in the course build.** Every payment, escrow hold, payout and refund is simulated: a state change inside the app, with no real money and no gateway calls. The gateway details in section 7 describe a real launch for the report only. See [Timeline.md](Timeline.md) for what gets built by 19 November.
+
+Related: [Proposal.md](Proposal.md) (what and why), [Timeline.md](Timeline.md) (what is built by when), [Design.md](Design.md) (visuals), [UserFlows.md](UserFlows.md) (routes and flows), [Mapping&UF.md](Mapping&UF.md) (early page map; where it disagrees with this file, this file wins).
 
 ---
 
@@ -112,10 +114,10 @@ Current code has `RentalPhase = 'active' | 'return-pending' | 'released' | 'disp
 ## 7. Who holds the money
 
 - **The owner never holds the deposit.**
-- **Course build:** payments are simulated, or use Omise test mode.
-- **Real launch:** Thailand's Payment Systems Act treats "receipt of payment on behalf of sellers" as a licensed service. Money must be held by the licensed gateway (or a licensed partner), and paid out on the platform's instruction, not held in the team's own bank account. **(open)**: confirm Omise's marketplace payout setup covers this.
-- **Gateway:** Omise (cards 3.65%, PromptPay 1.65%, both + 7% VAT).
-- **Gateway fees:** paid by the platform out of the commission and escrow fee. Renters always get the full deposit back.
+- **Course build:** payments are simulated only, with no gateway integration (not even a test mode). Checkout records the payment method the student picks (`promptpay`, `card` or `wallet`) and moves the transaction to its next state; escrow holds, payouts and refunds are state changes, not money movements.
+- **Real launch (for the report, not built):** Thailand's Payment Systems Act treats "receipt of payment on behalf of sellers" as a licensed service. Money must be held by the licensed gateway (or a licensed partner), and paid out on the platform's instruction, not held in the team's own bank account. **(open)**: confirm Omise's marketplace payout setup covers this.
+- **Gateway (real launch):** Omise (cards 3.65%, PromptPay 1.65%, both + 7% VAT).
+- **Gateway fees (real launch):** paid by the platform out of the commission and escrow fee. Renters always get the full deposit back.
 
 ## 8. Payment methods
 
@@ -150,5 +152,4 @@ Current code has `RentalPhase = 'active' | 'return-pending' | 'released' | 'disp
 ## Open questions
 
 - How admin approval works for items worth more than ฿6,000.
-- Whether Omise's marketplace payouts cover the licence requirement.
-- Whether the buyer protection fee amount (฿10 + 3%) is final.
+- Whether Omise's marketplace payouts cover the licence requirement (report only; no gateway is built).
