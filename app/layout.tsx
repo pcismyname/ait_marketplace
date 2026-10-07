@@ -1,6 +1,6 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Inter, Bricolage_Grotesque } from 'next/font/google'
+import { Instrument_Sans, Playfair_Display } from 'next/font/google'
 import { Suspense } from 'react'
 import './globals.css'
 import { BRAND_FULL } from '@/lib/data'
@@ -8,14 +8,16 @@ import { MarketplaceProvider } from '@/lib/store'
 import { SiteHeader } from '@/components/site-header'
 import { Toaster } from '@/components/ui/sonner'
 
-const inter = Inter({
+const instrumentSans = Instrument_Sans({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-instrument',
+  display: 'swap',
 })
 
-const bricolage = Bricolage_Grotesque({
+const playfair = Playfair_Display({
   subsets: ['latin'],
-  variable: '--font-bricolage',
+  variable: '--font-playfair',
+  display: 'swap',
 })
 
 export const metadata: Metadata = {
@@ -27,14 +29,14 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   colorScheme: 'light dark',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f6f7f2' },
-    { media: '(prefers-color-scheme: dark)', color: '#14201c' },
+    { media: '(prefers-color-scheme: light)', color: '#f5f3ee' },
+    { media: '(prefers-color-scheme: dark)', color: '#141e16' },
   ],
 }
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="en" className={`bg-background ${inter.variable} ${bricolage.variable}`}>
+    <html lang="en" className={`bg-background ${instrumentSans.variable} ${playfair.variable}`}>
       <body className="antialiased font-sans">
         <MarketplaceProvider>
           <Suspense fallback={null}>

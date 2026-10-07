@@ -61,17 +61,18 @@ export default function RentalsPage() {
     .reduce((sum, r) => sum + r.deposit, 0)
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <div className="mb-6">
-        <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
+    <div className="mx-auto max-w-4xl px-4 py-8 md:px-6">
+      <div className="mb-6 border-b border-border pb-6">
+        <p className="label-tag mb-1">Rentals & escrow</p>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           My rentals & deposits
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-[13px] text-muted-foreground">
           Track rented items and the deposits held safely in escrow until return.
         </p>
       </div>
 
-      <div className="mb-6 flex items-center gap-3 rounded-3xl border border-border bg-card p-5">
+      <div className="mb-6 flex items-center gap-3 rounded-xl border border-border bg-card p-4">
         <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <ShieldCheck className="h-5 w-5" />
         </span>
@@ -86,7 +87,7 @@ export default function RentalsPage() {
       </div>
 
       {rentals.length > 0 ? (
-        <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
           {rentals.map((rental) => (
             <RentalCard
               key={rental.id}
@@ -145,113 +146,69 @@ function RentalCard({
   const Icon = meta.icon
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-border bg-card">
-      <div className="flex flex-col gap-4 p-5 sm:flex-row">
+    <div className="group flex flex-col">
+      <Link
+        href={`/listing/${listing.id}`}
+        className="relative aspect-[3/4] w-full overflow-hidden bg-surface-tinted block"
+      >
+        <Image
+          src={listing.images[0] || '/placeholder.svg'}
+          alt={listing.title}
+          fill
+          className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+        />
+      </Link>
+
+      <div className="mt-3 flex flex-col min-w-0">
         <Link
           href={`/listing/${listing.id}`}
-          className="relative h-28 w-full shrink-0 overflow-hidden rounded-2xl bg-muted sm:w-28"
+          className="truncate text-[13px] font-medium leading-snug hover:underline underline-offset-2 text-foreground"
         >
-          <Image
-            src={listing.images[0] || '/placeholder.svg'}
-            alt={listing.title}
-            fill
-            className="object-cover"
-          />
+          {listing.title}
         </Link>
+        <p className="text-[13px] text-muted-foreground mt-0.5">
+          From {owner.name}
+        </p>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <Link
-                href={`/listing/${listing.id}`}
-                className="font-semibold hover:underline"
-              >
-                {listing.title}
-              </Link>
-              <p className="text-xs text-muted-foreground">
-                Rented from {owner.name} · {listing.rentalPeriod}
-              </p>
-            </div>
-            <span
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold',
-                meta.className,
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {meta.label}
-            </span>
-          </div>
+        <div className="mt-1 flex items-center gap-1.5">
+          <Icon className={cn('h-3.5 w-3.5', meta.className.split(' ')[1])} />
+          <span className={cn('text-[11px] font-semibold uppercase tracking-wider', meta.className.split(' ')[1])}>
+            {meta.label}
+          </span>
+        </div>
 
-          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
-            <span>
-              Deposit held:{' '}
-              <span className="font-semibold text-foreground">
-                {formatPrice(rental.deposit)}
-              </span>
-            </span>
-            <span>Started {formatDate(rental.startDate)}</span>
-            <span>Due {formatDate(rental.dueDate)}</span>
-          </div>
+        <p className="text-[13px] font-semibold text-foreground mt-1">
+          Deposit: {formatPrice(rental.deposit)}
+        </p>
 
-          {rental.quote && (
-            <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1 text-[11px] text-secondary-foreground">
-              <Receipt className="h-3 w-3" />
-              Paid {formatPrice(rental.quote.totalDueNow)} via{' '}
-              {paymentMethodLabel(rental.paymentMethod)} · includes{' '}
-              {formatPrice(rental.quote.platformFees)} platform fees
-            </p>
+        <div className="mt-3 flex flex-col gap-2">
+          {rental.phase === 'active' && (
+            <Button size="sm" variant="outline" className="w-full text-[11px] h-8 rounded-sm" onClick={() => onPhase('return-pending')}>
+              Mark returned
+            </Button>
           )}
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {rental.phase === 'active' && (
-              <Button size="sm" onClick={() => onPhase('return-pending')}>
-                Mark item as returned
+          {rental.phase === 'return-pending' && (
+            <>
+              <Button size="sm" className="w-full text-[11px] h-8 rounded-sm" onClick={() => onPhase('released')}>
+                Confirm & release
               </Button>
-            )}
-            {rental.phase === 'return-pending' && (
-              <>
-                <Button size="sm" onClick={() => onPhase('released')}>
-                  <CircleCheck className="h-4 w-4" />
-                  Confirm return & release deposit
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => onPhase('disputed')}
-                >
-                  <TriangleAlert className="h-4 w-4" />
-                  Report damage
-                </Button>
-              </>
-            )}
-            {rental.phase === 'disputed' && (
-              <Button size="sm" variant="outline" onClick={() => onPhase('released')}>
-                Resolve dispute & refund deposit
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-[11px] h-8 rounded-sm text-destructive hover:text-destructive"
+                onClick={() => onPhase('disputed')}
+              >
+                Report damage
               </Button>
-            )}
-            {rental.phase === 'released' && (
-              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-primary">
-                <CircleCheck className="h-4 w-4" />
-                {formatPrice(rental.deposit)} refunded to you
-              </span>
-            )}
-          </div>
+            </>
+          )}
+          {rental.phase === 'disputed' && (
+            <Button size="sm" variant="outline" className="w-full text-[11px] h-8 rounded-sm" onClick={() => onPhase('released')}>
+              Resolve dispute
+            </Button>
+          )}
         </div>
       </div>
-
-      {rental.phase === 'disputed' && (
-        <div className="flex items-center gap-2 border-t border-destructive/20 bg-destructive/5 px-5 py-3 text-xs text-destructive">
-          <TriangleAlert className="h-4 w-4 shrink-0" />
-          A dispute is open. {BRAND} is reviewing the reported damage before deciding how
-          much of the deposit to release.
-          <Link href="/chat" className="ml-auto inline-flex items-center gap-1 font-semibold hover:underline">
-            Message owner
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        </div>
-      )}
     </div>
   )
 }

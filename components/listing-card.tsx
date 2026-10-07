@@ -1,100 +1,115 @@
+'use client'
+
 import Link from 'next/link'
 import Image from 'next/image'
-import { MapPin, Repeat, Store, Sparkles } from 'lucide-react'
-import type { Listing, ListingStatus } from '@/lib/types'
-import { getUser, CONDITION_LABELS, categoryLabel } from '@/lib/data'
+import { Heart } from 'lucide-react'
+import type { Listing } from '@/lib/types'
 import { formatPrice } from '@/lib/format'
+import { CONDITION_LABELS } from '@/lib/data'
+import { useMarketplace } from '@/lib/store'
+import { ImagePlaceholder } from '@/components/image-placeholder'
 import { cn } from '@/lib/utils'
 
-const STATUS_LABELS: Partial<Record<ListingStatus, string>> = {
+// SVG paths that should be treated as "no real photo" → show tinted placeholder
+const ILLUSTRATION_EXTENSIONS = ['.svg']
+function isIllustration(src: string) {
+  return ILLUSTRATION_EXTENSIONS.some((ext) => src.toLowerCase().endsWith(ext))
+}
+
+const STATUS_LABELS: Partial<Record<Listing['status'], string>> = {
   rented: 'Rented out',
   sold: 'Sold',
   reserved: 'Reserved',
+  paused: 'Paused',
 }
 
-export function ListingCard({ listing }: { listing: Listing }) {
-  const seller = getUser(listing.sellerId)
+export function ProductCard({ listing }: { listing: Listing }) {
+  const { favoriteIds, toggleFavorite } = useMarketplace()
+  const isFav = favoriteIds.has(listing.id)
+  const hasRealImage =
+    listing.images[0] &&
+    listing.images[0] !== '/placeholder.svg' &&
+    !isIllustration(listing.images[0])
+
   const isRent = listing.type === 'rent'
-  const isShop = seller.kind === 'shop'
+  const isUnavailable = listing.status !== 'available' && listing.status !== 'paused'
   const statusLabel = STATUS_LABELS[listing.status]
 
   return (
-    <Link
-      href={`/listing/${listing.id}`}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5"
-    >
-      <div className="relative aspect-4/3 overflow-hidden bg-muted">
-        <Image
-          src={listing.images[0] || '/placeholder.svg'}
-          alt={listing.title}
-          fill
-          sizes="(max-width: 768px) 50vw, 300px"
-          className={cn(
-            'object-cover transition-transform duration-300 group-hover:scale-105',
-            statusLabel && 'opacity-60',
-          )}
-        />
-        <span
-          className={cn(
-            'absolute left-3 top-3 rounded-full px-2.5 py-1 text-xs font-semibold',
-            isRent
-              ? 'bg-surge text-surge-foreground'
-              : 'bg-primary text-primary-foreground',
-          )}
+    <article className="group relative">
+      {/* ── Image area — edge-to-edge, no border, no shadow ── */}
+      <div className="relative overflow-hidden bg-surface-tinted">
+        <Link
+          href={`/listing/${listing.id}`}
+          className="block aspect-[3/4] w-full"
+          tabIndex={-1}
+          aria-hidden
         >
-          {isRent ? 'For rent' : 'For sale'}
-        </span>
-        {listing.timesChangedHands > 1 && (
-          <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 text-[11px] font-medium text-foreground backdrop-blur">
-            <Repeat className="h-3 w-3" />
-            {listing.timesChangedHands}x
-          </span>
-        )}
+          {hasRealImage ? (
+            <Image
+              src={listing.images[0]}
+              alt={listing.title}
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className={cn(
+                'object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]',
+                isUnavailable && 'opacity-60 grayscale',
+              )}
+            />
+          ) : (
+            <ImagePlaceholder
+              category={listing.category}
+              aspectClass="aspect-[3/4] w-full"
+              className={isUnavailable ? 'opacity-60' : ''}
+            />
+          )}
+        </Link>
+
+        {/* Status overlay — only for unavailable items */}
         {statusLabel && (
-          <span className="absolute inset-x-0 bottom-0 bg-foreground/80 py-1.5 text-center text-xs font-semibold text-background">
-            {statusLabel}
-          </span>
+          <div className="absolute inset-0 flex items-end justify-start pointer-events-none">
+            <span className="m-2 rounded-sm bg-background/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-foreground backdrop-blur-sm">
+              {statusLabel}
+            </span>
+          </div>
         )}
+
+        {/* Heart icon — top right */}
+        <button
+          onClick={(e) => { e.preventDefault(); toggleFavorite(listing.id) }}
+          className={cn(
+            'absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full transition-all duration-150',
+            'bg-background/70 backdrop-blur-sm hover:bg-background/90',
+            isFav ? 'text-primary' : 'text-foreground/50 opacity-0 group-hover:opacity-100',
+          )}
+          aria-label={isFav ? 'Remove from favorites' : 'Save to favorites'}
+        >
+          <Heart className={cn('h-3.5 w-3.5', isFav && 'fill-current')} />
+        </button>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-4">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{categoryLabel(listing.category)}</span>
-          <span className="h-1 w-1 rounded-full bg-muted-foreground/40" />
-          <span>{CONDITION_LABELS[listing.condition]}</span>
-          {listing.featured && (
-            <Sparkles className="ml-auto h-3.5 w-3.5 text-surge" aria-label="Premium placement" />
+      {/* ── Minimal text below image — no box, no padding container ── */}
+      <div className="mt-2 space-y-0.5">
+        <Link href={`/listing/${listing.id}`} className="group/link">
+          <h3 className="line-clamp-1 text-[13px] font-medium leading-snug text-foreground group-hover/link:underline underline-offset-2">
+            {listing.title}
+          </h3>
+        </Link>
+        <p className="text-[13px] font-semibold text-foreground">
+          {formatPrice(listing.price)}
+          {isRent && (
+            <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+              {listing.rentalPeriod ?? '/ semester'}
+            </span>
           )}
-        </div>
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-balance">
-          {listing.title}
-        </h3>
-        <div className="mt-auto flex items-end justify-between pt-2">
-          <div>
-            <p className="font-display text-lg font-bold leading-none">
-              {formatPrice(listing.price)}
-              {isRent && (
-                <span className="ml-1 text-xs font-normal text-muted-foreground">
-                  {listing.rentalPeriod}
-                </span>
-              )}
-            </p>
-            {isRent && listing.deposit ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                {formatPrice(listing.deposit)} deposit
-              </p>
-            ) : null}
-          </div>
-        </div>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          {isShop ? (
-            <Store className="h-3.5 w-3.5 text-primary" />
-          ) : (
-            <MapPin className="h-3.5 w-3.5" />
+        </p>
+        <p className="text-[11px] text-muted-foreground">
+          {CONDITION_LABELS[listing.condition]}
+          {listing.pickupLocation && (
+            <> &middot; {listing.pickupLocation.replace(' Lobby', '').replace(' Building', '')}</>
           )}
-          <span className="truncate">{isShop ? seller.name : listing.pickupLocation}</span>
-        </div>
+        </p>
       </div>
-    </Link>
+    </article>
   )
 }

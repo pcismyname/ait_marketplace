@@ -78,8 +78,8 @@ function ChatInner() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6">
-      <div className="grid h-[calc(100vh-8rem)] overflow-hidden rounded-3xl border border-border bg-card md:grid-cols-[320px_1fr]">
+    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
+      <div className="grid h-[calc(100vh-6rem)] overflow-hidden rounded-xl border border-border bg-card md:grid-cols-[280px_1fr]">
         {/* Thread list */}
         <aside
           className={cn(
@@ -88,7 +88,7 @@ function ChatInner() {
           )}
         >
           <div className="border-b border-border px-4 py-3">
-            <h1 className="font-display text-lg font-bold">Messages</h1>
+            <p className="label-tag">Messages</p>
           </div>
           <div className="flex-1 overflow-y-auto">
             {sortedThreads.map((t) => {
@@ -105,7 +105,7 @@ function ChatInner() {
                     active ? 'bg-secondary/70' : 'hover:bg-secondary/40',
                   )}
                 >
-                  <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-muted">
+                  <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-surface-tinted">
                     {listing && (
                       <Image
                         src={listing.images[0] || '/placeholder.svg'}
@@ -209,7 +209,7 @@ function Conversation({
       {listing && (
         <Link
           href={`/listing/${listing.id}`}
-          className="flex items-center gap-3 border-b border-border bg-secondary/30 px-4 py-2.5 transition hover:bg-secondary/50"
+          className="flex items-center gap-3 border-b border-border bg-surface px-4 py-2.5 transition hover:bg-surface-tinted"
         >
           <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-muted">
             <Image
@@ -248,10 +248,10 @@ function Conversation({
             >
               <div
                 className={cn(
-                  'max-w-[78%] rounded-2xl px-3.5 py-2 text-sm',
+                  'max-w-[78%] rounded-xl px-3.5 py-2 text-[13px]',
                   mine
                     ? 'rounded-br-sm bg-primary text-primary-foreground'
-                    : 'rounded-bl-sm bg-secondary text-secondary-foreground',
+                    : 'rounded-bl-sm bg-surface text-foreground',
                 )}
               >
                 <p className="text-pretty">{m.text}</p>
@@ -274,13 +274,13 @@ function Conversation({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Type a message…"
-          className="h-11 flex-1 rounded-full border border-input bg-background px-4 text-sm outline-none focus:border-ring"
+          className="h-10 flex-1 rounded-md border border-input bg-background px-4 text-[13px] outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
           aria-label="Message"
         />
         <button
           type="submit"
           disabled={!draft.trim()}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition hover:opacity-90 disabled:opacity-40"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition hover:opacity-90 disabled:opacity-40"
           aria-label="Send message"
         >
           <Send className="h-4 w-4" />

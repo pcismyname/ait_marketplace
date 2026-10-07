@@ -79,7 +79,7 @@ export function RentCheckoutDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <dl className="space-y-2 rounded-2xl border border-border bg-secondary/30 p-4 text-sm">
+        <dl className="space-y-2 rounded-xl border border-border bg-surface p-4 text-[13px]">
           <Row label={`Rental fee (${listing.rentalPeriod ?? 'per semester'})`} value={quote.rentalFee} />
           <Row
             label={`Platform commission (${Math.round(RENTAL_COMMISSION_RATE * 100)}%)`}
@@ -93,7 +93,7 @@ export function RentCheckoutDialog({
           </div>
         </dl>
 
-        <div className="flex items-start gap-2 rounded-2xl bg-surge-muted p-3">
+        <div className="flex items-start gap-2 rounded-xl border border-surge/20 bg-surge-surface p-3.5">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-surge-foreground" />
           <p className="text-xs text-surge-foreground">
             <span className="font-semibold">{formatPrice(quote.refundable)} is refundable.</span>{' '}
@@ -103,7 +103,7 @@ export function RentCheckoutDialog({
         </div>
 
         <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="label-tag mb-2">
             Pay with
           </p>
           <div className="grid gap-2" role="radiogroup" aria-label="Payment method">
@@ -118,10 +118,10 @@ export function RentCheckoutDialog({
                   aria-checked={active}
                   onClick={() => setMethod(m.id)}
                   className={cn(
-                    'flex items-center gap-3 rounded-xl border p-3 text-left transition',
+                    'flex items-center gap-3 rounded-lg border p-3 text-left transition-all duration-150',
                     active
-                      ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                      : 'border-border bg-card hover:border-primary/40',
+                      ? 'border-primary bg-primary-muted ring-1 ring-primary'
+                      : 'border-border bg-card hover:border-primary/30',
                   )}
                 >
                   <Icon

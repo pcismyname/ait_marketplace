@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ListingCard } from '@/components/listing-card'
+import { ProductCard } from '@/components/listing-card'
 import { CategoryIcon } from '@/components/category-icon'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { initials } from '@/lib/format'
@@ -69,16 +69,13 @@ export default function NeedsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-8 max-w-2xl">
-        <span className="inline-flex items-center gap-2 rounded-full bg-surge-muted px-3 py-1 text-xs font-semibold text-surge-foreground">
-          <Sparkles className="h-3.5 w-3.5" />
-          For incoming students
-        </span>
-        <h1 className="mt-3 font-display text-2xl font-bold tracking-tight sm:text-3xl text-balance">
+    <div className="mx-auto max-w-6xl px-4 py-8 md:px-6">
+      <div className="mb-8 border-b border-border pb-6 max-w-2xl">
+        <p className="label-tag mb-1">For incoming students</p>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl text-balance">
           Register what you need before you arrive
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground text-pretty">
+        <p className="mt-2 text-[13px] text-muted-foreground text-pretty">
           Tell the community what you&apos;re looking for. We&apos;ll automatically match
           you against items that outgoing students are listing as they move out — so your
           room is ready on day one.
@@ -89,9 +86,9 @@ export default function NeedsPage() {
         {/* Form */}
         <form
           onSubmit={onSubmit}
-          className="h-fit space-y-4 rounded-3xl border border-border bg-card p-6 lg:sticky lg:top-20"
+          className="h-fit space-y-4 rounded-xl border border-border bg-card p-5 lg:sticky lg:top-20"
         >
-          <h2 className="font-display text-lg font-bold">Add a need</h2>
+          <p className="label-tag mb-3">Add a need</p>
           <div className="space-y-2">
             <Label htmlFor="need-title">What do you need?</Label>
             <Input
@@ -145,8 +142,8 @@ export default function NeedsPage() {
         {/* Needs + matches */}
         <div className="space-y-8">
           <section>
-            <h2 className="mb-1 font-display text-lg font-bold">Your needs</h2>
-            <p className="mb-4 text-sm text-muted-foreground">
+            <p className="label-tag mb-1">Your needs</p>
+            <p className="mb-4 text-[13px] text-muted-foreground">
               Auto-matched against available listings across the community.
             </p>
             {myNeeds.length > 0 ? (
@@ -160,7 +157,7 @@ export default function NeedsPage() {
                 ))}
               </div>
             ) : (
-              <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+              <div className="rounded-xl border border-dashed border-border p-8 text-center text-[13px] text-muted-foreground">
                 You haven&apos;t registered any needs yet. Add one to start matching.
               </div>
             )}
@@ -168,9 +165,9 @@ export default function NeedsPage() {
 
           {communityNeeds.length > 0 && (
             <section>
-              <h2 className="mb-1 font-display text-lg font-bold">
+              <p className="label-tag mb-1">
                 What others are looking for
-              </h2>
+              </p>
               <p className="mb-4 text-sm text-muted-foreground">
                 Moving out? These incoming students want what you might be leaving behind.
               </p>
@@ -180,11 +177,11 @@ export default function NeedsPage() {
                   return (
                     <div
                       key={need.id}
-                      className="rounded-2xl border border-border bg-card p-4"
+                      className="rounded-xl border border-border bg-card p-4"
                     >
                       <div className="flex items-center gap-2">
                         <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-secondary text-xs font-semibold text-secondary-foreground">
+                          <AvatarFallback className="bg-primary-muted text-[10px] font-bold text-primary">
                             {initials(user.name)}
                           </AvatarFallback>
                         </Avatar>
@@ -227,7 +224,7 @@ export default function NeedsPage() {
 
 function NeedMatchCard({ need, matches }: { need: Need; matches: Listing[] }) {
   return (
-    <div className="rounded-3xl border border-border bg-card p-5">
+    <div className="rounded-xl border border-border bg-card p-5">
       <div className="flex flex-wrap items-center gap-2">
         <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
           <CategoryIcon category={need.category} className="h-4 w-4" />
@@ -259,7 +256,7 @@ function NeedMatchCard({ need, matches }: { need: Need; matches: Listing[] }) {
       {matches.length > 0 && (
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {matches.slice(0, 3).map((l) => (
-            <ListingCard key={l.id} listing={l} />
+            <ProductCard key={l.id} listing={l} />
           ))}
         </div>
       )}

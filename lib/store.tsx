@@ -72,6 +72,10 @@ interface MarketplaceContextValue {
    */
   startRental: (listingId: string, paymentMethod: PaymentMethod) => Rental | undefined
   setRentalPhase: (rentalId: string, phase: RentalPhase) => void
+  deleteListing: (listingId: string) => void
+  updateListingStatus: (listingId: string, status: import('./types').ListingStatus) => void
+  favoriteIds: Set<string>
+  toggleFavorite: (listingId: string) => void
 }
 
 const MarketplaceContext = createContext<MarketplaceContextValue | null>(null)
@@ -84,6 +88,7 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
   const [needs, setNeeds] = useState<Need[]>(NEEDS)
   const [threads, setThreads] = useState<Thread[]>(THREADS)
   const [rentals, setRentals] = useState<Rental[]>(RENTALS)
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
 
   const addListing = useCallback((input: NewListingInput): Listing => {
     const me = getUser(CURRENT_USER_ID)
@@ -225,6 +230,27 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
     setRentals((prev) => prev.map((r) => (r.id === rentalId ? { ...r, phase } : r)))
   }, [])
 
+  const deleteListing = useCallback((listingId: string) => {
+    setListings((prev) => prev.filter((l) => l.id !== listingId))
+  }, [])
+
+  const updateListingStatus = useCallback(
+    (listingId: string, status: import('./types').ListingStatus) => {
+      setListings((prev) =>
+        prev.map((l) => (l.id === listingId ? { ...l, status } : l)),
+      )
+    },
+    [],
+  )
+
+  const toggleFavorite = useCallback((listingId: string) => {
+    setFavoriteIds((prev) => {
+      const next = new Set(prev)
+      next.has(listingId) ? next.delete(listingId) : next.add(listingId)
+      return next
+    })
+  }, [])
+
   const value = useMemo<MarketplaceContextValue>(
     () => ({
       currentUserId: CURRENT_USER_ID,
@@ -240,6 +266,10 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       receiveMessage,
       startRental,
       setRentalPhase,
+      deleteListing,
+      updateListingStatus,
+      favoriteIds,
+      toggleFavorite,
     }),
     [
       listings,
@@ -254,6 +284,10 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       receiveMessage,
       startRental,
       setRentalPhase,
+      deleteListing,
+      updateListingStatus,
+      favoriteIds,
+      toggleFavorite,
     ],
   )
 

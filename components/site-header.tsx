@@ -2,143 +2,234 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
-  Repeat,
-  Plus,
-  MessageCircle,
-  Search,
-  Menu,
-  HandCoins,
-  Sparkles,
+  Search, X, Heart, MessageCircle, User, Plus,
+  AlignJustify, ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import { useMarketplace } from '@/lib/store'
-import { BRAND, getUser } from '@/lib/data'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { BRAND, CATEGORIES, getUser } from '@/lib/data'
 import { initials } from '@/lib/format'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-
-const NAV = [
-  { href: '/browse', label: 'Browse', icon: Search },
-  { href: '/needs', label: 'Pre-arrival needs', icon: Sparkles },
-  { href: '/rentals', label: 'My rentals', icon: HandCoins },
-  { href: '/chat', label: 'Chat', icon: MessageCircle },
-]
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { AnnouncementBar } from '@/components/announcement-bar'
 
 export function SiteHeader() {
   const pathname = usePathname()
   const router = useRouter()
-  const { currentUserId, threads } = useMarketplace()
+  const { currentUserId, threads, favoriteIds } = useMarketplace()
   const me = getUser(currentUserId)
+
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const unread = threads.length
+  const favCount = favoriteIds.size
+
+  useEffect(() => {
+    if (searchOpen) inputRef.current?.focus()
+  }, [searchOpen])
 
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    setSearchOpen(false)
     router.push(query.trim() ? `/browse?q=${encodeURIComponent(query.trim())}` : '/browse')
+    setQuery('')
   }
 
-  const unread = threads.length
+  const NAV_PAGES = [
+    { href: '/browse', label: 'Browse' },
+    { href: '/needs', label: 'Pre-arrival Needs' },
+    { href: '/rentals', label: 'My Rentals' },
+    { href: '/my-listings', label: 'My Listings' },
+    { href: '/chat', label: 'Messages' },
+  ]
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
-        <Link href="/" className="flex items-center gap-2 shrink-0">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Repeat className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <span className="font-display text-lg font-bold tracking-tight">
-            {BRAND}
-          </span>
-        </Link>
+    <>
+      <AnnouncementBar />
+      <header className="sticky top-0 z-40 border-b border-border bg-background">
 
-        <form onSubmit={onSearch} className="relative ml-2 hidden flex-1 md:block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search desks, bikes, textbooks…"
-            className="h-10 w-full rounded-full border border-input bg-secondary/40 pl-9 pr-4 text-sm outline-none transition focus:border-ring focus:bg-background"
-            aria-label="Search listings"
-          />
-        </form>
+        {/* ── Main nav row ── */}
+        <div className="mx-auto flex h-12 max-w-7xl items-center gap-0 px-4 md:px-6">
 
-        <nav className="hidden items-center gap-1 lg:flex">
-          {NAV.map((item) => {
-            const active = pathname === item.href
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-colors',
-                  active
-                    ? 'bg-secondary text-secondary-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60',
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-                {item.href === '/chat' && unread > 0 && (
-                  <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
-                    {unread}
-                  </span>
-                )}
-              </Link>
-            )
-          })}
-        </nav>
-
-        <div className="ml-auto flex items-center gap-2 lg:ml-2">
-          <Button
-            render={<Link href="/sell" />}
-            nativeButton={false}
-            size="sm"
-            className="rounded-full"
+          {/* Wordmark */}
+          <Link
+            href="/"
+            className="mr-6 shrink-0 font-display text-[14px] font-bold italic tracking-tight text-foreground"
+            aria-label="AIT Circular home"
           >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">List item</span>
-          </Button>
+            {BRAND}
+          </Link>
 
-          <Avatar className="hidden h-9 w-9 border border-border sm:flex">
-            <AvatarFallback className="bg-secondary text-xs font-semibold text-secondary-foreground">
-              {initials(me.name === 'You' ? 'You' : me.name)}
-            </AvatarFallback>
-          </Avatar>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="lg:hidden"
-                  aria-label="Menu"
-                />
-              }
-            >
-              <Menu className="h-5 w-5" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              {NAV.map((item) => (
-                <DropdownMenuItem
-                  key={item.href}
-                  render={<Link href={item.href} className="flex items-center gap-2" />}
+          {/* Category nav — desktop */}
+          <nav className="hidden items-center lg:flex gap-1" aria-label="Main navigation">
+            {NAV_PAGES.map((page) => {
+              const active = pathname === page.href || pathname.startsWith(`${page.href}?`)
+              return (
+                <Link
+                  key={page.href}
+                  href={page.href}
+                  className={cn(
+                    'px-3 py-3 text-[11px] font-semibold uppercase tracking-widest transition-colors whitespace-nowrap',
+                    active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+                  )}
                 >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  {page.label}
+                </Link>
+              )
+            })}
+          </nav>
+
+          <div className="flex-1" />
+
+          {/* Right icons — desktop */}
+          <div className="hidden items-center md:flex">
+
+            {/* Search trigger */}
+            <button
+              onClick={() => setSearchOpen((v) => !v)}
+              className="flex h-10 w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+              aria-label="Open search"
+            >
+              <Search className="h-[18px] w-[18px]" />
+            </button>
+
+            {/* Favorites */}
+            <Link
+              href="/browse?favorites=1"
+              className="relative flex h-10 w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={`Favorites${favCount ? ` (${favCount})` : ''}`}
+            >
+              <Heart className="h-[18px] w-[18px]" />
+              {favCount > 0 && (
+                <span className="absolute right-1.5 top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-primary-foreground">
+                  {favCount}
+                </span>
+              )}
+            </Link>
+
+            {/* Messages */}
+            <Link
+              href="/chat"
+              className="relative flex h-10 w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={`Messages${unread ? ` (${unread} unread)` : ''}`}
+            >
+              <MessageCircle className="h-[18px] w-[18px]" />
+              {unread > 0 && (
+                <span className="absolute right-1.5 top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-primary-foreground">
+                  {unread}
+                </span>
+              )}
+            </Link>
+
+            {/* List item CTA */}
+            <Link
+              href="/sell"
+              className="ml-2 flex items-center gap-1.5 rounded-sm bg-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              <Plus className="h-3 w-3" />
+              List
+            </Link>
+
+            {/* Avatar */}
+            <button className="ml-2 flex h-7 w-7 items-center justify-center" aria-label="Profile">
+              <Avatar className="h-7 w-7 ring-1 ring-border">
+                <AvatarFallback className="bg-primary-muted text-[10px] font-bold text-primary">
+                  {initials(me.name === 'You' ? 'SR' : me.name)}
+                </AvatarFallback>
+              </Avatar>
+            </button>
+          </div>
+
+          {/* Mobile right */}
+          <div className="flex items-center gap-1 md:hidden">
+            <button
+              onClick={() => setSearchOpen((v) => !v)}
+              className="flex h-10 w-10 items-center justify-center text-muted-foreground"
+              aria-label="Search"
+            >
+              <Search className="h-[18px] w-[18px]" />
+            </button>
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="flex h-10 w-10 items-center justify-center text-muted-foreground"
+              aria-label="Menu"
+            >
+              <AlignJustify className="h-[18px] w-[18px]" />
+            </button>
+          </div>
         </div>
-      </div>
-    </header>
+
+        {/* ── Search overlay ── */}
+        {searchOpen && (
+          <div className="border-t border-border bg-background px-4 py-3 md:px-6">
+            <form onSubmit={onSearch} className="mx-auto flex max-w-xl items-center gap-3">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  ref={inputRef}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search furniture, bikes, textbooks…"
+                  className="h-10 w-full rounded-sm border border-input bg-card pl-9 pr-4 text-[13px] outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setSearchOpen(false)}
+                className="text-[12px] text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </form>
+          </div>
+        )}
+      </header>
+
+      {/* ── Mobile drawer ── */}
+      {drawerOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-foreground/20 backdrop-blur-sm"
+            onClick={() => setDrawerOpen(false)}
+          />
+          <div className="fixed inset-y-0 right-0 z-50 flex w-72 flex-col bg-background shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <span className="font-display text-[14px] font-bold italic">{BRAND}</span>
+              <button onClick={() => setDrawerOpen(false)} aria-label="Close menu">
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+            <nav className="flex-1 overflow-y-auto px-5 py-4">
+              <p className="label-tag mb-3">Navigation</p>
+              <div className="space-y-0.5">
+                {NAV_PAGES.map((page) => (
+                  <Link
+                    key={page.href}
+                    href={page.href}
+                    onClick={() => setDrawerOpen(false)}
+                    className="flex items-center justify-between rounded-sm px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  >
+                    {page.label}
+                  </Link>
+                ))}
+              </div>
+            </nav>
+            <div className="border-t border-border p-5">
+              <Link
+                href="/sell"
+                onClick={() => setDrawerOpen(false)}
+                className="flex w-full items-center justify-center gap-2 rounded-sm bg-primary py-2.5 text-[12px] font-semibold uppercase tracking-wider text-primary-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                List an item
+              </Link>
+            </div>
+          </div>
+        </>
+      )}
+    </>
   )
 }

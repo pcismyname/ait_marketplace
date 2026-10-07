@@ -13,7 +13,7 @@ export type ListingType = 'sale' | 'rent'
 
 export type Condition = 'new' | 'like-new' | 'good' | 'fair'
 
-export type ListingStatus = 'available' | 'reserved' | 'sold' | 'rented'
+export type ListingStatus = 'available' | 'reserved' | 'sold' | 'rented' | 'paused'
 
 /**
  * Students are the core of the community. Campus shops are the "B" in
@@ -77,6 +77,8 @@ export interface Listing {
   reviews: Review[]
   /** Premium placement: shown first in search and matching. */
   featured?: boolean
+  /** Light stat surfaced in My Listings. */
+  viewCount?: number
 }
 
 export interface Need {
