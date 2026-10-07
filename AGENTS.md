@@ -8,6 +8,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+# Follow the business rules
+
+Before changing anything that charges, holds, releases or refunds money (fees, deposits, escrow, rentals, disputes, payouts, payment methods), read [BusinessRules.md](BusinessRules.md) and implement what it says. If the code and that file disagree, the file wins: fix the code, or ask the user before changing a rule. Rules marked **(open)** are undecided, so build only a placeholder for them. When a rule changes, update BusinessRules.md first, then the code.
+
 # Refer to figures during implementation
 
 Always consult the relevant figures, diagrams, screenshots, and design mockups provided by the user or included in the project before and during implementation. Use them to guide layout, styling, behavior, and architecture, as applicable. Reference the specific figure by its label, filename, or path when explaining implementation decisions, and verify the completed work against it. If a required figure is missing or unclear, ask for clarification rather than inventing its details.
