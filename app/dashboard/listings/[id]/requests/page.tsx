@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Check, X, ShieldCheck, ArrowLeft, MessageCircle } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
@@ -14,11 +14,12 @@ const MOCK_REQUESTS = [
   { id: 'req_2', user: { name: 'Sarah Jenkins', batch: 'Spring 2025', program: 'Data Science', rating: 5.0 }, message: 'Would you be willing to do 350 THB?', date: '5 hours ago', status: 'pending' },
 ]
 
-export default function ListingRequestsPage({ params }: { params: { id: string } }) {
+export default function ListingRequestsPage() {
+  const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const { listings } = useMarketplace()
   const [requests, setRequests] = useState(MOCK_REQUESTS)
-  const [listing, setListing] = useState(listings.find(l => l.id === params.id))
+  const [listing, setListing] = useState(listings.find(l => l.id === id))
 
   const onAccept = (reqId: string) => {
     setRequests(requests.filter(r => r.id !== reqId))

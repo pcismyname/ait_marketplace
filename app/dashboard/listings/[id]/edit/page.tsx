@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { toast } from 'sonner'
 import { ImagePlus, X, Tag, HandCoins, ShieldCheck, Sparkles } from 'lucide-react'
@@ -19,7 +19,8 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
-export default function EditListingPage({ params }: { params: { id: string } }) {
+export default function EditListingPage() {
+  const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const { listings, updateListingStatus } = useMarketplace()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -40,7 +41,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
   const [premium, setPremium]         = useState(false)
 
   useEffect(() => {
-    const listing = listings.find(l => l.id === params.id)
+    const listing = listings.find(l => l.id === id)
     if (listing) {
       setType(listing.type)
       setTitle(listing.title)
@@ -55,7 +56,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
       setPremium(listing.featured || false)
     }
     setLoading(false)
-  }, [params.id, listings])
+  }, [id, listings])
 
   const onFiles = (files: FileList | null) => {
     if (!files) return
@@ -84,7 +85,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
       <div>
         <p className="label-tag mb-2">My account</p>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Edit Listing</h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">Make changes to "{title || params.id}".</p>
+        <p className="mt-2 text-[14px] text-muted-foreground">Make changes to "{title || id}".</p>
       </div>
 
       <form onSubmit={onSubmit} className="max-w-2xl space-y-7">
@@ -234,7 +235,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
             {type === 'rent' && (
               <div className="space-y-1.5">
                 <Label>Rental Period</Label>
-                <Select value={rentalPeriod} onValueChange={setRentalPeriod}>
+                <Select value={rentalPeriod} onValueChange={(v) => setRentalPeriod(v ?? 'per semester')}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="per semester">Per Semester (4 months)</SelectItem>
@@ -271,7 +272,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
         <div className="space-y-5">
           <div className="space-y-1.5">
             <Label>Pickup Location</Label>
-            <Select value={pickup} onValueChange={setPickup}>
+            <Select value={pickup} onValueChange={(v) => setPickup(v ?? '')}>
               <SelectTrigger><SelectValue placeholder="Where should they pick it up?" /></SelectTrigger>
               <SelectContent>
                 {PICKUP_LOCATIONS.map((loc) => (

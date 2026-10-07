@@ -2,15 +2,16 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { MapPin, ShieldCheck, CheckCircle2, Clock, AlertTriangle, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-export default function TransactionPage({ params }: { params: { id: string } }) {
+export default function TransactionPage() {
+  const { id } = useParams<{ id: string }>()
   const router = useRouter()
   // Mock transaction data
   const tx = {
-    id: params.id,
+    id: id,
     itemTitle: 'Bicycle U-Lock',
     amount: 200,
     status: 'in_escrow', // paid, in_escrow, completed, disputed

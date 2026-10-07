@@ -1,5 +1,6 @@
 'use client'
 
+import { useParams } from 'next/navigation'
 import { useMarketplace } from '@/lib/store'
 import { getUser, getSellerReviews } from '@/lib/data'
 import { ProductCard } from '@/components/listing-card'
@@ -7,12 +8,13 @@ import { Rating } from '@/components/rating'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { initials } from '@/lib/format'
 
-export default function ProfilePage({ params }: { params: { userId: string } }) {
+export default function ProfilePage() {
+  const { userId } = useParams<{ userId: string }>()
   const { listings } = useMarketplace()
-  const user = getUser(params.userId)
-  const reviews = getSellerReviews(params.userId)
+  const user = getUser(userId)
+  const reviews = getSellerReviews(userId)
   
-  const userListings = listings.filter(l => l.sellerId === params.userId && l.status === 'available')
+  const userListings = listings.filter(l => l.sellerId === userId && l.status === 'available')
   
   // 4.9 average, 12 reviews
   const avgRating = reviews.length > 0 
@@ -67,17 +69,16 @@ export default function ProfilePage({ params }: { params: { userId: string } }) 
           {reviews.length > 0 ? (
             <div className="divide-y divide-border border-b border-border">
               {reviews.map(review => {
-                const reviewer = getUser(review.reviewerId)
                 return (
                   <div key={review.id} className="py-6">
                     <div className="flex items-center gap-3 mb-3">
                       <Avatar className="h-8 w-8 border border-border rounded-none">
                         <AvatarFallback className="bg-surface-tinted text-[10px] font-bold text-muted-foreground rounded-none">
-                          {initials(reviewer.name)}
+                          {initials(review.authorName)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="text-[13px] font-semibold">{reviewer.name}</p>
+                        <p className="text-[13px] font-semibold">{review.authorName}</p>
                         <Rating value={review.rating} />
                       </div>
                     </div>

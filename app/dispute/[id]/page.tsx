@@ -1,14 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ArrowLeft, AlertOctagon, UploadCloud } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-export default function DisputePage({ params }: { params: { id: string } }) {
+export default function DisputePage() {
+  const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [reason, setReason] = useState('')
   const [details, setDetails] = useState('')
@@ -19,7 +20,7 @@ export default function DisputePage({ params }: { params: { id: string } }) {
     setSubmitting(true)
     setTimeout(() => {
       toast.success('Dispute filed successfully', { description: 'The escrow funds have been frozen while we investigate.' })
-      router.push(`/transaction/${params.id}`)
+      router.push(`/transaction/${id}`)
     }, 1500)
   }
 
@@ -36,7 +37,7 @@ export default function DisputePage({ params }: { params: { id: string } }) {
         </div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">File a Dispute</h1>
         <p className="mt-2 text-[14px] text-muted-foreground">
-          If there's an issue with Transaction {params.id}, let us know. Escrow funds will be frozen immediately.
+          If there's an issue with Transaction {id}, let us know. Escrow funds will be frozen immediately.
         </p>
       </div>
 
@@ -46,7 +47,7 @@ export default function DisputePage({ params }: { params: { id: string } }) {
             <label className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
               Reason for dispute
             </label>
-            <Select required value={reason} onValueChange={setReason}>
+            <Select required value={reason} onValueChange={(v) => setReason(v ?? '')}>
               <SelectTrigger className="h-11">
                 <SelectValue placeholder="Select an issue..." />
               </SelectTrigger>

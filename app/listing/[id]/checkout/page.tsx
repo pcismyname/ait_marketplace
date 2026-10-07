@@ -1,18 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { toast } from 'sonner'
 import { ArrowLeft, CreditCard, QrCode, ShieldCheck, Tag } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
-import { getRentalQuote } from '@/lib/fees'
+import { computeRentalQuote, RENTAL_COMMISSION_RATE } from '@/lib/fees'
 import { Button } from '@/components/ui/button'
 
-export default function CheckoutPage({ params }: { params: { id: string } }) {
+export default function CheckoutPage() {
+  const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const { listings } = useMarketplace()
-  const listing = listings.find(l => l.id === params.id)
+  const listing = listings.find(l => l.id === id)
 
   const [paymentMethod, setPaymentMethod] = useState<'promptpay' | 'card'>('promptpay')
   const [processing, setProcessing] = useState(false)
@@ -20,8 +21,8 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   if (!listing) return null
 
   const isRent = listing.type === 'rent'
-  const quote = isRent ? getRentalQuote(listing.price, listing.deposit || 0) : null
-  const total = isRent ? quote!.total : listing.price
+  const quote = isRent ? computeRentalQuote({ price: listing.price, deposit: listing.deposit }) : null
+  const total = isRent ? quote!.totalDueNow : listing.price
 
   const onPay = () => {
     setProcessing(true)
@@ -129,8 +130,12 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                     <span className="font-medium">฿{listing.price}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Platform fee (10%)</span>
+                    <span className="text-muted-foreground">Platform fee ({RENTAL_COMMISSION_RATE * 100}%)</span>
                     <span className="font-medium">฿{quote?.commission}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Escrow handling fee</span>
+                    <span className="font-medium">฿{quote?.handlingFee}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Security deposit <span className="text-[11px]">(Refundable)</span></span>
