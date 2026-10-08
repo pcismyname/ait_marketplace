@@ -85,7 +85,7 @@ export default function EditListingPage() {
       <div className="mb-12">
         <p className="label-tag mb-2">My account</p>
         <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Edit Listing</h1>
-        <p className="mt-4 text-[14px] text-muted-foreground">Make changes to "{title || params.id}".</p>
+        <p className="mt-4 text-[14px] text-muted-foreground">Make changes to "{title || id}".</p>
       </div>
 
       <form onSubmit={onSubmit} className="max-w-2xl space-y-7">
