@@ -82,10 +82,10 @@ export default function EditListingPage() {
 
   return (
     <div className="space-y-10">
-      <div>
+      <div className="mb-12">
         <p className="label-tag mb-2">My account</p>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Edit Listing</h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">Make changes to "{title || id}".</p>
+        <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Edit Listing</h1>
+        <p className="mt-4 text-[14px] text-muted-foreground">Make changes to "{title || params.id}".</p>
       </div>
 
       <form onSubmit={onSubmit} className="max-w-2xl space-y-7">
@@ -177,7 +177,7 @@ export default function EditListingPage() {
           <Label>Photos (max 5)</Label>
           <div className="flex flex-wrap gap-3">
             {images.map((src, i) => (
-              <div key={i} className="relative h-24 w-24 rounded-xl border border-border bg-surface-tinted overflow-hidden">
+              <div key={i} className="relative h-24 w-24 border border-border bg-surface-tinted overflow-hidden">
                 <Image src={src} alt="Preview" fill className="object-cover" />
                 <button
                   type="button"
@@ -189,7 +189,7 @@ export default function EditListingPage() {
               </div>
             ))}
             {images.length < 5 && (
-              <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card text-muted-foreground hover:bg-muted/50 transition-colors">
+              <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center border border-dashed border-border bg-card text-muted-foreground hover:bg-muted/50 transition-colors">
                 <ImagePlus className="h-6 w-6" />
                 <span className="mt-2 text-[10px] font-semibold uppercase tracking-wider">Add</span>
                 <input
@@ -206,7 +206,7 @@ export default function EditListingPage() {
         </div>
 
         {/* Pricing */}
-        <div className="rounded-xl border border-border bg-card p-5 space-y-5">
+        <div className="border border-border bg-card p-5 space-y-5">
           <div className="flex items-center gap-3 border-b border-border pb-4">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary-muted text-primary">
               <Tag className="h-4 w-4" />
@@ -283,7 +283,7 @@ export default function EditListingPage() {
           </div>
 
           <label className={cn(
-            'flex cursor-pointer items-start gap-4 rounded-xl border p-5 transition-all',
+            'flex cursor-pointer items-start gap-4 border p-5 transition-all',
             premium ? 'border-primary bg-primary/5' : 'border-border bg-card'
           )}>
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-amber-100 text-amber-600">

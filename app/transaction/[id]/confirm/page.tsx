@@ -30,11 +30,11 @@ export default function ConfirmTransactionPage({ params }: { params: { id: strin
       </Button>
 
       <div className="mb-10">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Confirm Receipt</h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">Release escrow funds to the seller.</p>
+        <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Confirm Receipt</h1>
+        <p className="mt-4 text-[14px] text-muted-foreground">Release escrow funds to the seller.</p>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-6 md:p-8 shadow-sm">
+      <div className="border border-border bg-card p-6 md:p-8 shadow-sm">
         <div className="flex items-start gap-4 mb-8">
           <ShieldAlert className="h-6 w-6 text-amber-500 shrink-0 mt-1" />
           <div className="space-y-1">
@@ -47,7 +47,7 @@ export default function ConfirmTransactionPage({ params }: { params: { id: strin
         </div>
 
         <form onSubmit={onSubmit} className="space-y-8">
-          <label className="flex cursor-pointer items-start gap-4 rounded-xl border border-border bg-surface p-5 transition-colors hover:bg-muted/50">
+          <label className="flex cursor-pointer items-start gap-4 border border-border bg-surface p-5 transition-colors hover:bg-muted/50">
             <div className="pt-1">
               <input
                 type="checkbox"

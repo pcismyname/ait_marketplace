@@ -13,13 +13,13 @@ const ORDERS = [
 export default function OrdersPage() {
   return (
     <div className="space-y-10">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Purchase History</h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">Items you have bought on PassItOn.</p>
+      <div className="mb-12">
+        <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Purchase History</h1>
+        <p className="mt-4 text-[14px] text-muted-foreground">Items you have bought on PassItOn.</p>
       </div>
 
       {ORDERS.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">
+        <div className="flex flex-col items-center justify-center border border-dashed border-border py-20 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <Package className="h-6 w-6" />
           </div>
@@ -33,7 +33,7 @@ export default function OrdersPage() {
           </Link>
         </div>
       ) : (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="border border-border bg-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-[13px]">
               <thead className="bg-muted/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">

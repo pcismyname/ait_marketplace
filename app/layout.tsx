@@ -7,6 +7,7 @@ import { BRAND_FULL } from '@/lib/data'
 import { MarketplaceProvider } from '@/lib/store'
 import { SiteHeader } from '@/components/site-header'
 import { Toaster } from '@/components/ui/sonner'
+import { AuthGuard } from '@/components/auth-guard'
 
 const instrumentSans = Instrument_Sans({
   subsets: ['latin'],
@@ -36,13 +37,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="en" className={`bg-background ${instrumentSans.variable} ${playfair.variable}`}>
+    <html lang="en" data-scroll-behavior="smooth" className={`bg-background ${instrumentSans.variable} ${playfair.variable}`}>
       <body className="antialiased font-sans">
         <MarketplaceProvider>
           <Suspense fallback={null}>
-            <SiteHeader />
+            <AuthGuard>
+              <SiteHeader />
+              <main className="min-h-[calc(100vh-4rem)]">{children}</main>
+            </AuthGuard>
           </Suspense>
-          <main className="min-h-[calc(100vh-4rem)]">{children}</main>
           <Toaster position="top-center" />
         </MarketplaceProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}

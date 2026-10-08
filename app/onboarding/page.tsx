@@ -19,15 +19,15 @@ export default function OnboardingPage() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-16 sm:py-24">
-      <div className="text-center">
+      <div className="text-center mb-10">
         <p className="label-tag mb-2 text-primary">Welcome to PassItOn</p>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Complete your profile</h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">
+        <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Complete your profile</h1>
+        <p className="mt-4 text-[14px] text-muted-foreground">
           Just a few details so other students know who they are trading with.
         </p>
       </div>
 
-      <div className="mt-8 rounded-xl border border-border bg-card p-6 shadow-sm">
+      <div className="mt-8 border border-border bg-card p-6 md:p-8">
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label htmlFor="name" className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">

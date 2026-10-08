@@ -13,14 +13,14 @@ const TRANSACTIONS = [
 export default function WalletPage() {
   return (
     <div className="space-y-10">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Wallet & Escrow</h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">Manage your balances, deposits, and payouts.</p>
+      <div className="mb-12">
+        <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Wallet & Escrow</h1>
+        <p className="mt-4 text-[14px] text-muted-foreground">Manage your balances, deposits, and payouts.</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Available Balance */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div className="border border-border bg-card p-6">
           <p className="text-[13px] font-medium text-muted-foreground">Available to Withdraw</p>
           <p className="mt-2 font-display text-4xl font-bold">฿1,550</p>
           <Button className="mt-6 w-full" size="sm">
@@ -29,7 +29,7 @@ export default function WalletPage() {
         </div>
 
         {/* Escrow Balance */}
-        <div className="rounded-xl border border-border bg-surface p-6">
+        <div className="border border-border bg-surface p-6">
           <p className="text-[13px] font-medium text-muted-foreground">Held in Escrow</p>
           <p className="mt-2 font-display text-4xl font-bold">฿500</p>
           <p className="mt-4 text-[12px] leading-relaxed text-muted-foreground">
@@ -38,7 +38,7 @@ export default function WalletPage() {
         </div>
 
         {/* Payment Method */}
-        <div className="rounded-xl border border-border bg-card p-6 flex flex-col">
+        <div className="border border-border bg-card p-6 flex flex-col">
           <p className="text-[13px] font-medium text-muted-foreground">Payout Method</p>
           <div className="mt-4 flex items-center gap-3 rounded-lg border border-border bg-background p-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-700">
@@ -59,8 +59,8 @@ export default function WalletPage() {
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold tracking-tight">Recent Activity</h2>
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <h2 className="text-xl font-semibold tracking-tight">Recent Activity</h2>
+        <div className="border border-border bg-card overflow-hidden">
           <div className="divide-y divide-border">
             {TRANSACTIONS.map((tx) => (
               <div key={tx.id} className="flex items-center justify-between p-4 sm:px-6 hover:bg-muted/50 transition-colors">

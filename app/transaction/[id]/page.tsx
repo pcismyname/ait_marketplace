@@ -23,18 +23,18 @@ export default function TransactionPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 md:py-12">
       <div className="text-center mb-10">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary-muted text-primary mb-4">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center bg-primary-muted text-primary mb-4 border border-primary/20">
           <CheckCircle2 className="h-8 w-8" />
         </div>
         <p className="label-tag mb-2">Payment Secured</p>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Transaction {tx.id}</h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">Your funds are safely held in escrow.</p>
+        <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Transaction {tx.id}</h1>
+        <p className="mt-4 text-[14px] text-muted-foreground">Your funds are safely held in escrow.</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Left Col: Escrow & Actions */}
         <div className="space-y-6">
-          <div className="rounded-xl border border-border bg-surface p-6">
+          <div className="border border-border bg-surface p-6">
             <div className="flex items-center gap-3 mb-4">
               <ShieldCheck className="h-5 w-5 text-primary" />
               <h2 className="text-[15px] font-semibold">Escrow Status</h2>
@@ -71,7 +71,7 @@ export default function TransactionPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-card p-6">
+          <div className="border border-border bg-card p-6">
             <h3 className="text-[14px] font-semibold mb-2">Have you received the item?</h3>
             <p className="text-[12px] text-muted-foreground mb-4">
               Only confirm receipt after you have thoroughly inspected the item. This will release the funds to the seller.
@@ -84,7 +84,7 @@ export default function TransactionPage() {
 
         {/* Right Col: Details */}
         <div className="space-y-6">
-          <div className="rounded-xl border border-border bg-card p-6 space-y-6">
+          <div className="border border-border bg-card p-6 space-y-6">
             <h2 className="text-[15px] font-semibold">Order Details</h2>
             
             <div className="space-y-1">

@@ -76,6 +76,9 @@ interface MarketplaceContextValue {
   updateListingStatus: (listingId: string, status: import('./types').ListingStatus) => void
   favoriteIds: Set<string>
   toggleFavorite: (listingId: string) => void
+  isAuthenticated: boolean
+  login: () => void
+  logout: () => void
 }
 
 const MarketplaceContext = createContext<MarketplaceContextValue | null>(null)
@@ -89,6 +92,22 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
   const [threads, setThreads] = useState<Thread[]>(THREADS)
   const [rentals, setRentals] = useState<Rental[]>(RENTALS)
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('passiton_auth') === '1'
+    }
+    return false
+  })
+
+  const login = useCallback(() => {
+    setIsAuthenticated(true)
+    localStorage.setItem('passiton_auth', '1')
+  }, [])
+
+  const logout = useCallback(() => {
+    setIsAuthenticated(false)
+    localStorage.removeItem('passiton_auth')
+  }, [])
 
   const addListing = useCallback((input: NewListingInput): Listing => {
     const me = getUser(CURRENT_USER_ID)
@@ -270,6 +289,9 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       updateListingStatus,
       favoriteIds,
       toggleFavorite,
+      isAuthenticated,
+      login,
+      logout,
     }),
     [
       listings,
@@ -288,6 +310,9 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       updateListingStatus,
       favoriteIds,
       toggleFavorite,
+      isAuthenticated,
+      login,
+      logout,
     ],
   )
 

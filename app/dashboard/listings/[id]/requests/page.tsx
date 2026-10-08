@@ -40,14 +40,14 @@ export default function ListingRequestsPage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Listing Requests</h1>
-          <p className="text-[13px] text-muted-foreground mt-1">For "{listing.title}"</p>
+          <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight">Listing Requests</h1>
+          <p className="text-[13px] text-muted-foreground mt-2">For "{listing.title}"</p>
         </div>
       </div>
 
       {requests.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <div className="flex flex-col items-center justify-center border border-dashed border-border py-20 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-sm bg-muted text-muted-foreground">
             <MessageCircle className="h-6 w-6" />
           </div>
           <h3 className="mt-4 text-lg font-semibold tracking-tight">No pending requests</h3>
@@ -56,7 +56,7 @@ export default function ListingRequestsPage() {
       ) : (
         <div className="space-y-4">
           {requests.map((req) => (
-            <div key={req.id} className="rounded-xl border border-border bg-card p-5 transition-all">
+            <div key={req.id} className="border border-border bg-card p-5 transition-all">
               <div className="flex flex-col sm:flex-row gap-5">
                 
                 {/* User Info */}

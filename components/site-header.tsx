@@ -25,7 +25,7 @@ import { AnnouncementBar } from '@/components/announcement-bar'
 export function SiteHeader() {
   const pathname = usePathname()
   const router = useRouter()
-  const { currentUserId, threads, favoriteIds } = useMarketplace()
+  const { currentUserId, threads, favoriteIds, logout } = useMarketplace()
   const me = getUser(currentUserId)
 
   const [searchOpen, setSearchOpen] = useState(false)
@@ -186,7 +186,13 @@ export function SiteHeader() {
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="my-1 border-border" />
-                <DropdownMenuItem render={<Link href="/login" />} className="flex cursor-pointer items-center px-3 py-2 text-[12px] text-destructive focus:text-destructive hover:bg-destructive/10 rounded-sm">
+                <DropdownMenuItem 
+                  onClick={() => {
+                    logout()
+                    router.push('/login')
+                  }} 
+                  className="flex cursor-pointer items-center px-3 py-2 text-[12px] text-destructive focus:text-destructive hover:bg-destructive/10 rounded-sm"
+                >
                   Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>

@@ -22,9 +22,9 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-10">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Settings</h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">Manage your account and preferences.</p>
+      <div className="mb-12">
+        <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Settings</h1>
+        <p className="mt-4 text-[14px] text-muted-foreground">Manage your account and preferences.</p>
       </div>
 
       <div className="grid gap-10 md:grid-cols-2">
@@ -88,7 +88,7 @@ export default function SettingsPage() {
             <p className="text-[13px] text-muted-foreground">Choose what updates you want to receive.</p>
           </div>
 
-          <div className="space-y-4 rounded-xl border border-border bg-card p-5">
+          <div className="space-y-4 border border-border bg-card p-5">
             {[
               { id: 'msg', title: 'New Messages', desc: 'When someone messages you about a listing' },
               { id: 'req', title: 'Rental Requests', desc: 'When someone wants to rent your item' },
@@ -110,6 +110,49 @@ export default function SettingsPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        {/* Security Settings */}
+        <section className="space-y-6 md:col-span-2">
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold tracking-tight">Security</h2>
+            <p className="text-[13px] text-muted-foreground">Update your password to keep your account secure.</p>
+          </div>
+
+          <form onSubmit={(e) => {
+            e.preventDefault()
+            toast.success('Password updated successfully.')
+            // Reset form fields
+            const form = e.target as HTMLFormElement
+            form.reset()
+          }} className="space-y-4 max-w-md">
+            <div className="space-y-1.5">
+              <label htmlFor="currentPassword" className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Current Password
+              </label>
+              <input
+                id="currentPassword"
+                type="password"
+                required
+                className="h-10 w-full rounded-md border border-input bg-card px-3 text-[13px] outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="newPassword" className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
+                New Password
+              </label>
+              <input
+                id="newPassword"
+                type="password"
+                required
+                minLength={8}
+                className="h-10 w-full rounded-md border border-input bg-card px-3 text-[13px] outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
+              />
+            </div>
+            <Button type="submit">
+              Update Password
+            </Button>
+          </form>
         </section>
       </div>
     </div>

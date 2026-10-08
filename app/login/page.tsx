@@ -3,20 +3,45 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { ArrowRight, Mail } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { useMarketplace } from '@/lib/store'
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 
 export default function LoginPage() {
+  const { login } = useMarketplace()
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    const email = (document.getElementById('email') as HTMLInputElement).value
+    if (!email.toLowerCase().endsWith('@ait.asia')) {
+      toast.error('Invalid email', { description: 'Please use your @ait.asia email address.' })
+      return
+    }
+
+    setLoading(true)
+    setTimeout(() => {
+      login()
+      router.push('/')
+    }, 500)
+  }
+
   return (
     <div className="mx-auto max-w-md px-4 py-16 sm:py-24">
       <div className="text-center">
-        <h1 className="font-display italic text-3xl font-bold text-primary">PassItOn</h1>
-        <h2 className="mt-4 text-xl font-semibold tracking-tight">Welcome back</h2>
+        <h1 className="font-display text-4xl font-bold text-primary">PassItOn</h1>
+        <h2 className="mt-4 text-2xl font-semibold tracking-tight">Welcome back</h2>
         <p className="mt-2 text-[14px] text-muted-foreground">
           Log in to manage your listings and messages.
         </p>
       </div>
 
-      <div className="mt-8 rounded-xl border border-border bg-card p-6 shadow-sm">
-        <form className="space-y-4">
+      <div className="mt-8 border border-border bg-card p-6 md:p-8">
+        <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label htmlFor="email" className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
               AIT Email Address
@@ -51,8 +76,10 @@ export default function LoginPage() {
             />
           </div>
 
-          <Button type="submit" className="w-full h-11 text-[13px] font-semibold mt-2">
-            Log in <ArrowRight className="ml-2 h-4 w-4" />
+          <Button type="submit" disabled={loading} className="w-full h-11 text-[13px] font-semibold mt-2">
+            {loading ? 'Logging in...' : (
+              <>Log in <ArrowRight className="ml-2 h-4 w-4" /></>
+            )}
           </Button>
         </form>
 

@@ -44,16 +44,16 @@ export default function CheckoutPage() {
         
         {/* Left Col: Payment Method */}
         <div className="space-y-8">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Secure Checkout</h1>
-            <p className="mt-2 text-[14px] text-muted-foreground">Select a payment method to complete your order.</p>
+          <div className="mb-12">
+            <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Secure Checkout</h1>
+            <p className="mt-4 text-[14px] text-muted-foreground">Select a payment method to complete your order.</p>
           </div>
 
           <div className="space-y-4">
             <h2 className="text-lg font-semibold tracking-tight">Payment Method</h2>
             
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition-all ${
+              <label className={`flex cursor-pointer items-center gap-3 border p-4 transition-all ${
                 paymentMethod === 'promptpay' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-card'
               }`}>
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#113566] text-white">
@@ -72,7 +72,7 @@ export default function CheckoutPage() {
                 />
               </label>
 
-              <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition-all ${
+              <label className={`flex cursor-pointer items-center gap-3 border p-4 transition-all ${
                 paymentMethod === 'card' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-card'
               }`}>
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-600">
@@ -93,7 +93,7 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-surface p-5 flex items-start gap-3">
+          <div className="border border-border bg-surface p-5 flex items-start gap-3">
             <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
             <div>
               <p className="text-[13px] font-semibold text-foreground">Escrow Protection</p>
@@ -106,7 +106,7 @@ export default function CheckoutPage() {
 
         {/* Right Col: Order Summary */}
         <div>
-          <div className="sticky top-24 rounded-xl border border-border bg-card p-6 shadow-sm space-y-6">
+          <div className="sticky top-24 border border-border bg-card p-6 space-y-6">
             <h2 className="text-lg font-semibold tracking-tight">Order Summary</h2>
             
             <div className="flex gap-4">
