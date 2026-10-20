@@ -50,8 +50,9 @@ export default function NeedsPage() {
     <div className="w-full px-4 py-16 lg:px-12 xl:px-20 min-h-screen">
       {/* Header */}
       <div className="mb-16">
-        <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tight">Pre-arrival Needs</h1>
-        <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
+        <p className="label-tag mb-2">Incoming students</p>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Pre-arrival Needs</h1>
+        <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-muted-foreground">
           Tell the community what you need before you arrive. We’ll match you against items that outgoing students are listing as they move out.
         </p>
       </div>

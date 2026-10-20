@@ -32,8 +32,9 @@ export default function RentalsPage() {
     <div className="w-full px-4 py-16 lg:px-12 xl:px-20 min-h-screen">
       {/* Page header */}
       <div className="mb-16">
-        <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tight">My Rentals</h1>
-        <p className="mt-4 text-[13px] font-semibold uppercase tracking-widest text-muted-foreground">
+        <p className="label-tag mb-2">My account</p>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">My Rentals</h1>
+        <p className="mt-2 text-[14px] text-muted-foreground">
           Track rented items and deposits held in escrow
         </p>
       </div>

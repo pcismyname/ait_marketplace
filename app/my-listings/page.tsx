@@ -104,8 +104,9 @@ export default function MyListingsPage() {
       {/* Page header */}
       <div className="mb-16 flex flex-col md:flex-row md:items-end justify-between gap-8">
         <div>
-          <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tight">My Listings</h1>
-          <p className="mt-4 text-[13px] font-semibold uppercase tracking-widest text-muted-foreground">
+          <p className="label-tag mb-2">My account</p>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">My Listings</h1>
+          <p className="mt-2 text-[14px] text-muted-foreground">
             {myListings.length} item{myListings.length !== 1 ? 's' : ''} posted by you
           </p>
         </div>

@@ -75,7 +75,8 @@ function ChatInner() {
     <div className="w-full px-4 py-16 lg:px-12 xl:px-20 min-h-screen">
       {/* Page title */}
       <div className="mb-12">
-        <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tight">Messages</h1>
+        <p className="label-tag mb-2">My account</p>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Messages</h1>
       </div>
 
       {/* Two-panel chat */}

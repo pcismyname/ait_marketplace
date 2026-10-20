@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -19,6 +20,7 @@ import {
 } from './data'
 import { computeRentalQuote, rentalDueDate } from './fees'
 import { formatPrice } from './format'
+import { createClient } from '@/utils/supabase/client'
 import type {
   CategoryId,
   Listing,
@@ -73,6 +75,7 @@ interface MarketplaceContextValue {
   startRental: (listingId: string, paymentMethod: PaymentMethod) => Rental | undefined
   setRentalPhase: (rentalId: string, phase: RentalPhase) => void
   deleteListing: (listingId: string) => void
+  updateListing: (listingId: string, input: Partial<NewListingInput>) => void
   updateListingStatus: (listingId: string, status: import('./types').ListingStatus) => void
   favoriteIds: Set<string>
   toggleFavorite: (listingId: string) => void
@@ -82,6 +85,82 @@ interface MarketplaceContextValue {
 }
 
 const MarketplaceContext = createContext<MarketplaceContextValue | null>(null)
+const supabase = createClient()
+
+type DatabaseRow = Record<string, unknown>
+
+const asString = (value: unknown, fallback = '') =>
+  typeof value === 'string' ? value : fallback
+
+function mapListingRow(row: DatabaseRow): Listing {
+  return {
+    id: asString(row.id),
+    title: asString(row.title),
+    description: asString(row.description),
+    category: row.category as CategoryId,
+    type: row.type as ListingType,
+    price: Number(row.price ?? 0),
+    deposit: row.deposit == null ? undefined : Number(row.deposit),
+    rentalPeriod: row.rental_period == null ? undefined : asString(row.rental_period),
+    condition: row.condition as Condition,
+    images: Array.isArray(row.images) ? row.images.map(String) : ['/placeholder.svg'],
+    pickupLocation: asString(row.pickup_location),
+    sellerId: asString(row.seller_id, CURRENT_USER_ID),
+    createdAt: asString(row.created_at, new Date().toISOString()),
+    status: row.status as Listing['status'],
+    timesChangedHands: Number(row.times_changed_hands ?? 0),
+    featured: Boolean(row.featured),
+    history: Array.isArray(row.history) ? row.history as Listing['history'] : [],
+    reviews: Array.isArray(row.reviews) ? row.reviews as Listing['reviews'] : [],
+  }
+}
+
+function mapNeedRow(row: DatabaseRow): Need {
+  return {
+    id: asString(row.id),
+    userId: asString(row.user_id, CURRENT_USER_ID),
+    title: asString(row.title),
+    category: row.category as CategoryId,
+    note: asString(row.note),
+    arrivalDate: asString(row.arrival_date),
+    createdAt: asString(row.created_at, new Date().toISOString()),
+  }
+}
+
+function toListingRow(input: Partial<NewListingInput> & Partial<Listing>): DatabaseRow {
+  const row: DatabaseRow = {}
+  if (input.id !== undefined) row.id = input.id
+  if (input.title !== undefined) row.title = input.title
+  if (input.description !== undefined) row.description = input.description
+  if (input.category !== undefined) row.category = input.category
+  if (input.type !== undefined) row.type = input.type
+  if (input.price !== undefined) row.price = input.price
+  if (input.deposit !== undefined) row.deposit = input.deposit
+  if (input.rentalPeriod !== undefined) row.rental_period = input.rentalPeriod
+  if (input.condition !== undefined) row.condition = input.condition
+  if (input.images !== undefined) row.images = input.images
+  if (input.pickupLocation !== undefined) row.pickup_location = input.pickupLocation
+  if (input.sellerId !== undefined) row.seller_id = input.sellerId
+  if (input.createdAt !== undefined) row.created_at = input.createdAt
+  if (input.status !== undefined) row.status = input.status
+  if (input.timesChangedHands !== undefined) row.times_changed_hands = input.timesChangedHands
+  if (input.featured !== undefined) row.featured = input.featured
+  if (input.history !== undefined) row.history = input.history
+  if (input.reviews !== undefined) row.reviews = input.reviews
+  return row
+}
+
+function toNeedRow(input: Need): DatabaseRow {
+  return {
+    id: input.id,
+    user_id: input.userId,
+    title: input.title,
+    category: input.category,
+    note: input.note,
+    arrival_date: input.arrivalDate,
+    created_at: input.createdAt,
+  }
+}
 
 let idCounter = 1000
 const nextId = (prefix: string) => `${prefix}_${++idCounter}`
@@ -98,6 +177,35 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
     }
     return false
   })
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadDatabaseData() {
+      const [{ data: remoteListings }, { data: remoteNeeds }, { data: remoteThreads }, { data: remoteMessages }] =
+        await Promise.all([
+          supabase.from('listings').select('*').order('created_at', { ascending: false }),
+          supabase.from('needs').select('*').order('created_at', { ascending: false }),
+          supabase.from('threads').select('*'),
+          supabase.from('messages').select('*').order('created_at', { ascending: true })
+        ])
+
+      if (cancelled) return
+
+      if (remoteListings) setListings(remoteListings.map(mapListingRow))
+      if (remoteNeeds) setNeeds(remoteNeeds.map(mapNeedRow))
+      
+      if (remoteThreads && remoteMessages) {
+        // We can optionally map remote threads/messages here if we want full sync
+        // For now, it will merge or overwrite the mock data
+      }
+    }
+
+    void loadDatabaseData()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const login = useCallback(() => {
     setIsAuthenticated(true)
@@ -122,6 +230,9 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       reviews: [],
     }
     setListings((prev) => [listing, ...prev])
+    void supabase.from('listings').insert(toListingRow(listing)).then(({ error }) => {
+      if (error) console.error('Could not save listing to Supabase:', error.message)
+    })
     return listing
   }, [])
 
@@ -133,6 +244,9 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     }
     setNeeds((prev) => [need, ...prev])
+    void supabase.from('needs').insert(toNeedRow(need)).then(({ error }) => {
+      if (error) console.error('Could not save need to Supabase:', error.message)
+    })
     return need
   }, [])
 
@@ -161,22 +275,32 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
             t.id === existing.id ? { ...t, messages: [...t.messages, msg] } : t,
           ),
         )
+        void supabase.from('messages').insert({ id: msg.id, thread_id: existing.id, sender_id: msg.senderId, text: msg.text }).then()
         return existing
       }
       const thread: Thread = {
         id: nextId('t'),
         listingId,
         participantIds: [CURRENT_USER_ID, sellerId],
-        messages: [
-          {
-            id: nextId('m'),
-            senderId: CURRENT_USER_ID,
-            text: firstMessage,
-            createdAt: new Date().toISOString(),
-          },
-        ],
+        messages: [],
       }
+      const msg = {
+        id: nextId('m'),
+        senderId: CURRENT_USER_ID,
+        text: firstMessage,
+        createdAt: new Date().toISOString(),
+      }
+      thread.messages.push(msg)
       setThreads((prev) => [thread, ...prev])
+      
+      void supabase.from('threads').insert({ id: thread.id, listing_id: listingId }).then(() => {
+        void supabase.from('thread_participants').insert([
+          { thread_id: thread.id, user_id: CURRENT_USER_ID },
+          { thread_id: thread.id, user_id: sellerId }
+        ]).then()
+        void supabase.from('messages').insert({ id: msg.id, thread_id: thread.id, sender_id: msg.senderId, text: msg.text }).then()
+      })
+      
       return thread
     },
     [threads],
@@ -192,6 +316,7 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
     setThreads((prev) =>
       prev.map((t) => (t.id === threadId ? { ...t, messages: [...t.messages, msg] } : t)),
     )
+    void supabase.from('messages').insert({ id: msg.id, thread_id: threadId, sender_id: CURRENT_USER_ID, text }).then()
   }, [])
 
   const receiveMessage = useCallback(
@@ -232,6 +357,19 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       setListings((prev) =>
         prev.map((l) => (l.id === listingId ? { ...l, status: 'rented' } : l)),
       )
+      
+      void supabase.from('rentals').insert({
+        id: rental.id,
+        listing_id: rental.listingId,
+        renter_id: rental.renterId,
+        deposit: rental.deposit,
+        start_date: rental.startDate,
+        due_date: rental.dueDate,
+        phase: rental.phase,
+        payment_method: rental.paymentMethod,
+        quote: rental.quote
+      }).then()
+      void supabase.from('listings').update({ status: 'rented' }).eq('id', listingId).then()
       const owner = getUser(listing.sellerId)
       startThread(
         listingId,
@@ -247,10 +385,21 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
 
   const setRentalPhase = useCallback((rentalId: string, phase: RentalPhase) => {
     setRentals((prev) => prev.map((r) => (r.id === rentalId ? { ...r, phase } : r)))
+    void supabase.from('rentals').update({ phase }).eq('id', rentalId).then()
   }, [])
 
   const deleteListing = useCallback((listingId: string) => {
     setListings((prev) => prev.filter((l) => l.id !== listingId))
+    void supabase.from('listings').delete().eq('id', listingId).then(({ error }) => {
+      if (error) console.error('Could not delete listing from Supabase:', error.message)
+    })
+  }, [])
+
+  const updateListing = useCallback((listingId: string, input: Partial<NewListingInput>) => {
+    setListings((prev) => prev.map((l) => (l.id === listingId ? { ...l, ...input } : l)))
+    void supabase.from('listings').update(toListingRow(input)).eq('id', listingId).then(({ error }) => {
+      if (error) console.error('Could not update listing in Supabase:', error.message)
+    })
   }, [])
 
   const updateListingStatus = useCallback(
@@ -286,6 +435,7 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       startRental,
       setRentalPhase,
       deleteListing,
+      updateListing,
       updateListingStatus,
       favoriteIds,
       toggleFavorite,
@@ -307,6 +457,7 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       startRental,
       setRentalPhase,
       deleteListing,
+      updateListing,
       updateListingStatus,
       favoriteIds,
       toggleFavorite,

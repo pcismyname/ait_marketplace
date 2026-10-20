@@ -12,6 +12,7 @@ export interface FilterState {
   condition: Condition | 'all'
   location: string
   sort: SortKey
+  sellerId?: string
 }
 export type SortKey = 'recent' | 'price-asc' | 'price-desc'
 

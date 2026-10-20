@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRef, useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { toast } from 'sonner'
 import { ImagePlus, X, Tag, HandCoins, ShieldCheck, Sparkles, Check } from 'lucide-react'
@@ -21,7 +21,9 @@ import { cn } from '@/lib/utils'
 
 export default function SellPage() {
   const router = useRouter()
-  const { addListing } = useMarketplace()
+  const searchParams = useSearchParams()
+  const editId = searchParams.get('edit')
+  const { listings, addListing, updateListing } = useMarketplace()
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [type, setType]               = useState<ListingType>('sale')
@@ -42,6 +44,25 @@ export default function SellPage() {
     setImages((prev) => [...prev, ...urls].slice(0, 5))
   }
 
+  useEffect(() => {
+    if (editId) {
+      const existing = listings.find((l) => l.id === editId)
+      if (existing) {
+        setType(existing.type)
+        setTitle(existing.title)
+        setDescription(existing.description)
+        setCategory(existing.category)
+        setCondition(existing.condition)
+        setPrice(existing.price.toString())
+        if (existing.deposit) setDeposit(existing.deposit.toString())
+        if (existing.rentalPeriod) setRentalPeriod(existing.rentalPeriod)
+        if (existing.pickupLocation) setPickup(existing.pickupLocation)
+        setImages(existing.images.filter((img) => img !== '/placeholder.svg' && !img.endsWith('.svg')))
+        setPremium(existing.featured ?? false)
+      }
+    }
+  }, [editId, listings])
+
   const valid =
     title.trim() && description.trim() && category && condition &&
     Number(price) > 0 && pickup && (type === 'sale' || Number(deposit) >= 0)
@@ -49,21 +70,36 @@ export default function SellPage() {
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!valid) { toast.error('Please complete all required fields'); return }
-    const listing = addListing({
-      title: title.trim(), description: description.trim(),
-      category: category as CategoryId, type,
-      price: Number(price),
-      deposit: type === 'rent' ? Number(deposit) : undefined,
-      rentalPeriod: type === 'rent' ? rentalPeriod : undefined,
-      condition: condition as Condition,
-      images: images.length ? images : ['/placeholder.svg'],
-      pickupLocation: pickup, featured: premium,
-    })
-    toast.success('Your listing is live!', {
-      description: premium
-        ? `Premium placement active for 7 days (${formatPrice(PREMIUM_PLACEMENT_FEE)}, simulated).`
-        : 'Students can now find and message you.',
-    })
+    
+    if (editId) {
+      updateListing(editId, {
+        title: title.trim(), description: description.trim(),
+        category: category as CategoryId, type,
+        price: Number(price),
+        deposit: type === 'rent' ? Number(deposit) : undefined,
+        rentalPeriod: type === 'rent' ? rentalPeriod : undefined,
+        condition: condition as Condition,
+        images: images.length ? images : ['/placeholder.svg'],
+        pickupLocation: pickup, featured: premium,
+      })
+      toast.success('Listing updated!')
+    } else {
+      addListing({
+        title: title.trim(), description: description.trim(),
+        category: category as CategoryId, type,
+        price: Number(price),
+        deposit: type === 'rent' ? Number(deposit) : undefined,
+        rentalPeriod: type === 'rent' ? rentalPeriod : undefined,
+        condition: condition as Condition,
+        images: images.length ? images : ['/placeholder.svg'],
+        pickupLocation: pickup, featured: premium,
+      })
+      toast.success('Your listing is live!', {
+        description: premium
+          ? `Premium placement active for 7 days (${formatPrice(PREMIUM_PLACEMENT_FEE)}, simulated).`
+          : 'Students can now find and message you.',
+      })
+    }
     router.push('/my-listings')
   }
 
@@ -71,10 +107,10 @@ export default function SellPage() {
     <div className="w-full max-w-3xl mx-auto px-4 py-16 lg:py-24 min-h-screen">
       {/* Header */}
       <div className="mb-16">
-        <h1 className="font-display text-5xl md:text-6xl font-bold tracking-tight">List an Item</h1>
-        <p className="mt-6 text-[15px] leading-relaxed text-muted-foreground">
-          Selling before you fly home, or renting out for the semester?
-          Post it for the AIT community.
+        <p className="label-tag mb-2">PassItOn marketplace</p>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{editId ? 'Edit listing' : 'List an Item'}</h1>
+        <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">
+          {editId ? 'Update your listing details.' : "Selling before you fly home, or renting out for the semester? Post it for the AIT community."}
         </p>
       </div>
 
@@ -272,7 +308,7 @@ export default function SellPage() {
         {/* Submit */}
         <div className="flex gap-3 pt-1">
           <Button type="submit" size="lg" disabled={!valid} className="flex-1">
-            Publish listing
+            {editId ? 'Update listing' : 'Publish listing'}
           </Button>
           <Button type="button" size="lg" variant="outline" onClick={() => router.push('/browse')}>
             Cancel

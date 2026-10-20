@@ -41,6 +41,7 @@ function HomeInner() {
     condition: 'all',
     location: '',
     sort: 'recent',
+    sellerId: searchParams.get('seller') ?? undefined,
   })
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 20
@@ -58,6 +59,7 @@ function HomeInner() {
       if (filters.category !== 'all' && l.category !== filters.category) return false
       if (filters.condition !== 'all' && l.condition !== filters.condition) return false
       if (filters.location && l.pickupLocation !== filters.location) return false
+      if (filters.sellerId && l.sellerId !== filters.sellerId) return false
       return true
     })
     return [...out].sort((a, b) => {
