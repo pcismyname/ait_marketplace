@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { createClient } from '@/utils/supabase/client'
+import { toast } from 'sonner'
 
 export default function OnboardingPage() {
   const router = useRouter()
@@ -11,9 +13,25 @@ export default function OnboardingPage() {
   const [program, setProgram] = useState('')
   const [batch, setBatch] = useState('')
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Redirect to home/browse on complete
+    const client = createClient()
+    const { data: { user } } = await client.auth.getUser()
+    if (!user) {
+      router.replace('/login')
+      return
+    }
+    const { error } = await client.from('users').upsert({
+      id: user.id,
+      name: name.trim(),
+      email: user.email,
+      program: program.trim(),
+      batch: batch.trim(),
+    })
+    if (error) {
+      toast.error('Could not save your profile', { description: error.message })
+      return
+    }
     router.push('/browse')
   }
 

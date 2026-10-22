@@ -4,10 +4,16 @@ import { cookies } from "next/headers";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error(
+    'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+  )
+}
+
 export const createClient = (cookieStore: Awaited<ReturnType<typeof cookies>>) => {
   return createServerClient(
-    supabaseUrl!,
-    supabaseKey!,
+    supabaseUrl,
+    supabaseKey,
     {
       cookies: {
         getAll() {

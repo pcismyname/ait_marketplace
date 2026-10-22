@@ -6,24 +6,38 @@ import { Button } from '@/components/ui/button'
 import { ArrowRight, Mail, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { useMarketplace } from '@/lib/store'
+import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 
 export default function SignupPage() {
   const [method, setMethod] = useState<'email' | 'appId'>('email')
-  const { login } = useMarketplace()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (method === 'email') {
-      const email = (document.getElementById('email') as HTMLInputElement).value
+      const email = (document.getElementById('email') as HTMLInputElement).value.trim().toLowerCase()
       if (!email.toLowerCase().endsWith('@ait.asia')) {
         toast.error('Invalid email', { description: 'Please use your @ait.asia email address.' })
         return
       }
+      setLoading(true)
+      const password = (document.getElementById('password') as HTMLInputElement).value
+      const { data, error } = await createClient().auth.signUp({ email, password })
+      setLoading(false)
+      if (error) {
+        toast.error('Could not create account', { description: error.message })
+        return
+      }
+      if (data.session) {
+        router.push('/onboarding')
+      } else {
+        toast.success('Check your email', { description: 'Confirm your account, then log in.' })
+        router.push('/login')
+      }
+      return
     } else {
       const appId = (document.getElementById('appId') as HTMLInputElement).value
       if (!appId.toUpperCase().startsWith('AIT-')) {
@@ -32,11 +46,9 @@ export default function SignupPage() {
       }
     }
 
-    setLoading(true)
-    setTimeout(() => {
-      login()
-      router.push('/onboarding')
-    }, 500)
+    toast.error('Application ID sign-up is not connected yet', {
+      description: 'Use your AIT email to create a Supabase account.',
+    })
   }
 
   return (
@@ -84,7 +96,11 @@ export default function SignupPage() {
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
                 required
               />
-              <p className="text-[11px] text-muted-foreground mt-1">We will send a magic link to this address.</p>
+              <p className="text-[11px] text-muted-foreground mt-1">You may need to confirm the address before logging in.</p>
+              <label htmlFor="password" className="mt-3 block text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Password
+              </label>
+              <input id="password" type="password" minLength={6} className="h-10 w-full rounded-md border border-input bg-background px-3 text-[13px]" required />
             </div>
           ) : (
             <div className="space-y-1.5">

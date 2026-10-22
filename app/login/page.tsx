@@ -14,7 +14,7 @@ export default function LoginPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     const email = (document.getElementById('email') as HTMLInputElement).value
@@ -24,10 +24,13 @@ export default function LoginPage() {
     }
 
     setLoading(true)
-    setTimeout(() => {
-      login()
-      router.push('/')
-    }, 500)
+    const error = await login(email, (document.getElementById('password') as HTMLInputElement).value)
+    setLoading(false)
+    if (error) {
+      toast.error('Could not log in', { description: error })
+      return
+    }
+    router.push('/')
   }
 
   return (

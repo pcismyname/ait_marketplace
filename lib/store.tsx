@@ -80,8 +80,8 @@ interface MarketplaceContextValue {
   favoriteIds: Set<string>
   toggleFavorite: (listingId: string) => void
   isAuthenticated: boolean
-  login: () => void
-  logout: () => void
+  login: (email: string, password: string) => Promise<string | null>
+  logout: () => Promise<void>
 }
 
 const MarketplaceContext = createContext<MarketplaceContextValue | null>(null)
@@ -145,8 +145,6 @@ function toListingRow(input: Partial<NewListingInput> & Partial<Listing>): Datab
   if (input.status !== undefined) row.status = input.status
   if (input.timesChangedHands !== undefined) row.times_changed_hands = input.timesChangedHands
   if (input.featured !== undefined) row.featured = input.featured
-  if (input.history !== undefined) row.history = input.history
-  if (input.reviews !== undefined) row.reviews = input.reviews
   return row
 }
 
@@ -162,8 +160,7 @@ function toNeedRow(input: Need): DatabaseRow {
   }
 }
 
-let idCounter = 1000
-const nextId = (prefix: string) => `${prefix}_${++idCounter}`
+const nextId = (_prefix: string) => crypto.randomUUID()
 
 export function MarketplaceProvider({ children }: { children: ReactNode }) {
   const [listings, setListings] = useState<Listing[]>(LISTINGS)
@@ -171,58 +168,121 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
   const [threads, setThreads] = useState<Thread[]>(THREADS)
   const [rentals, setRentals] = useState<Rental[]>(RENTALS)
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('passiton_auth') === '1'
-    }
-    return false
-  })
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const isAuthenticated = currentUserId !== null
+  const userId = currentUserId ?? CURRENT_USER_ID
 
   useEffect(() => {
     let cancelled = false
 
     async function loadDatabaseData() {
-      const [{ data: remoteListings }, { data: remoteNeeds }, { data: remoteThreads }, { data: remoteMessages }] =
+      const [{ data: remoteListings, error: listingsError }, { data: remoteNeeds, error: needsError }, { data: remoteThreads, error: threadsError }, { data: remoteMessages, error: messagesError }, { data: participants, error: participantsError }, { data: remoteRentals, error: rentalsError }, { data: remoteFavorites, error: favoritesError }, { data: remoteHistory, error: historyError }, { data: remoteReviews, error: reviewsError }] =
         await Promise.all([
           supabase.from('listings').select('*').order('created_at', { ascending: false }),
           supabase.from('needs').select('*').order('created_at', { ascending: false }),
           supabase.from('threads').select('*'),
-          supabase.from('messages').select('*').order('created_at', { ascending: true })
+          supabase.from('messages').select('*').order('created_at', { ascending: true }),
+          supabase.from('thread_participants').select('*'),
+          supabase.from('rentals').select('*').order('created_at', { ascending: false }),
+          supabase.from('favorites').select('listing_id'),
+          supabase.from('listing_history').select('*').order('created_at', { ascending: true }),
+          supabase.from('reviews').select('*').order('created_at', { ascending: true }),
         ])
 
       if (cancelled) return
 
-      if (remoteListings) setListings(remoteListings.map(mapListingRow))
+      for (const error of [listingsError, needsError, threadsError, messagesError, participantsError, rentalsError, favoritesError, historyError, reviewsError]) {
+        if (error) console.error('Could not load marketplace data from Supabase:', error.message)
+      }
+      if (remoteListings) setListings(remoteListings.map((row) => {
+        const listing = mapListingRow(row)
+        return {
+          ...listing,
+          history: (remoteHistory ?? [])
+            .filter((item) => item.listing_id === listing.id)
+            .map((item) => ({
+              ownerName: asString(item.owner_name),
+              action: asString(item.action),
+              date: asString(item.date),
+            })),
+          reviews: (remoteReviews ?? [])
+            .filter((item) => item.listing_id === listing.id)
+            .map((item) => ({
+              id: asString(item.id),
+              authorName: asString(item.author_name),
+              authorAvatar: asString(item.author_avatar),
+              role: item.role as 'buyer' | 'seller' | 'renter',
+              rating: Number(item.rating ?? 0),
+              comment: asString(item.comment),
+              date: asString(item.date),
+            })),
+        }
+      }))
       if (remoteNeeds) setNeeds(remoteNeeds.map(mapNeedRow))
-      
-      if (remoteThreads && remoteMessages) {
-        // We can optionally map remote threads/messages here if we want full sync
-        // For now, it will merge or overwrite the mock data
+      if (remoteFavorites) setFavoriteIds(new Set(remoteFavorites.map((favorite) => asString(favorite.listing_id))))
+      if (remoteRentals) setRentals(remoteRentals.map((row) => ({
+        id: asString(row.id),
+        listingId: asString(row.listing_id),
+        renterId: asString(row.renter_id),
+        deposit: Number(row.deposit ?? 0),
+        startDate: asString(row.start_date),
+        dueDate: asString(row.due_date),
+        phase: row.phase as RentalPhase,
+        quote: row.quote as Rental['quote'],
+        paymentMethod: row.payment_method as PaymentMethod | undefined,
+      })))
+      if (remoteThreads && remoteMessages && participants) {
+        setThreads(remoteThreads.map((thread) => ({
+          id: asString(thread.id),
+          listingId: asString(thread.listing_id),
+          participantIds: participants
+            .filter((participant) => participant.thread_id === thread.id)
+            .map((participant) => asString(participant.user_id)),
+          messages: remoteMessages
+            .filter((message) => message.thread_id === thread.id)
+            .map((message) => ({
+              id: asString(message.id),
+              senderId: asString(message.sender_id),
+              text: asString(message.text),
+              createdAt: asString(message.created_at),
+            })),
+        })))
       }
     }
 
-    void loadDatabaseData()
+    let authSubscription: { unsubscribe: () => void } | undefined
+    void supabase.auth.getUser().then(({ data: { user } }) => {
+      if (cancelled) return
+      setCurrentUserId(user?.id ?? null)
+      void loadDatabaseData()
+    })
+    const subscription = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUserId(session?.user.id ?? null)
+      if (session) void loadDatabaseData()
+    })
+    authSubscription = subscription.data.subscription
     return () => {
       cancelled = true
+      authSubscription?.unsubscribe()
     }
   }, [])
 
-  const login = useCallback(() => {
-    setIsAuthenticated(true)
-    localStorage.setItem('passiton_auth', '1')
+  const login = useCallback(async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    return error?.message ?? null
   }, [])
 
-  const logout = useCallback(() => {
-    setIsAuthenticated(false)
-    localStorage.removeItem('passiton_auth')
+  const logout = useCallback(async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) console.error('Could not log out from Supabase:', error.message)
   }, [])
 
   const addListing = useCallback((input: NewListingInput): Listing => {
-    const me = getUser(CURRENT_USER_ID)
+    const me = getUser(userId)
     const listing: Listing = {
       id: nextId('l'),
       ...input,
-      sellerId: CURRENT_USER_ID,
+      sellerId: userId,
       createdAt: new Date().toISOString(),
       status: 'available',
       timesChangedHands: 1,
@@ -234,12 +294,12 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       if (error) console.error('Could not save listing to Supabase:', error.message)
     })
     return listing
-  }, [])
+  }, [userId])
 
   const addNeed = useCallback((input: NewNeedInput): Need => {
     const need: Need = {
       id: nextId('n'),
-      userId: CURRENT_USER_ID,
+      userId,
       ...input,
       createdAt: new Date().toISOString(),
     }
@@ -248,25 +308,25 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       if (error) console.error('Could not save need to Supabase:', error.message)
     })
     return need
-  }, [])
+  }, [userId])
 
   const getThreadForListing = useCallback(
     (listingId: string) =>
       threads.find(
-        (t) => t.listingId === listingId && t.participantIds.includes(CURRENT_USER_ID),
+        (t) => t.listingId === listingId && t.participantIds.includes(userId),
       ),
-    [threads],
+    [threads, userId],
   )
 
   const startThread = useCallback(
     (listingId: string, sellerId: string, firstMessage: string): Thread => {
       const existing = threads.find(
-        (t) => t.listingId === listingId && t.participantIds.includes(CURRENT_USER_ID),
+        (t) => t.listingId === listingId && t.participantIds.includes(userId),
       )
       if (existing) {
         const msg = {
           id: nextId('m'),
-          senderId: CURRENT_USER_ID,
+          senderId: userId,
           text: firstMessage,
           createdAt: new Date().toISOString(),
         }
@@ -281,12 +341,12 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       const thread: Thread = {
         id: nextId('t'),
         listingId,
-        participantIds: [CURRENT_USER_ID, sellerId],
+        participantIds: [userId, sellerId],
         messages: [],
       }
       const msg = {
         id: nextId('m'),
-        senderId: CURRENT_USER_ID,
+        senderId: userId,
         text: firstMessage,
         createdAt: new Date().toISOString(),
       }
@@ -295,7 +355,7 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       
       void supabase.from('threads').insert({ id: thread.id, listing_id: listingId }).then(() => {
         void supabase.from('thread_participants').insert([
-          { thread_id: thread.id, user_id: CURRENT_USER_ID },
+          { thread_id: thread.id, user_id: userId },
           { thread_id: thread.id, user_id: sellerId }
         ]).then()
         void supabase.from('messages').insert({ id: msg.id, thread_id: thread.id, sender_id: msg.senderId, text: msg.text }).then()
@@ -303,21 +363,23 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       
       return thread
     },
-    [threads],
+    [threads, userId],
   )
 
   const sendMessage = useCallback((threadId: string, text: string) => {
     const msg = {
       id: nextId('m'),
-      senderId: CURRENT_USER_ID,
+      senderId: userId,
       text,
       createdAt: new Date().toISOString(),
     }
     setThreads((prev) =>
       prev.map((t) => (t.id === threadId ? { ...t, messages: [...t.messages, msg] } : t)),
     )
-    void supabase.from('messages').insert({ id: msg.id, thread_id: threadId, sender_id: CURRENT_USER_ID, text }).then()
-  }, [])
+    void supabase.from('messages').insert({ id: msg.id, thread_id: threadId, sender_id: userId, text }).then(({ error }) => {
+      if (error) console.error('Could not save message to Supabase:', error.message)
+    })
+  }, [userId])
 
   const receiveMessage = useCallback(
     (threadId: string, senderId: string, text: string) => {
@@ -345,7 +407,7 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       const rental: Rental = {
         id: nextId('r'),
         listingId,
-        renterId: CURRENT_USER_ID,
+        renterId: userId,
         deposit: quote.deposit,
         startDate: start.toISOString(),
         dueDate: rentalDueDate(start, listing.rentalPeriod).toISOString(),
@@ -380,7 +442,7 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       )
       return rental
     },
-    [listings, startThread],
+    [listings, startThread, userId],
   )
 
   const setRentalPhase = useCallback((rentalId: string, phase: RentalPhase) => {
@@ -407,6 +469,9 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       setListings((prev) =>
         prev.map((l) => (l.id === listingId ? { ...l, status } : l)),
       )
+      void supabase.from('listings').update({ status }).eq('id', listingId).then(({ error }) => {
+        if (error) console.error('Could not update listing status in Supabase:', error.message)
+      })
     },
     [],
   )
@@ -414,14 +479,21 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
   const toggleFavorite = useCallback((listingId: string) => {
     setFavoriteIds((prev) => {
       const next = new Set(prev)
-      next.has(listingId) ? next.delete(listingId) : next.add(listingId)
+      const removing = next.has(listingId)
+      removing ? next.delete(listingId) : next.add(listingId)
+      void (removing
+        ? supabase.from('favorites').delete().eq('user_id', userId).eq('listing_id', listingId)
+        : supabase.from('favorites').insert({ user_id: userId, listing_id: listingId })
+      ).then(({ error }) => {
+        if (error) console.error('Could not update favorite in Supabase:', error.message)
+      })
       return next
     })
-  }, [])
+  }, [userId])
 
   const value = useMemo<MarketplaceContextValue>(
     () => ({
-      currentUserId: CURRENT_USER_ID,
+      currentUserId: userId,
       listings,
       needs,
       threads,
@@ -464,6 +536,7 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       isAuthenticated,
       login,
       logout,
+      userId,
     ],
   )
 

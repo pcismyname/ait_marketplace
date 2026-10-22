@@ -63,26 +63,47 @@ Worked examples (THB, illustrative):
 
 ## 2. Website / App
 
-Baseline (from the audit): Next.js App Router + Tailwind + shadcn/ui; 7 pages working on **mock in-memory data** (`lib/data.ts`, `lib/store.tsx`); fee logic, seasonal detection, and domain types exist. No auth, no database, no real payments, no real-time chat. Rent checkout is a dialog; **there is no checkout flow for sales yet**.
+Current status (updated 22 October 2026): Next.js App Router + Tailwind + shadcn/ui with Supabase Auth, Postgres reads/writes, RLS, relational seed data, and session-refresh middleware connected. The app still keeps `lib/data.ts` as an initial loading fallback. Payments remain simulated, Supabase Storage and Realtime are not connected, and the escrow/transaction ledger is not implemented yet.
+
+### Completed since the original audit
+- [x] Supabase project URL and publishable key configured locally in `.env.local`.
+- [x] Supabase browser, server, and middleware clients added with environment validation.
+- [x] Auth session refresh middleware added.
+- [x] Email/password login and signup connected to Supabase Auth; signup/login UI still validates the AIT email domain client-side.
+- [x] Onboarding profile upsert connected to `public.users`.
+- [x] Marketplace store loads listings, needs, rentals, threads, participants, messages, listing history, reviews, and favorites from Supabase.
+- [x] Listing creation, needs creation, messaging, rentals, listing status changes, listing deletion/editing, and favorites write to Supabase.
+- [x] Seed utility updated to generate valid UUID-shaped text IDs and use the currently authenticated Supabase user for foreign-key owners, renters, and senders.
+- [x] Seed utility now reports the exact operation and Supabase error code/details when a seed operation fails.
+- [x] Database schema was verified: relationship ID columns currently use `text`, so RLS policies compare `auth.uid()::text` to those columns.
+
+### Known integration notes
+- [ ] Apply and verify the final RLS policies for all marketplace tables. The `listings` insert/update policies must compare `seller_id` with `(select auth.uid())::text`.
+- [ ] Seed data requires an authenticated Supabase user because `public.users.id` references the logged-in Auth identity.
+- [ ] The existing `lib/data.ts` records use mock IDs for UI fallback only; seeded database records use generated IDs and are mapped at seed time.
 
 ### 2.1 Backend foundation `[P0]` — Workstream A
-- [ ] Create Supabase project (dev + prod, or one project with clear env separation); add keys to Vercel env vars and a local `.env.example`.
-- [ ] Design and create schema: `profiles`, `listings`, `listing_photos`, `needs`, `conversations`, `messages`, `transactions` (type: sale/rent, status, amounts, window timestamps), `escrow_ledger` entries, `rental_details`, `disputes`, `reviews`, `item_history` (ownership chain), `notifications`.
-- [ ] Row Level Security on every table (users read/write only what they should; admin role for moderation).
+- [x] Create Supabase project and configure local publishable environment variables.
+- [x] Create the current marketplace schema: `users`, `listings`, `listing_history`, `reviews`, `needs`, `threads`, `thread_participants`, `messages`, `rentals`, and `favorites`.
+- [ ] Add production-grade schema for `listing_photos`, `transactions`, `escrow_ledger`, `rental_details`, `disputes`, and `notifications`.
+- [ ] Row Level Security on every table (current policies are being verified and still need a second-account security test).
 - [ ] **Compute prices and commission server-side** (never trust client-submitted totals); reuse the logic in `lib/fees.ts`.
 - [ ] Migrate `lib/types.ts` to match the schema; generate Supabase TypeScript types.
-- [ ] Replace each `lib/store.tsx` action with real queries/server actions (`addListing`, `addNeed`, `startRental`, `setRentalPhase`, thread/message actions).
-- [ ] Seed script: demo users (buyer, seller, renter, owner, admin), ~20 listings across all categories, a couple of needs, sample reviews, one transaction in each state.
+- [x] Replace the core `lib/store.tsx` actions with Supabase queries for listings, needs, rentals, threads/messages, statuses, and favorites.
+- [x] Add a browser seed utility for listings across categories, needs, sample history/reviews, threads/messages, and rentals.
+- [ ] Move seeding to a server-side/admin-only script and add demo buyer, seller, renter, owner, and admin accounts without exposing service credentials.
 
 ### 2.2 Auth & onboarding `[P0]` — Workstream A
-- [ ] `/signup`, `/login`, `/verify-email` with Supabase Auth.
-- [ ] Enforce `@ait.asia` **server-side** (auth hook or DB trigger plus a server check), not only in the UI.
-- [ ] Remove hardcoded `CURRENT_USER_ID = 'u_me'`; use the session user everywhere; protect routes with middleware.
-- [ ] `/onboarding`: dorm/pickup location, role intent (outgoing/incoming), arrival or departure date (feeds matching + seasonal banner).
-- [ ] Auth-aware nav (login/logout, avatar, unread badge).
+- [x] `/signup` and `/login` use Supabase Auth with email/password.
+- [ ] Add a dedicated `/verify-email` flow and production email-confirmation UX.
+- [ ] Enforce `@ait.asia` **server-side** (currently validated in the UI only).
+- [x] Auth session refresh middleware and auth-aware route guard added.
+- [ ] Remove the last mock fallback identity (`CURRENT_USER_ID = 'u_me'`) from unauthenticated/loading fallback code; authenticated database actions use the session user.
+- [ ] Expand `/onboarding` with dorm/pickup location, role intent, and arrival/departure date.
+- [x] Auth-aware nav supports login/logout and reflects authenticated state.
 
 ### 2.3 Listings & discovery
-- [ ] `[P0]` Listings CRUD against the DB; photo upload to Supabase Storage (replace `URL.createObjectURL`); image size/type validation.
+- [x] `[P0]` Listings CRUD actions persist to the database; photo upload to Supabase Storage and image validation remain.
 - [ ] `[P0]` `/dashboard/listings`: tabs for active / sold / rented / draft; edit, pause, delete, mark status.
 - [ ] `[P0]` `/dashboard/listings/[id]/edit`.
 - [ ] `[P0]` Browse/search/filter/sort running as DB queries (index on category, type, status, created_at; text search).
@@ -111,12 +132,13 @@ Baseline (from the audit): Next.js App Router + Tailwind + shadcn/ui; 7 pages wo
 - [ ] `[P2]` `/admin/users`.
 
 ### 2.6 Chat, ratings, history
-- [ ] `[P0]` Real-time chat with Supabase Realtime, one thread per listing per user pair; remove the simulated auto-reply; unread counts.
-- [ ] `[P0]` Persist reviews/ratings; update average rating on profiles; only allow a review after a completed transaction.
-- [ ] `[P0]` Persist **item history** (ownership chain) so the "3rd owner, still AIT community" view is driven by real data.
+- [ ] `[P0]` Real-time chat with Supabase Realtime, one thread per listing per user pair; remove the simulated auto-reply; unread counts. Current messages and thread participants persist through Supabase but are not realtime.
+- [ ] `[P0]` Persist reviews/ratings; current seed reviews load from Supabase, but review eligibility and profile average updates are not enforced.
+- [x] `[P0]` Persist **item history** records and load them from Supabase; ownership transitions still need to append history automatically.
 
 ### 2.7 Pre-arrival matching & seasonal features
-- [ ] `[P0]` Persist needs; run matching server-side against live listings (category + date window + type); show matches on `/needs`.
+- [x] `[P0]` Persist needs and load them from Supabase.
+- [ ] `[P0]` Run matching server-side against live listings (category + date window + type); show matches on `/needs`.
 - [ ] `[P1]` Notify the incoming student when a new matching listing is posted.
 - [ ] `[P0]` Keep seasonal banner (`lib/seasons.ts`); **verify the semester dates against AIT's official academic calendar** and cite it.
 - [ ] `[P2]` Dedicated `/matches` page.
@@ -137,9 +159,9 @@ Baseline (from the audit): Next.js App Router + Tailwind + shadcn/ui; 7 pages wo
 - [ ] Loading, empty, and error states on every page; form validation with clear messages.
 - [ ] Responsive pass at phone/tablet/desktop widths (students will open it on phones).
 - [ ] Accessibility basics: labels, alt text, contrast, keyboard nav on core flows.
-- [ ] Security checklist: RLS verified with a second account, no service-role key in the client, rate-limit auth/chat endpoints if feasible, sanitize user content.
+- [ ] Security checklist: RLS policies have been added for the current text-based ID schema, but still need verification with a second account; no service-role key is in the client.
 - [ ] Deploy to Vercel from `main` with production env vars; confirm the **public live URL** works logged out and logged in.
-- [ ] Demo accounts + README with run instructions, env vars, and test credentials (keep test credentials out of the public repo if it is public).
+- [ ] Demo accounts + README with run instructions and test credentials (keep credentials out of the public repo; the local `.env.local` currently contains a test password and should not be committed).
 - [ ] Lighthouse run (performance/accessibility) and record scores for the report.
 
 ### 2.11 Testing & user evidence — Workstream B
