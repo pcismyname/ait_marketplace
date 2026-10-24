@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Plus, CircleCheck, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { useMarketplace } from '@/lib/store'
-import { CATEGORIES, categoryLabel, getUser } from '@/lib/data'
+import { CATEGORIES, categoryLabel } from '@/lib/data'
 import type { CategoryId, Listing, Need } from '@/lib/types'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -18,7 +18,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { initials } from '@/lib/format'
 
 export default function NeedsPage() {
-  const { needs, listings, currentUserId, addNeed } = useMarketplace()
+  const { needs, listings, currentUserId, addNeed, getUser } = useMarketplace()
 
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<CategoryId | ''>('')

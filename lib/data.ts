@@ -1,19 +1,20 @@
+// Static content: categories, pickup points, labels, and the sample personas,
+// listings, needs and reviews that scripts/seed-demo.mjs loads into the local
+// database. Live data comes from Supabase through lib/store.tsx and lib/api;
+// nothing here is a fallback identity.
+
 import type {
   Category,
   CategoryId,
   Listing,
   Need,
   PaymentMethod,
-  Rental,
   Review,
-  Thread,
   User,
 } from './types'
 
 export const BRAND = 'PassItOn'
 export const BRAND_FULL = 'PassItOn — Student Marketplace'
-
-export const CURRENT_USER_ID = 'u_me'
 
 export const CATEGORIES: Category[] = [
   { id: 'furniture', label: 'Furniture', blurb: 'Desks, chairs, beds & shelves' },
@@ -54,17 +55,8 @@ export function paymentMethodLabel(id: PaymentMethod | undefined): string {
   return PAYMENT_METHODS.find((m) => m.id === id)?.label ?? 'Not recorded'
 }
 
+/** Sample personas (seed content). `id` is the persona key used in LISTINGS / NEEDS. */
 export const USERS: User[] = [
-  {
-    id: CURRENT_USER_ID,
-    name: 'You',
-    avatar: '',
-    program: 'M.Sc. Data Science & AI',
-    batch: 'Aug 2025 intake',
-    rating: 5,
-    reviewsCount: 4,
-    joined: '2025',
-  },
   {
     id: 'u_mai',
     name: 'Mai Phyo',
@@ -128,8 +120,9 @@ export const USERS: User[] = [
   },
 ]
 
-export function getUser(id: string): User {
-  return USERS.find((u) => u.id === id) ?? USERS[0]
+/** A sample persona by key, if `id` is one (legacy rows seeded from lib/data.ts). */
+export function sampleUser(id: string): User | undefined {
+  return USERS.find((u) => u.id === id)
 }
 
 const daysAgo = (n: number) =>
@@ -456,68 +449,6 @@ export const NEEDS: Need[] = [
   },
 ]
 
-export const THREADS: Thread[] = [
-  {
-    id: 't_desk',
-    listingId: 'l_desk',
-    participantIds: [CURRENT_USER_ID, 'u_mai'],
-    messages: [
-      {
-        id: 'm1',
-        senderId: CURRENT_USER_ID,
-        text: 'Hi Mai! Is the desk still available? Could I see it this week?',
-        createdAt: daysAgo(1),
-      },
-      {
-        id: 'm2',
-        senderId: 'u_mai',
-        text: 'Hi! Yes it is. I am free Thursday afternoon at Dorm A lobby. Does that work?',
-        createdAt: daysAgo(1),
-      },
-      {
-        id: 'm3',
-        senderId: CURRENT_USER_ID,
-        text: 'Thursday 4pm is perfect. Would you take 1,100 baht?',
-        createdAt: daysAgo(1),
-      },
-    ],
-  },
-  {
-    id: 't_fridge',
-    listingId: 'l_fridge',
-    participantIds: [CURRENT_USER_ID, 'u_kwame'],
-    messages: [
-      {
-        id: 'm1',
-        senderId: 'u_kwame',
-        text: 'Hey, thanks for your interest in the mini fridge! The deposit is 800 baht, refunded when you return it in good condition.',
-        createdAt: daysAgo(2),
-      },
-    ],
-  },
-]
-
-export const RENTALS: Rental[] = [
-  {
-    id: 'r_fridge',
-    listingId: 'l_fridge',
-    renterId: CURRENT_USER_ID,
-    deposit: 800,
-    startDate: daysAgo(40),
-    dueDate: daysAgo(-80),
-    phase: 'active',
-  },
-  {
-    id: 'r_badminton',
-    listingId: 'l_badminton',
-    renterId: CURRENT_USER_ID,
-    deposit: 200,
-    startDate: daysAgo(20),
-    dueDate: daysAgo(-10),
-    phase: 'return-pending',
-  },
-]
-
 export const SELLER_REVIEWS: Record<string, Review[]> = {
   u_mai: [
     {
@@ -560,7 +491,7 @@ export const SELLER_REVIEWS: Record<string, Review[]> = {
     },
     {
       id: 'rv5',
-      authorName: 'You',
+      authorName: 'Linh Tran',
       authorAvatar: '',
       role: 'buyer',
       rating: 5,

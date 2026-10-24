@@ -5,28 +5,31 @@ import { useParams, useRouter } from 'next/navigation'
 import { MapPin, ShieldCheck, CheckCircle2, Clock, AlertTriangle, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useMarketplace } from '@/lib/store'
-import { BRAND, getUser } from '@/lib/data'
+import { BRAND } from '@/lib/data'
 import { computeSaleQuote, DISPUTE_WINDOW_HOURS } from '@/lib/fees'
 import { formatPrice } from '@/lib/format'
 
 /**
- * A protected sale held in escrow (BusinessRules.md §5, §6). Simulated: the
- * transaction is derived from the listing in the id (`tx_<listingId>`), with
- * mock fallbacks when the listing can't be found.
+ * A protected sale held in escrow (BusinessRules.md §5, §6). Reads the
+ * purchase from the store (transactions table). Still a static timeline:
+ * the full status page (rentals too, via getDeal in lib/api) is a P0 item.
  */
 export default function TransactionPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { listings } = useMarketplace()
-  const listing = listings.find((l) => `tx_${l.id}` === id)
-  const quote = computeSaleQuote(listing?.price ?? 200, 'protected')
+  const { listings, transactions, getUser } = useMarketplace()
+  const record = transactions.find((t) => t.id === id)
+  const listing = listings.find((l) => l.id === record?.listingId)
+  const quote = record
+    ? { price: record.price, protectionFee: record.protectionFee, total: record.total }
+    : computeSaleQuote(listing?.price ?? 0, 'protected')
   const tx = {
     id: id,
-    itemTitle: listing?.title ?? 'Bicycle U-Lock',
+    itemTitle: listing?.title ?? 'Purchase',
     quote,
-    status: 'in_escrow', // paid, in_escrow, completed, disputed
-    seller: { name: listing ? getUser(listing.sellerId).name : 'Emma W.' },
-    pickup: listing?.pickupLocation ?? 'SU Building (Ground Floor)',
+    status: record?.status ?? 'paid',
+    seller: { name: getUser(record?.sellerId ?? listing?.sellerId).name },
+    pickup: listing?.pickupLocation ?? '',
   }
 
   return (

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMarketplace } from '@/lib/store'
-import { CATEGORIES, getUser } from '@/lib/data'
+import { CATEGORIES } from '@/lib/data'
 import { initials } from '@/lib/format'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -25,7 +25,7 @@ import { AnnouncementBar } from '@/components/announcement-bar'
 export function SiteHeader() {
   const pathname = usePathname()
   const router = useRouter()
-  const { currentUserId, threads, favoriteIds, logout } = useMarketplace()
+  const { currentUserId, threads, favoriteIds, logout, getUser } = useMarketplace()
   const me = getUser(currentUserId)
 
   const [searchOpen, setSearchOpen] = useState(false)

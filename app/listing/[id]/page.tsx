@@ -10,7 +10,7 @@ import {
   ChevronUp, Store, Repeat, CreditCard, Package
 } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
-import { BRAND, getUser, getSellerReviews, categoryLabel, CONDITION_LABELS } from '@/lib/data'
+import { BRAND, getSellerReviews, categoryLabel, CONDITION_LABELS } from '@/lib/data'
 import {
   computeRentalQuote,
   computeSaleQuote,
@@ -66,7 +66,7 @@ function Accordion({
 export default function ListingDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { listings, favoriteIds, toggleFavorite } = useMarketplace()
+  const { listings, favoriteIds, toggleFavorite, getUser } = useMarketplace()
 
   const listing = listings.find((l) => l.id === id)
   const [activeImg, setActiveImg] = useState(0)

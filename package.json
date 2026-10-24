@@ -7,7 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test lib/fees.test.ts"
+    "test": "node --test lib/fees.test.ts",
+    "test:db": "node --test lib/fees.db.test.ts",
+    "test:sql": "npx -y supabase@2.122.0 test db",
+    "db:start": "npx -y supabase@2.122.0 start",
+    "db:reset": "npx -y supabase@2.122.0 db reset",
+    "db:types": "npx -y supabase@2.122.0 gen types typescript --local > lib/database.types.ts && npx -y oxfmt@0.74.0 lib/database.types.ts",
+    "seed:demo": "node --no-warnings scripts/seed-demo.mjs",
+    "demo:flow": "node --no-warnings scripts/demo-flow.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

@@ -3,11 +3,10 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useMarketplace } from '@/lib/store'
-import { getUser } from '@/lib/data'
 import { Button } from '@/components/ui/button'
 
 export default function SettingsPage() {
-  const { currentUserId } = useMarketplace()
+  const { currentUserId, getUser } = useMarketplace()
   const me = getUser(currentUserId)
 
   const [name, setName] = useState(me?.name || '')

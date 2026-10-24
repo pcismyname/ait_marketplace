@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useMarketplace } from '@/lib/store'
-import { BRAND, PAYMENT_METHODS, getUser } from '@/lib/data'
+import { BRAND, PAYMENT_METHODS } from '@/lib/data'
 import {
   computeRentalQuote,
   DISPUTE_WINDOW_HOURS,
@@ -61,25 +61,40 @@ export function RentCheckoutDialog({
   listing: Listing
   trigger: React.ReactNode
 }) {
-  const { startRental } = useMarketplace()
+  const { requestRental, payRental, rentals, currentUserId, getUser } = useMarketplace()
   const router = useRouter()
   const owner = getUser(listing.sellerId)
   const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [method, setMethod] = useState<PaymentMethod>('promptpay')
 
   const quote = computeRentalQuote({ price: listing.price, deposit: listing.deposit })
+  // Booking flow (BusinessRules §4): request → owner approves → renter pays.
+  const mine = rentals.filter((r) => r.listingId === listing.id && r.renterId === currentUserId)
+  const approved = mine.find((r) => r.phase === 'approved')
+  const waiting = mine.find((r) => r.phase === 'requested')
 
-  const onConfirm = () => {
-    const rental = startRental(listing.id, method)
-    setOpen(false)
-    if (!rental) {
-      toast.error('This item can no longer be rented')
-      return
+  const onConfirm = async () => {
+    setBusy(true)
+    try {
+      if (approved) {
+        await payRental(approved.id, method)
+        toast.success('Booking paid (simulated)', {
+          description: `${formatPrice(quote.deposit)} deposit is held by ${BRAND}. Arrange the handover with ${owner.name}.`,
+        })
+      } else {
+        await requestRental(listing.id)
+        toast.success('Request sent', {
+          description: `${owner.name} approves it first, then you pay ${formatPrice(quote.totalDueNow)}.`,
+        })
+      }
+      setOpen(false)
+      router.push('/rentals')
+    } catch (error) {
+      toast.error('Could not book this item', { description: error instanceof Error ? error.message : String(error) })
+    } finally {
+      setBusy(false)
     }
-    toast.success('Booking confirmed', {
-      description: `${formatPrice(quote.deposit)} deposit is held by ${BRAND}. ${owner.name} has been notified.`,
-    })
-    router.push('/rentals')
   }
 
   return (
@@ -170,7 +185,13 @@ export function RentCheckoutDialog({
           <Button variant="ghost" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={onConfirm}>Pay {formatPrice(quote.totalDueNow)}</Button>
+          <Button onClick={onConfirm} disabled={busy || Boolean(waiting)}>
+            {approved
+              ? `Pay ${formatPrice(quote.totalDueNow)}`
+              : waiting
+                ? 'Waiting for the owner'
+                : 'Send rental request'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

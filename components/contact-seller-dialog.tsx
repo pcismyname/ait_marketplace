@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useMarketplace } from '@/lib/store'
 import type { Listing } from '@/lib/types'
-import { getUser } from '@/lib/data'
 import { DISPUTE_WINDOW_HOURS } from '@/lib/fees'
 
 export function ContactSellerDialog({
@@ -28,7 +27,7 @@ export function ContactSellerDialog({
   trigger: React.ReactNode
   intent?: 'message' | 'rent'
 }) {
-  const { startThread } = useMarketplace()
+  const { startThread, getUser } = useMarketplace()
   const router = useRouter()
   const seller = getUser(listing.sellerId)
   const [open, setOpen] = useState(false)

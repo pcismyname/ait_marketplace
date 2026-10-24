@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation'
 import { useMarketplace } from '@/lib/store'
-import { getUser, getSellerReviews } from '@/lib/data'
+import { getSellerReviews } from '@/lib/data'
 import { ProductCard } from '@/components/listing-card'
 import { Rating } from '@/components/rating'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -10,7 +10,7 @@ import { initials } from '@/lib/format'
 
 export default function ProfilePage() {
   const { userId } = useParams<{ userId: string }>()
-  const { listings } = useMarketplace()
+  const { listings, getUser } = useMarketplace()
   const user = getUser(userId)
   const reviews = getSellerReviews(userId)
   

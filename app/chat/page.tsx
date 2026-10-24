@@ -5,7 +5,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowLeft, Send, MapPin, MessageCircle } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
-import { getUser } from '@/lib/data'
 import type { Thread } from '@/lib/types'
 import { formatPrice, relativeTime, initials } from '@/lib/format'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -19,7 +18,7 @@ const CANNED_REPLIES = [
 ]
 
 function ChatInner() {
-  const { threads, listings, currentUserId, sendMessage, receiveMessage } = useMarketplace()
+  const { threads, listings, currentUserId, sendMessage, receiveMessage, getUser } = useMarketplace()
 
   const [selectedId, setSelectedId] = useState<string | null>(threads[0]?.id ?? null)
   const [draft, setDraft] = useState('')

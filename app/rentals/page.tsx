@@ -17,9 +17,9 @@ import {
   Scale,
   CalendarClock,
   PackageX,
+  XCircle,
 } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
-import { getUser } from '@/lib/data'
 import type { Listing, Rental, RentalPhase } from '@/lib/types'
 import {
   DISPUTE_WINDOW_HOURS,
@@ -35,7 +35,9 @@ import { cn } from '@/lib/utils'
 
 const PHASE_META: Record<RentalPhase, { label: string; color: string; icon: typeof Clock }> = {
   requested:        { label: 'Requested',               color: 'text-muted-foreground', icon: Send },
-  approved:         { label: 'Approved',                color: 'text-primary',          icon: BadgeCheck },
+  approved:         { label: 'Approved · pay to confirm', color: 'text-primary',        icon: BadgeCheck },
+  declined:         { label: 'Declined',                color: 'text-muted-foreground', icon: XCircle },
+  cancelled:        { label: 'Cancelled',               color: 'text-muted-foreground', icon: XCircle },
   paid:             { label: 'Paid · deposit held',     color: 'text-primary',          icon: Wallet },
   active:           { label: 'Active',                  color: 'text-primary',          icon: Clock },
   'return-pending': { label: 'Return pending',          color: 'text-amber-700',        icon: HandCoins },
@@ -56,9 +58,8 @@ const DEPOSIT_HELD: ReadonlySet<RentalPhase> = new Set<RentalPhase>([
 ])
 
 /**
- * Overdue and missing are derived here from the due date and never written to
- * the database: the Supabase `rentals.phase` column may only accept the
- * original four values (active / return-pending / released / disputed).
+ * The database persists overdue / missing (run_escrow_jobs), but the job runs
+ * every few minutes, so the page also derives them from the due date.
  */
 function effectivePhase(rental: Rental, now: Date): RentalPhase {
   if (rental.phase !== 'active') return rental.phase
@@ -79,7 +80,13 @@ function formatDate(iso: string) {
 }
 
 export default function RentalsPage() {
-  const { rentals, listings, setRentalPhase } = useMarketplace()
+  const {
+    rentals: allRentals, listings, currentUserId, getUser,
+    payRental, cancelRental, confirmHandover, markReturned,
+  } = useMarketplace()
+  // This page is the renter's view; owners manage bookings from their listings.
+  const rentals = allRentals.filter((r) => r.renterId === currentUserId)
+  const [busyId, setBusyId] = useState<string | null>(null)
   // One clock per visit, so every card agrees on what "late" means.
   const [now] = useState(() => new Date())
 
@@ -127,24 +134,21 @@ export default function RentalsPage() {
             const Icon = meta.icon
             const late = phase === 'overdue' ? lateFeeSoFar(rental, listing, now) : null
 
-            // Only the original four phases are written to the database (see effectivePhase).
-            const onPhase = (next: 'return-pending' | 'released' | 'disputed') => {
-              const from = phase
-              setRentalPhase(rental.id, next)
-              if (next === 'return-pending') {
-                toast('Marked as returned', {
-                  description: late && late.toOwner > 0
-                    ? `Waiting for the owner to confirm. ${formatPrice(late.toOwner)} late fee comes out of the deposit.`
-                    : `Waiting for the owner to confirm. With no claim, the deposit releases after ${DISPUTE_WINDOW_HOURS} hours.`,
+            // Every action is an RPC that validates the transition (lib/api/rentals.ts).
+            const run = async (action: () => Promise<unknown>, success: string, description?: string) => {
+              setBusyId(rental.id)
+              try {
+                await action()
+                toast.success(success, description ? { description } : undefined)
+              } catch (error) {
+                toast.error('Could not update the rental', {
+                  description: error instanceof Error ? error.message : String(error),
                 })
+              } finally {
+                setBusyId(null)
               }
-              if (next === 'released' && from === 'disputed') {
-                toast.success('Dispute resolved', { description: 'The admin settled the deposit (simulated).' })
-              } else if (next === 'released') {
-                toast.success('Deposit released', { description: `${formatPrice(rental.deposit)} refunded.` })
-              }
-              if (next === 'disputed') toast.error('Dispute opened', { description: 'The deposit stays held until an admin decides.' })
             }
+            const busy = busyId === rental.id
 
             return (
               <div key={rental.id} className="group flex flex-col">
@@ -208,42 +212,65 @@ export default function RentalsPage() {
 
                   {/* Actions */}
                   <div className="mt-3 flex flex-col gap-2 border-t border-border pt-2.5">
+                    {phase === 'requested' && (
+                      <button
+                        disabled={busy}
+                        onClick={() => run(() => cancelRental(rental.id), 'Request cancelled')}
+                        className="w-fit text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Cancel request
+                      </button>
+                    )}
+                    {phase === 'approved' && (
+                      <div className="flex gap-4">
+                        <button
+                          disabled={busy}
+                          onClick={() => run(
+                            () => payRental(rental.id, 'promptpay'),
+                            'Booking paid (simulated)',
+                            `${formatPrice(rental.deposit)} deposit is held by PassItOn until the item comes back.`,
+                          )}
+                          className="text-[11px] font-semibold uppercase tracking-wider text-primary hover:opacity-80 transition-opacity"
+                        >
+                          Pay {formatPrice(rental.quote?.totalDueNow ?? rental.deposit)}
+                        </button>
+                        <button
+                          disabled={busy}
+                          onClick={() => run(() => cancelRental(rental.id), 'Booking cancelled')}
+                          className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                    {phase === 'paid' && (
+                      <button
+                        disabled={busy}
+                        onClick={() => run(() => confirmHandover(rental.id), 'Pickup confirmed', 'Your rental period starts now.')}
+                        className="w-fit text-[11px] font-semibold uppercase tracking-wider text-primary hover:opacity-80 transition-opacity"
+                      >
+                        Confirm pickup
+                      </button>
+                    )}
                     {(phase === 'active' || phase === 'overdue') && (
                       <button
-                        onClick={() => onPhase('return-pending')}
+                        disabled={busy}
+                        onClick={() => run(
+                          () => markReturned(rental.id),
+                          'Marked as returned',
+                          late && late.toOwner > 0
+                            ? `Waiting for the owner to confirm. ${formatPrice(late.toOwner)} late fee comes out of the deposit.`
+                            : `Waiting for the owner to confirm. With no claim, the deposit releases after ${DISPUTE_WINDOW_HOURS} hours.`,
+                        )}
                         className="w-fit text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                       >
                         Mark returned
                       </button>
                     )}
-                    {phase === 'return-pending' && (
-                      <div className="flex gap-4">
-                        <button
-                          onClick={() => onPhase('released')}
-                          className="text-[11px] font-semibold uppercase tracking-wider text-primary hover:opacity-80 transition-opacity"
-                        >
-                          Confirm &amp; release
-                        </button>
-                        <button
-                          onClick={() => onPhase('disputed')}
-                          className="text-[11px] font-semibold uppercase tracking-wider text-destructive hover:opacity-80 transition-opacity"
-                        >
-                          Report damage
-                        </button>
-                      </div>
-                    )}
-                    {phase === 'disputed' && (
-                      <button
-                        onClick={() => onPhase('released')}
-                        className="w-fit text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        Resolve dispute
-                      </button>
-                    )}
-                    {phase === 'released' && (
+                    {(phase === 'released' || phase === 'resolved') && (
                       <span className="flex items-center gap-1 text-[11px] font-semibold text-primary">
                         <CircleCheck className="h-3 w-3" />
-                        {formatPrice(rental.deposit)} refunded
+                        {formatPrice(rental.depositToRenter ?? rental.deposit)} refunded
                       </span>
                     )}
                     {(phase === 'disputed' || phase === 'overdue' || phase === 'missing') && (

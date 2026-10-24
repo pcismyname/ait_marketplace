@@ -52,8 +52,9 @@ const pct = (rate: number) => `${Math.round(rate * 100)}%`
 export default function CheckoutPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { listings, startRental, startThread, getThreadForListing, updateListingStatus } =
-    useMarketplace()
+  const {
+    listings, rentals, currentUserId, requestRental, payRental, createSale, startThread, getThreadForListing,
+  } = useMarketplace()
   const listing = listings.find(l => l.id === id)
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('promptpay')
@@ -68,31 +69,41 @@ export default function CheckoutPage() {
   const inPerson = saleQuote?.mode === 'in-person'
   const total = rentQuote ? rentQuote.totalDueNow : saleQuote!.total
   const methodLabel = PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label
+  // Rental booking flow (BusinessRules §4): request → owner approves → renter pays.
+  const myRentals = rentals.filter(r => r.listingId === listing.id && r.renterId === currentUserId)
+  const approvedRental = myRentals.find(r => r.phase === 'approved')
+  const waitingRental = myRentals.find(r => r.phase === 'requested')
 
   const messageSeller = (text: string) => {
     if (!getThreadForListing(listing.id)) startThread(listing.id, listing.sellerId, text)
   }
 
-  const onPay = () => {
+  // Simulated: no gateway, no real money (BusinessRules.md §7). The server
+  // computes the amounts and moves the booking / purchase to its next state.
+  const onPay = async () => {
     setProcessing(true)
-    // Simulated: no gateway, no real money (BusinessRules.md §7).
-    setTimeout(() => {
-      setProcessing(false)
-
+    try {
       if (isRent) {
-        const rental = startRental(listing.id, paymentMethod)
-        if (!rental) {
-          toast.error('This item can no longer be rented')
-          return
+        if (approvedRental) {
+          await payRental(approvedRental.id, paymentMethod)
+          toast.success('Booking paid (simulated)', {
+            description: `${formatPrice(rentQuote!.deposit)} deposit is held by ${BRAND} until the item comes back.`,
+          })
+        } else {
+          await requestRental(listing.id)
+          messageSeller(
+            `Hi! I just requested to rent "${listing.title}". Once you approve, I'll pay and we can meet at ${listing.pickupLocation}.`,
+          )
+          toast.success('Rental request sent', {
+            description: `The owner approves it first, then you pay ${formatPrice(total)} here.`,
+          })
         }
-        toast.success('Booking paid (simulated)', {
-          description: `${formatPrice(rentQuote!.deposit)} deposit is held by ${BRAND} until the item comes back.`,
-        })
         router.push('/rentals')
         return
       }
 
       if (inPerson) {
+        await createSale(listing.id, 'in-person')
         messageSeller(
           `Hi! I'd like to buy "${listing.title}" and pay you in person at handover (${formatPrice(listing.price)}). When can we meet at ${listing.pickupLocation}?`,
         )
@@ -103,22 +114,28 @@ export default function CheckoutPage() {
         return
       }
 
-      updateListingStatus(listing.id, 'reserved')
+      const tx = await createSale(listing.id, 'protected', paymentMethod)
       messageSeller(
         `Hi! I just paid for "${listing.title}" with buyer protection. When can we meet at ${listing.pickupLocation}?`,
       )
       toast.success('Payment held by ' + BRAND + ' (simulated)', {
         description: `Paid ${formatPrice(total)} by ${methodLabel}. The seller is paid ${DISPUTE_WINDOW_HOURS} hours after handover unless you open a dispute.`,
       })
-      router.push(`/transaction/tx_${listing.id}`)
-    }, 1200)
+      router.push(`/transaction/${tx.id}`)
+    } catch (error) {
+      toast.error('Checkout failed', { description: error instanceof Error ? error.message : String(error) })
+    } finally {
+      setProcessing(false)
+    }
   }
 
   const ctaLabel = processing
     ? 'Processing...'
     : inPerson
       ? 'Confirm in-person purchase'
-      : `Pay ${formatPrice(total)}`
+      : isRent && !approvedRental
+        ? waitingRental ? 'Waiting for the owner to approve' : 'Send rental request'
+        : `Pay ${formatPrice(total)}`
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 md:py-12">
@@ -305,7 +322,7 @@ export default function CheckoutPage() {
               </p>
             )}
 
-            <Button onClick={onPay} disabled={processing} className="w-full h-11 text-[13px] font-semibold">
+            <Button onClick={onPay} disabled={processing || (isRent && !approvedRental && Boolean(waitingRental))} className="w-full h-11 text-[13px] font-semibold">
               {ctaLabel}
             </Button>
 
