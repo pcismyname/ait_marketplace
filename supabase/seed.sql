@@ -1,0 +1,1 @@
+-- Local seed data lives in scripts/seed-demo.mjs (creates auth users, so it can't be plain SQL).
