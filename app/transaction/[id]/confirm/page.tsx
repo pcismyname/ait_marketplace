@@ -6,8 +6,9 @@ import { toast } from 'sonner'
 import { ArrowLeft, CheckCircle2, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { DISPUTE_WINDOW_HOURS } from '@/lib/fees'
 
-export default function ConfirmTransactionPage({ params }: { params: { id: string } }) {
+export default function ConfirmTransactionPage() {
   const router = useRouter()
   const [confirmed, setConfirmed] = useState(false)
   const [feedback, setFeedback] = useState('')
@@ -17,7 +18,7 @@ export default function ConfirmTransactionPage({ params }: { params: { id: strin
     e.preventDefault()
     setSubmitting(true)
     setTimeout(() => {
-      toast.success('Transaction complete!', { description: 'Funds have been released to the seller.' })
+      toast.success('Transaction complete!', { description: 'Funds have been released to the seller (simulated).' })
       router.push('/dashboard/orders')
     }, 1000)
   }
@@ -31,7 +32,9 @@ export default function ConfirmTransactionPage({ params }: { params: { id: strin
 
       <div className="mb-10">
         <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Confirm Receipt</h1>
-        <p className="mt-4 text-[14px] text-muted-foreground">Release escrow funds to the seller.</p>
+        <p className="mt-4 text-[14px] text-muted-foreground">
+          Release the escrow funds to the seller now, instead of waiting for the {DISPUTE_WINDOW_HOURS}-hour window to close.
+        </p>
       </div>
 
       <div className="border border-border bg-card p-6 md:p-8 shadow-sm">
@@ -41,7 +44,9 @@ export default function ConfirmTransactionPage({ params }: { params: { id: strin
             <h2 className="text-[15px] font-semibold">Important</h2>
             <p className="text-[13px] leading-relaxed text-muted-foreground">
               By confirming receipt, you agree that you have inspected the item and accept it in its current condition. 
-              <strong> The escrow funds will be immediately released to the seller.</strong> This action cannot be undone.
+              <strong> The escrow funds will be released to the seller immediately</strong> and the{' '}
+              {DISPUTE_WINDOW_HOURS}-hour dispute window closes early, so you can no longer open a dispute.
+              This action cannot be undone.
             </p>
           </div>
         </div>

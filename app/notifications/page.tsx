@@ -3,6 +3,7 @@
 import { Bell, CheckCircle2, MessageCircle, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { DISPUTE_WINDOW_HOURS } from '@/lib/fees'
 
 const NOTIFICATIONS = [
   {
@@ -27,7 +28,7 @@ const NOTIFICATIONS = [
     id: 3,
     type: 'system',
     title: 'Deposit Released',
-    message: 'Your deposit of ฿500 for "Mini Fridge" has been released to your wallet.',
+    message: `The ${DISPUTE_WINDOW_HOURS}-hour window after your return closed with no claim. Your ฿800 deposit for "Mini Fridge" has been refunded to your wallet.`,
     date: 'Yesterday',
     unread: false,
     link: '/dashboard/wallet'

@@ -11,11 +11,18 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import {
-  ESCROW_HANDLING_FEE,
+  BUYER_PROTECTION_BASE_FEE,
+  BUYER_PROTECTION_RATE,
+  ESCROW_FEE_MIN,
+  ESCROW_FEE_RATE,
+  PREMIUM_PLACEMENT_DAYS,
   PREMIUM_PLACEMENT_FEE,
   RENTAL_COMMISSION_RATE,
 } from '@/lib/fees'
 import { formatPrice } from '@/lib/format'
+
+/** A rate such as 0.03 as a whole percentage (3). */
+const pct = (rate: number) => Math.round(rate * 100)
 
 const DIFFERENCES = [
   {
@@ -96,19 +103,19 @@ export function WhySection() {
             icon={Tag}
             title="Peer-to-peer sales"
             price="Free"
-            note="No listing or completion fee."
+            note={`No listing fee. Pay in person for free, or the buyer can add protection for ${formatPrice(BUYER_PROTECTION_BASE_FEE)} + ${pct(BUYER_PROTECTION_RATE)}%.`}
           />
           <PriceRow
             icon={HandCoins}
             title="Rentals"
-            price={`${Math.round(RENTAL_COMMISSION_RATE * 100)}% + ${formatPrice(ESCROW_HANDLING_FEE)}`}
-            note="Commission + escrow fee at booking."
+            price={`${pct(RENTAL_COMMISSION_RATE)}% + max(${formatPrice(ESCROW_FEE_MIN)}, ${pct(ESCROW_FEE_RATE)}%)`}
+            note={`Commission on the rent, plus an escrow fee of ${pct(ESCROW_FEE_RATE)}% of the deposit (min ${formatPrice(ESCROW_FEE_MIN)}), at booking.`}
           />
           <PriceRow
             icon={Sparkles}
             title="Premium placement"
             price={formatPrice(PREMIUM_PLACEMENT_FEE)}
-            note="7 days at top of search and matching."
+            note={`${PREMIUM_PLACEMENT_DAYS} days at top of search and matching.`}
           />
         </div>
         <div className="flex items-center gap-2 border-t border-border px-4 py-3 text-[11px] text-muted-foreground">

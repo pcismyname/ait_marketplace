@@ -4,10 +4,16 @@ import { useRef, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { toast } from 'sonner'
-import { ImagePlus, X, Tag, HandCoins, ShieldCheck, Sparkles, Check } from 'lucide-react'
+import { ImagePlus, X, ShieldCheck, Check, Info } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
-import { BRAND, CATEGORIES, PICKUP_LOCATIONS, CONDITION_LABELS } from '@/lib/data'
-import { ESCROW_HANDLING_FEE, PREMIUM_PLACEMENT_FEE, RENTAL_COMMISSION_RATE } from '@/lib/fees'
+import { BRAND, CATEGORIES, PICKUP_LOCATIONS, CONDITION_LABELS, categoryLabel } from '@/lib/data'
+import {
+  BUYER_PROTECTION_BASE_FEE, BUYER_PROTECTION_RATE,
+  DEPOSIT_MAX, DEPOSIT_MIN, DEPOSIT_VALUE_MAX_RATE, DEPOSIT_VALUE_MIN_RATE,
+  ESCROW_FEE_MIN, ESCROW_FEE_RATE, HIGH_VALUE_RENTAL_THRESHOLD,
+  PREMIUM_PLACEMENT_DAYS, PREMIUM_PLACEMENT_FEE, RENTAL_COMMISSION_RATE,
+  depositRangeForValue, escrowHandlingFee, needsRentalApproval, suggestedDeposit, validateDeposit,
+} from '@/lib/fees'
 import { formatPrice } from '@/lib/format'
 import type { CategoryId, Condition, ListingType } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -18,6 +24,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+
+/** A rate such as 0.03 as a whole percentage (3). */
+const pct = (rate: number) => Math.round(rate * 100)
 
 export default function SellPage() {
   const router = useRouter()
@@ -33,10 +42,52 @@ export default function SellPage() {
   const [condition, setCondition]     = useState<Condition | ''>('')
   const [price, setPrice]             = useState('')
   const [deposit, setDeposit]         = useState('')
+  // False while the deposit still holds the platform's suggestion; it then
+  // follows category / value changes. Typing a deposit sets it to true.
+  const [depositTouched, setDepositTouched] = useState(false)
+  // Helper field only, never saved: listings have no replacement-value column.
+  // It narrows the allowed deposit to 30–50% of the value (BusinessRules.md §3).
+  const [replacementValue, setReplacementValue] = useState('')
   const [rentalPeriod, setRentalPeriod] = useState('per semester')
   const [pickup, setPickup]           = useState('')
   const [images, setImages]           = useState<string[]>([])
   const [premium, setPremium]         = useState(false)
+
+  // ─── Deposit rules (BusinessRules.md §3) ──────────────────────────────────
+  const toValue = (raw: string) => (Number(raw) > 0 ? Number(raw) : undefined)
+  const itemValue = toValue(replacementValue)
+  const valueRange = itemValue !== undefined ? depositRangeForValue(itemValue) : null
+
+  /** Category suggestion, kept inside the value range when a value is given. */
+  const suggestionFor = (cat: CategoryId | '', itemValue: number | undefined) => {
+    const base = suggestedDeposit(cat || undefined)
+    if (itemValue === undefined) return base
+    const { min, max } = depositRangeForValue(itemValue)
+    return Math.min(max, Math.max(min, base))
+  }
+  const suggestion = suggestionFor(category, itemValue)
+
+  const prefillDeposit = (cat: CategoryId | '', itemValue: number | undefined) => {
+    if (!depositTouched) setDeposit(String(suggestionFor(cat, itemValue)))
+  }
+
+  const onTypeChange = (next: ListingType) => {
+    setType(next)
+    if (next === 'rent') prefillDeposit(category, itemValue)
+  }
+  const onCategoryChange = (next: CategoryId) => {
+    setCategory(next)
+    if (type === 'rent') prefillDeposit(next, itemValue)
+  }
+  const onReplacementValueChange = (raw: string) => {
+    setReplacementValue(raw)
+    if (type === 'rent') prefillDeposit(category, toValue(raw))
+  }
+
+  const depositAmount = deposit.trim() === '' ? undefined : Number(deposit)
+  const depositError = type === 'rent' ? validateDeposit(depositAmount, itemValue) : null
+  const escrowFee = type === 'rent' && !depositError && depositAmount ? escrowHandlingFee(depositAmount) : null
+  const highValue = needsRentalApproval(itemValue)
 
   const onFiles = (files: FileList | null) => {
     if (!files) return
@@ -54,7 +105,10 @@ export default function SellPage() {
         setCategory(existing.category)
         setCondition(existing.condition)
         setPrice(existing.price.toString())
+        // Legacy rentals without a deposit start from the category suggestion.
         if (existing.deposit) setDeposit(existing.deposit.toString())
+        else if (existing.type === 'rent') setDeposit(String(suggestedDeposit(existing.category)))
+        setDepositTouched(Boolean(existing.deposit))
         if (existing.rentalPeriod) setRentalPeriod(existing.rentalPeriod)
         if (existing.pickupLocation) setPickup(existing.pickupLocation)
         setImages(existing.images.filter((img) => img !== '/placeholder.svg' && !img.endsWith('.svg')))
@@ -65,7 +119,7 @@ export default function SellPage() {
 
   const valid =
     title.trim() && description.trim() && category && condition &&
-    Number(price) > 0 && pickup && (type === 'sale' || Number(deposit) >= 0)
+    Number(price) > 0 && pickup && (type === 'sale' || depositError === null)
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -96,7 +150,7 @@ export default function SellPage() {
       })
       toast.success('Your listing is live!', {
         description: premium
-          ? `Premium placement active for 7 days (${formatPrice(PREMIUM_PLACEMENT_FEE)}, simulated).`
+          ? `Premium placement active for ${PREMIUM_PLACEMENT_DAYS} days (${formatPrice(PREMIUM_PLACEMENT_FEE)}, simulated).`
           : 'Students can now find and message you.',
       })
     }
@@ -127,7 +181,7 @@ export default function SellPage() {
               <button
                 key={value}
                 type="button"
-                onClick={() => setType(value)}
+                onClick={() => onTypeChange(value)}
                 className={cn(
                   'flex items-center gap-2 transition-all duration-150',
                   type === value
@@ -199,7 +253,7 @@ export default function SellPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label className="label-tag">Category</Label>
-            <Select value={category} onValueChange={(v) => setCategory(v as CategoryId)}>
+            <Select value={category} onValueChange={(v) => onCategoryChange(v as CategoryId)}>
               <SelectTrigger><SelectValue placeholder="Choose a category" /></SelectTrigger>
               <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}</SelectContent>
             </Select>
@@ -244,18 +298,80 @@ export default function SellPage() {
 
         {/* Rental-only fields */}
         {type === 'rent' && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="deposit" className="label-tag">Refundable deposit (฿)</Label>
-              <Input id="deposit" type="number" min={0} value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="0" />
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="deposit" className="label-tag">Refundable deposit (฿)</Label>
+                <Input
+                  id="deposit" type="number" inputMode="numeric" step={1}
+                  min={valueRange?.min ?? DEPOSIT_MIN} max={valueRange?.max ?? DEPOSIT_MAX}
+                  value={deposit}
+                  onChange={(e) => { setDeposit(e.target.value); setDepositTouched(true) }}
+                  placeholder={String(suggestion)}
+                  aria-invalid={depositError ? true : undefined}
+                  aria-describedby={depositError ? 'deposit-hint deposit-error' : 'deposit-hint'}
+                />
+                <p id="deposit-hint" className="text-[11px] leading-relaxed text-muted-foreground">
+                  {category
+                    ? <>Suggested for {categoryLabel(category)}: {formatPrice(suggestedDeposit(category))}.</>
+                    : <>Suggested: {formatPrice(suggestedDeposit(undefined))}. Pick a category for a better estimate.</>}
+                  {' '}Allowed {formatPrice(valueRange?.min ?? DEPOSIT_MIN)} – {formatPrice(valueRange?.max ?? DEPOSIT_MAX)}.
+                  {deposit !== String(suggestion) && (
+                    <>
+                      {' '}
+                      <button
+                        type="button"
+                        onClick={() => { setDeposit(String(suggestion)); setDepositTouched(false) }}
+                        className="font-semibold text-primary hover:underline underline-offset-2"
+                      >
+                        Use {formatPrice(suggestion)}
+                      </button>
+                    </>
+                  )}
+                </p>
+                {depositError && (
+                  <p id="deposit-error" role="alert" className="text-[11px] leading-relaxed text-destructive">
+                    {depositError}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label className="label-tag">Pickup location</Label>
+                <Select value={pickup} onValueChange={(v) => setPickup(v ?? '')}>
+                  <SelectTrigger><SelectValue placeholder="Where on campus?" /></SelectTrigger>
+                  <SelectContent>{PICKUP_LOCATIONS.map((loc) => <SelectItem key={loc} value={loc}>{loc}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="label-tag">Pickup location</Label>
-              <Select value={pickup} onValueChange={(v) => setPickup(v ?? '')}>
-                <SelectTrigger><SelectValue placeholder="Where on campus?" /></SelectTrigger>
-                <SelectContent>{PICKUP_LOCATIONS.map((loc) => <SelectItem key={loc} value={loc}>{loc}</SelectItem>)}</SelectContent>
-              </Select>
+
+            <div className="space-y-1.5 sm:max-w-[calc(50%-0.5rem)]">
+              <Label htmlFor="replacement-value" className="label-tag">
+                Item&apos;s replacement value (฿) <span className="normal-case font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="replacement-value" type="number" inputMode="numeric" min={0}
+                value={replacementValue}
+                onChange={(e) => onReplacementValueChange(e.target.value)}
+                placeholder="What it would cost to buy again"
+                aria-describedby="replacement-value-hint"
+              />
+              <p id="replacement-value-hint" className="text-[11px] leading-relaxed text-muted-foreground">
+                {valueRange
+                  ? <>For this value the deposit must be {formatPrice(valueRange.min)} – {formatPrice(valueRange.max)} ({pct(DEPOSIT_VALUE_MIN_RATE)}–{pct(DEPOSIT_VALUE_MAX_RATE)}% of the value, within {formatPrice(DEPOSIT_MIN)} – {formatPrice(DEPOSIT_MAX)}).</>
+                  : <>Helps set a fair deposit: {pct(DEPOSIT_VALUE_MIN_RATE)}–{pct(DEPOSIT_VALUE_MAX_RATE)}% of the value. Not shown on the listing.</>}
+              </p>
             </div>
+
+            {/* Placeholder only: the admin approval flow is (open) in BusinessRules.md §3. */}
+            {highValue && (
+              <div className="flex items-start gap-2.5 border border-border bg-surface p-4">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                <p className="text-[12px] leading-relaxed text-muted-foreground">
+                  Renting out items worth more than {formatPrice(HIGH_VALUE_RENTAL_THRESHOLD)} needs admin
+                  approval. Approval isn&apos;t set up in this prototype yet, so your listing will still be published.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -264,17 +380,21 @@ export default function SellPage() {
           <div className="flex items-start gap-2.5 border border-amber-200/50 bg-amber-50/50 p-4">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-surge-foreground" />
             <p className="text-[12px] leading-relaxed text-surge-foreground">
-              The renter&apos;s deposit is held in escrow by {BRAND} and released when you confirm
-              the item came back in good condition. At booking, the renter pays your price plus a{' '}
-              {Math.round(RENTAL_COMMISSION_RATE * 100)}% commission and a{' '}
-              {formatPrice(ESCROW_HANDLING_FEE)} escrow fee. You receive the full rental price.
+              The renter&apos;s deposit is held in escrow by {BRAND}, never by you, and refunded when you
+              confirm the item came back in good condition. At booking, the renter pays your price plus a{' '}
+              {pct(RENTAL_COMMISSION_RATE)}% commission and an escrow fee of {formatPrice(ESCROW_FEE_MIN)} or{' '}
+              {pct(ESCROW_FEE_RATE)}% of the deposit, whichever is higher
+              {escrowFee !== null && <> ({formatPrice(escrowFee)} for this deposit)</>}.
+              You receive the full rental price.
             </p>
           </div>
         ) : (
           <div className="flex items-start gap-2.5 border border-border bg-surface p-4">
             <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-[12px] leading-relaxed text-muted-foreground">
-              Free to list, free to sell. No platform fee on peer-to-peer sales.
+              Free to list, free to sell. No platform fee for you. Buyers pay you in person, or can choose
+              &ldquo;Pay with protection&rdquo; for {formatPrice(BUYER_PROTECTION_BASE_FEE)} + {pct(BUYER_PROTECTION_RATE)}%,
+              paid by them.
             </p>
           </div>
         )}
@@ -296,7 +416,7 @@ export default function SellPage() {
             </div>
             <span className="flex-1 min-w-0">
               <span className="block text-[13px] font-semibold text-foreground">
-                Premium placement · {formatPrice(PREMIUM_PLACEMENT_FEE)} for 7 days
+                Premium placement · {formatPrice(PREMIUM_PLACEMENT_FEE)} for {PREMIUM_PLACEMENT_DAYS} days
               </span>
               <span className="block text-[12px] text-muted-foreground mt-0.5">
                 Appear first in search and pre-arrival matching. Useful when clearing a whole room.

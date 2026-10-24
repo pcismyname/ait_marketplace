@@ -40,8 +40,8 @@ export function HomeHero({ listingCount }: { listingCount: number }) {
 
             <p className="mt-5 max-w-md text-[15px] leading-relaxed text-muted-foreground">
               Furniture, electronics, bikes, textbooks. Sold, rented, or passed on
-              — by students leaving to students arriving. Deposits held in escrow.
-              No cash. No drama.
+              — by students leaving to students arriving. Rental deposits held in
+              escrow, never by the owner. No drama.
             </p>
 
             {/* Search bar */}

@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useMarketplace } from '@/lib/store'
 import type { Listing } from '@/lib/types'
 import { getUser } from '@/lib/data'
+import { DISPUTE_WINDOW_HOURS } from '@/lib/fees'
 
 export function ContactSellerDialog({
   listing,
@@ -59,7 +60,7 @@ export function ContactSellerDialog({
           </DialogTitle>
           <DialogDescription>
             {intent === 'rent'
-              ? 'Agree on dates and pickup. The deposit is held in escrow and returned after the item comes back in good condition.'
+              ? `Agree on dates and pickup. PassItOn holds the deposit, never the owner, and refunds it after the return once the owner confirms, or ${DISPUTE_WINDOW_HOURS} hours after the return if there is no claim.`
               : 'Ask a question, negotiate the price, or arrange a campus pickup.'}
           </DialogDescription>
         </DialogHeader>

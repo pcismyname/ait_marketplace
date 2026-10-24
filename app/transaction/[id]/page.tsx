@@ -1,23 +1,32 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { MapPin, ShieldCheck, CheckCircle2, Clock, AlertTriangle, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useMarketplace } from '@/lib/store'
+import { BRAND, getUser } from '@/lib/data'
+import { computeSaleQuote, DISPUTE_WINDOW_HOURS } from '@/lib/fees'
+import { formatPrice } from '@/lib/format'
 
+/**
+ * A protected sale held in escrow (BusinessRules.md §5, §6). Simulated: the
+ * transaction is derived from the listing in the id (`tx_<listingId>`), with
+ * mock fallbacks when the listing can't be found.
+ */
 export default function TransactionPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  // Mock transaction data
+  const { listings } = useMarketplace()
+  const listing = listings.find((l) => `tx_${l.id}` === id)
+  const quote = computeSaleQuote(listing?.price ?? 200, 'protected')
   const tx = {
     id: id,
-    itemTitle: 'Bicycle U-Lock',
-    amount: 200,
+    itemTitle: listing?.title ?? 'Bicycle U-Lock',
+    quote,
     status: 'in_escrow', // paid, in_escrow, completed, disputed
-    seller: { name: 'Emma W.', phone: '081-234-5678' },
-    pickup: 'SU Building (Ground Floor)',
-    date: 'Oct 7, 2026',
+    seller: { name: listing ? getUser(listing.sellerId).name : 'Emma W.' },
+    pickup: listing?.pickupLocation ?? 'SU Building (Ground Floor)',
   }
 
   return (
@@ -28,7 +37,9 @@ export default function TransactionPage() {
         </div>
         <p className="label-tag mb-2">Payment Secured</p>
         <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Transaction {tx.id}</h1>
-        <p className="mt-4 text-[14px] text-muted-foreground">Your funds are safely held in escrow.</p>
+        <p className="mt-4 text-[14px] text-muted-foreground">
+          Your payment is held by {BRAND}, not the seller. Payments are simulated in this demo.
+        </p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -47,7 +58,7 @@ export default function TransactionPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold">Payment Held</p>
-                  <p className="text-[11px] text-muted-foreground">PassItOn has secured ฿{tx.amount}</p>
+                  <p className="text-[11px] text-muted-foreground">{BRAND} is holding {formatPrice(tx.quote.total)}</p>
                 </div>
               </div>
               <div className="relative flex items-center justify-between gap-4">
@@ -64,8 +75,19 @@ export default function TransactionPage() {
                   <div className="h-1.5 w-1.5 rounded-full bg-current" />
                 </div>
                 <div className="flex-1 min-w-0 opacity-50">
+                  <p className="text-[13px] font-semibold">{DISPUTE_WINDOW_HOURS}-hour dispute window</p>
+                  <p className="text-[11px] text-muted-foreground">Opens at handover</p>
+                </div>
+              </div>
+              <div className="relative flex items-center justify-between gap-4">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground ring-4 ring-surface z-10">
+                  <div className="h-1.5 w-1.5 rounded-full bg-current" />
+                </div>
+                <div className="flex-1 min-w-0 opacity-50">
                   <p className="text-[13px] font-semibold">Funds Released</p>
-                  <p className="text-[11px] text-muted-foreground">After you confirm receipt</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Automatically when the window closes with no dispute, or at once when you confirm receipt
+                  </p>
                 </div>
               </div>
             </div>
@@ -74,7 +96,8 @@ export default function TransactionPage() {
           <div className="border border-border bg-card p-6">
             <h3 className="text-[14px] font-semibold mb-2">Have you received the item?</h3>
             <p className="text-[12px] text-muted-foreground mb-4">
-              Only confirm receipt after you have thoroughly inspected the item. This will release the funds to the seller.
+              If you don&apos;t confirm, the funds go to the seller automatically {DISPUTE_WINDOW_HOURS} hours after
+              handover. Confirming receipt after inspecting the item releases them right away.
             </p>
             <Button onClick={() => router.push(`/transaction/${tx.id}/confirm`)} className="w-full h-10 text-[12px]">
               Confirm Receipt
@@ -92,9 +115,22 @@ export default function TransactionPage() {
               <p className="text-[13px] font-medium">{tx.itemTitle}</p>
             </div>
             
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Paid</p>
-              <p className="text-[13px] font-medium font-display">฿{tx.amount}</p>
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Payment</p>
+              <dl className="space-y-1.5 text-[13px]">
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Item price</dt>
+                  <dd className="font-medium tabular-nums">{formatPrice(tx.quote.price)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Buyer protection fee</dt>
+                  <dd className="font-medium tabular-nums">{formatPrice(tx.quote.protectionFee)}</dd>
+                </div>
+                <div className="flex justify-between border-t border-border pt-1.5">
+                  <dt className="font-semibold">Total paid</dt>
+                  <dd className="font-display font-semibold tabular-nums">{formatPrice(tx.quote.total)}</dd>
+                </div>
+              </dl>
             </div>
             
             <div className="pt-4 border-t border-border">
@@ -124,7 +160,8 @@ export default function TransactionPage() {
             <div>
               <p className="text-[12px] font-semibold">Issue with the item?</p>
               <p className="text-[11px] text-muted-foreground mt-0.5 mb-2">
-                If the item doesn't match the description or the seller doesn't show up, you can file a dispute to pause the escrow release.
+                If the item doesn&apos;t match the description or the seller doesn&apos;t show up, file a dispute within{' '}
+                {DISPUTE_WINDOW_HOURS} hours of handover to stop the release. An admin reviews the chat and photos.
               </p>
               <Link href={`/dispute/${tx.id}`} className="text-[11px] font-semibold text-destructive hover:underline flex items-center gap-1">
                 File a dispute <ArrowRight className="h-3 w-3" />

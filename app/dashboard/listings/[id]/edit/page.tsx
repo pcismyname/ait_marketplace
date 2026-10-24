@@ -4,12 +4,17 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { toast } from 'sonner'
-import { ImagePlus, X, Tag, HandCoins, ShieldCheck, Sparkles } from 'lucide-react'
+import { ImagePlus, X, Tag, Sparkles, Info } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
-import { CATEGORIES, PICKUP_LOCATIONS, CONDITION_LABELS } from '@/lib/data'
-import { ESCROW_HANDLING_FEE, PREMIUM_PLACEMENT_FEE } from '@/lib/fees'
+import { BRAND, CATEGORIES, PICKUP_LOCATIONS, CONDITION_LABELS, categoryLabel } from '@/lib/data'
+import {
+  DEPOSIT_MAX, DEPOSIT_MIN, DEPOSIT_VALUE_MAX_RATE, DEPOSIT_VALUE_MIN_RATE,
+  ESCROW_FEE_MIN, ESCROW_FEE_RATE, HIGH_VALUE_RENTAL_THRESHOLD,
+  PREMIUM_PLACEMENT_DAYS, PREMIUM_PLACEMENT_FEE, RENTAL_COMMISSION_RATE,
+  depositRangeForValue, escrowHandlingFee, needsRentalApproval, suggestedDeposit, validateDeposit,
+} from '@/lib/fees'
 import { formatPrice } from '@/lib/format'
-import type { CategoryId, Condition, ListingType, Listing } from '@/lib/types'
+import type { CategoryId, Condition, ListingType } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -18,6 +23,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+
+/** A rate such as 0.03 as a whole percentage (3). */
+const pct = (rate: number) => Math.round(rate * 100)
 
 export default function EditListingPage() {
   const { id } = useParams<{ id: string }>()
@@ -35,10 +43,52 @@ export default function EditListingPage() {
   const [condition, setCondition]     = useState<Condition | ''>('')
   const [price, setPrice]             = useState('')
   const [deposit, setDeposit]         = useState('')
+  // False while the deposit still holds the platform's suggestion; it then
+  // follows category / value changes. Typing a deposit sets it to true.
+  const [depositTouched, setDepositTouched] = useState(false)
+  // Helper field only, never saved: listings have no replacement-value column.
+  // It narrows the allowed deposit to 30–50% of the value (BusinessRules.md §3).
+  const [replacementValue, setReplacementValue] = useState('')
   const [rentalPeriod, setRentalPeriod] = useState('per semester')
   const [pickup, setPickup]           = useState('')
   const [images, setImages]           = useState<string[]>([])
   const [premium, setPremium]         = useState(false)
+
+  // ─── Deposit rules (BusinessRules.md §3) ──────────────────────────────────
+  const toValue = (raw: string) => (Number(raw) > 0 ? Number(raw) : undefined)
+  const itemValue = toValue(replacementValue)
+  const valueRange = itemValue !== undefined ? depositRangeForValue(itemValue) : null
+
+  /** Category suggestion, kept inside the value range when a value is given. */
+  const suggestionFor = (cat: CategoryId | '', amount: number | undefined) => {
+    const base = suggestedDeposit(cat || undefined)
+    if (amount === undefined) return base
+    const { min, max } = depositRangeForValue(amount)
+    return Math.min(max, Math.max(min, base))
+  }
+  const suggestion = suggestionFor(category, itemValue)
+
+  const prefillDeposit = (cat: CategoryId | '', amount: number | undefined) => {
+    if (!depositTouched) setDeposit(String(suggestionFor(cat, amount)))
+  }
+
+  const onTypeChange = (next: ListingType) => {
+    setType(next)
+    if (next === 'rent') prefillDeposit(category, itemValue)
+  }
+  const onCategoryChange = (next: CategoryId) => {
+    setCategory(next)
+    if (type === 'rent') prefillDeposit(next, itemValue)
+  }
+  const onReplacementValueChange = (raw: string) => {
+    setReplacementValue(raw)
+    if (type === 'rent') prefillDeposit(category, toValue(raw))
+  }
+
+  const depositAmount = deposit.trim() === '' ? undefined : Number(deposit)
+  const depositError = type === 'rent' ? validateDeposit(depositAmount, itemValue) : null
+  const escrowFee = type === 'rent' && !depositError && depositAmount ? escrowHandlingFee(depositAmount) : null
+  const highValue = needsRentalApproval(itemValue)
 
   useEffect(() => {
     const listing = listings.find(l => l.id === id)
@@ -49,7 +99,13 @@ export default function EditListingPage() {
       setCategory(listing.category)
       setCondition(listing.condition)
       setPrice(listing.price.toString())
-      setDeposit(listing.deposit?.toString() || '')
+      // Legacy rentals without a deposit start from the category suggestion.
+      setDeposit(
+        listing.deposit ? listing.deposit.toString()
+          : listing.type === 'rent' ? String(suggestedDeposit(listing.category))
+          : '',
+      )
+      setDepositTouched(Boolean(listing.deposit))
       setRentalPeriod(listing.rentalPeriod || 'per semester')
       setPickup(listing.pickupLocation)
       setImages(listing.images.filter(img => img !== '/placeholder.svg'))
@@ -66,7 +122,7 @@ export default function EditListingPage() {
 
   const valid =
     title.trim() && description.trim() && category && condition &&
-    Number(price) > 0 && pickup && (type === 'sale' || Number(deposit) >= 0)
+    Number(price) > 0 && pickup && (type === 'sale' || depositError === null)
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,7 +141,7 @@ export default function EditListingPage() {
       <div className="mb-12">
         <p className="label-tag mb-2">My account</p>
         <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Edit Listing</h1>
-        <p className="mt-4 text-[14px] text-muted-foreground">Make changes to "{title || id}".</p>
+        <p className="mt-4 text-[14px] text-muted-foreground">Make changes to &ldquo;{title || id}&rdquo;.</p>
       </div>
 
       <form onSubmit={onSubmit} className="max-w-2xl space-y-7">
@@ -101,7 +157,7 @@ export default function EditListingPage() {
               <button
                 key={value}
                 type="button"
-                onClick={() => setType(value)}
+                onClick={() => onTypeChange(value)}
                 className={cn(
                   'flex items-center gap-2 transition-all duration-150',
                   type === value ? 'text-foreground' : 'text-muted-foreground hover:text-foreground/80'
@@ -136,7 +192,7 @@ export default function EditListingPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Category</Label>
-              <Select value={category} onValueChange={(v) => setCategory(v as CategoryId)}>
+              <Select value={category} onValueChange={(v) => onCategoryChange(v as CategoryId)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select..." />
                 </SelectTrigger>
@@ -241,7 +297,6 @@ export default function EditListingPage() {
                     <SelectItem value="per semester">Per Semester (4 months)</SelectItem>
                     <SelectItem value="per month">Per Month</SelectItem>
                     <SelectItem value="per week">Per Week</SelectItem>
-                    <SelectItem value="per day">Per Day</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -249,21 +304,95 @@ export default function EditListingPage() {
             
             {type === 'rent' && (
               <div className="space-y-1.5 md:col-span-2">
-                <Label>Security Deposit (Refundable)</Label>
+                <Label htmlFor="deposit">Security Deposit (Refundable)</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 font-display font-semibold text-muted-foreground">฿</span>
                   <Input
+                    id="deposit"
                     type="number"
+                    inputMode="numeric"
+                    step={1}
+                    min={valueRange?.min ?? DEPOSIT_MIN}
+                    max={valueRange?.max ?? DEPOSIT_MAX}
                     value={deposit}
-                    onChange={(e) => setDeposit(e.target.value)}
-                    placeholder="e.g. 500"
+                    onChange={(e) => { setDeposit(e.target.value); setDepositTouched(true) }}
+                    placeholder={String(suggestion)}
+                    aria-invalid={depositError ? true : undefined}
+                    aria-describedby={depositError ? 'deposit-hint deposit-error' : 'deposit-hint'}
                     className="pl-8 font-medium"
                   />
                 </div>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  PassItOn holds this deposit in escrow to protect against damage or loss.
+                <p id="deposit-hint" className="text-[11px] text-muted-foreground leading-relaxed">
+                  {category
+                    ? <>Suggested for {categoryLabel(category)}: {formatPrice(suggestedDeposit(category))}.</>
+                    : <>Suggested: {formatPrice(suggestedDeposit(undefined))}. Pick a category for a better estimate.</>}
+                  {' '}Allowed {formatPrice(valueRange?.min ?? DEPOSIT_MIN)} – {formatPrice(valueRange?.max ?? DEPOSIT_MAX)}.
+                  {deposit !== String(suggestion) && (
+                    <>
+                      {' '}
+                      <button
+                        type="button"
+                        onClick={() => { setDeposit(String(suggestion)); setDepositTouched(false) }}
+                        className="font-semibold text-primary hover:underline underline-offset-2"
+                      >
+                        Use {formatPrice(suggestion)}
+                      </button>
+                    </>
+                  )}
+                </p>
+                {depositError && (
+                  <p id="deposit-error" role="alert" className="text-[11px] leading-relaxed text-destructive">
+                    {depositError}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {type === 'rent' && (
+              <div className="space-y-1.5 md:col-span-2">
+                <Label htmlFor="replacement-value">
+                  Item&apos;s Replacement Value <span className="font-normal text-muted-foreground">(optional)</span>
+                </Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-display font-semibold text-muted-foreground">฿</span>
+                  <Input
+                    id="replacement-value"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    value={replacementValue}
+                    onChange={(e) => onReplacementValueChange(e.target.value)}
+                    placeholder="What it would cost to buy again"
+                    aria-describedby="replacement-value-hint"
+                    className="pl-8 font-medium"
+                  />
+                </div>
+                <p id="replacement-value-hint" className="text-[11px] text-muted-foreground leading-relaxed">
+                  {valueRange
+                    ? <>For this value the deposit must be {formatPrice(valueRange.min)} – {formatPrice(valueRange.max)} ({pct(DEPOSIT_VALUE_MIN_RATE)}–{pct(DEPOSIT_VALUE_MAX_RATE)}% of the value, within {formatPrice(DEPOSIT_MIN)} – {formatPrice(DEPOSIT_MAX)}).</>
+                    : <>Helps set a fair deposit: {pct(DEPOSIT_VALUE_MIN_RATE)}–{pct(DEPOSIT_VALUE_MAX_RATE)}% of the value. Not shown on the listing.</>}
                 </p>
               </div>
+            )}
+
+            {/* Placeholder only: the admin approval flow is (open) in BusinessRules.md §3. */}
+            {type === 'rent' && highValue && (
+              <div className="flex items-start gap-2.5 border border-border bg-surface p-4 md:col-span-2">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                <p className="text-[12px] leading-relaxed text-muted-foreground">
+                  Renting out items worth more than {formatPrice(HIGH_VALUE_RENTAL_THRESHOLD)} needs admin
+                  approval. Approval isn&apos;t set up in this prototype yet, so you can still save this listing.
+                </p>
+              </div>
+            )}
+
+            {type === 'rent' && (
+              <p className="text-[11px] text-muted-foreground leading-relaxed md:col-span-2">
+                {BRAND} holds the deposit in escrow, never you, and refunds it after the return. At booking the
+                renter pays your price plus a {pct(RENTAL_COMMISSION_RATE)}% commission and an escrow fee of{' '}
+                {formatPrice(ESCROW_FEE_MIN)} or {pct(ESCROW_FEE_RATE)}% of the deposit, whichever is higher
+                {escrowFee !== null && <> ({formatPrice(escrowFee)} for this deposit)</>}. You receive the full rental price.
+              </p>
             )}
           </div>
         </div>
@@ -292,8 +421,8 @@ export default function EditListingPage() {
             <div className="flex-1 space-y-1">
               <p className="text-[13px] font-semibold text-amber-700">Premium Placement</p>
               <p className="text-[12px] leading-relaxed text-muted-foreground">
-                Get pinned to the top of category searches for 7 days.
-                (+{formatPrice(PREMIUM_PLACEMENT_FEE)} deducted from sale).
+                {formatPrice(PREMIUM_PLACEMENT_FEE)} for {PREMIUM_PLACEMENT_DAYS} days at the top of search and
+                pre-arrival matching. Paid by you when enabled (simulated).
               </p>
             </div>
             <div className="pt-2">

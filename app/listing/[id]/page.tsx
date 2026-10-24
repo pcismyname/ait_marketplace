@@ -10,8 +10,18 @@ import {
   ChevronUp, Store, Repeat, CreditCard, Package
 } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
-import { getUser, getSellerReviews, categoryLabel, CONDITION_LABELS } from '@/lib/data'
-import { computeRentalQuote, RENTAL_COMMISSION_RATE } from '@/lib/fees'
+import { BRAND, getUser, getSellerReviews, categoryLabel, CONDITION_LABELS } from '@/lib/data'
+import {
+  computeRentalQuote,
+  computeSaleQuote,
+  BUYER_PROTECTION_BASE_FEE,
+  BUYER_PROTECTION_RATE,
+  DISPUTE_WINDOW_HOURS,
+  ESCROW_FEE_MIN,
+  ESCROW_FEE_RATE,
+  OWNER_PAYOUT_DELAY_HOURS,
+  RENTAL_COMMISSION_RATE,
+} from '@/lib/fees'
 import { formatPrice, relativeTime, initials } from '@/lib/format'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -59,6 +69,7 @@ export default function ListingDetailPage() {
   const { listings, favoriteIds, toggleFavorite } = useMarketplace()
 
   const listing = listings.find((l) => l.id === id)
+  const [activeImg, setActiveImg] = useState(0)
 
   if (!listing) {
     return (
@@ -79,6 +90,7 @@ export default function ListingDetailPage() {
   const isRented = listing.status === 'rented'
   const isFav = favoriteIds.has(listing.id)
   const quote = isRent ? computeRentalQuote({ price: listing.price, deposit: listing.deposit }) : null
+  const protectedSale = isRent ? null : computeSaleQuote(listing.price, 'protected')
   const related = listings
     .filter((l) => l.category === listing.category && l.id !== listing.id && l.status === 'available')
     .slice(0, 4)
@@ -86,7 +98,6 @@ export default function ListingDetailPage() {
     .filter((l) => l.sellerId === listing.sellerId && l.id !== listing.id && l.status === 'available')
     .slice(0, 4)
 
-  const [activeImg, setActiveImg] = useState(0)
   const images = listing.images.filter((img) => hasRealImage(img))
   const displayImages = images.length > 0 ? images : []
 
@@ -185,13 +196,17 @@ export default function ListingDetailPage() {
                 {listing.deposit && (
                   <p className="mt-2">
                     Refundable deposit: <strong>{formatPrice(listing.deposit)}</strong>.
-                    Held in escrow by AIT Circular — returned once you confirm the item came back
-                    in good condition.
+                    Held by {BRAND}, never the owner. After the return, the owner has{' '}
+                    {DISPUTE_WINDOW_HOURS} hours to report damage; with no claim the deposit is refunded
+                    automatically when that window closes, or at once if the owner confirms good condition.
                   </p>
                 )}
                 <p className="mt-2">
                   At booking you pay the rental fee plus a {Math.round(RENTAL_COMMISSION_RATE * 100)}%
-                  platform commission and a small escrow handling fee. The owner receives the full rental price.
+                  platform commission and an escrow handling fee of{' '}
+                  {formatPrice(ESCROW_FEE_MIN)} or {Math.round(ESCROW_FEE_RATE * 100)}% of the deposit,
+                  whichever is higher{quote ? <> ({formatPrice(quote.handlingFee)} here)</> : null}. The owner
+                  receives the full rental price {OWNER_PAYOUT_DELAY_HOURS} hours after handover.
                 </p>
               </Accordion>
             )}
@@ -257,9 +272,25 @@ export default function ListingDetailPage() {
             <div className="mt-4 flex items-start gap-2 rounded-sm border border-surge/20 bg-surge-surface p-3.5">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-surge-foreground" />
               <p className="text-[12px] leading-relaxed text-surge-foreground">
-                Total at booking: <strong>{formatPrice(quote.totalDueNow)}</strong> — rental fee,
-                platform commission, escrow fee, and refundable deposit. The deposit is returned
-                when you confirm the item is back in good condition.
+                Total at booking: <strong>{formatPrice(quote.totalDueNow)}</strong> — rental fee{' '}
+                {formatPrice(quote.rentalFee)}, {Math.round(RENTAL_COMMISSION_RATE * 100)}% commission{' '}
+                {formatPrice(quote.commission)}, escrow fee {formatPrice(quote.handlingFee)} (max{' '}
+                {formatPrice(ESCROW_FEE_MIN)} or {Math.round(ESCROW_FEE_RATE * 100)}% of deposit) and the{' '}
+                {formatPrice(quote.deposit)} refundable deposit, held by {BRAND} until the return.
+              </p>
+            </div>
+          )}
+
+          {/* Payment options for sales (BusinessRules.md §2, §5) */}
+          {!isRent && protectedSale && (
+            <div className="mt-4 flex items-start gap-2 rounded-sm border border-border bg-surface p-3.5">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <p className="text-[12px] leading-relaxed text-muted-foreground">
+                Pay the seller <strong className="text-foreground">in person</strong> for free (no
+                protection), or <strong className="text-foreground">pay with protection</strong> for{' '}
+                {formatPrice(protectedSale.total)} ({formatPrice(BUYER_PROTECTION_BASE_FEE)} +{' '}
+                {Math.round(BUYER_PROTECTION_RATE * 100)}% fee): {BRAND} holds the money until{' '}
+                {DISPUTE_WINDOW_HOURS} hours after handover, so you can dispute if it isn&apos;t as described.
               </p>
             </div>
           )}
@@ -279,10 +310,10 @@ export default function ListingDetailPage() {
                 </Link>
               )
             ) : (
-              listing.status === 'sold' ? (
+              listing.status === 'sold' || listing.status === 'reserved' ? (
                 <Button size="lg" className="w-full" disabled>
                   <Package className="h-4 w-4 mr-2" aria-hidden />
-                  Sold out
+                  {listing.status === 'reserved' ? 'Reserved' : 'Sold out'}
                 </Button>
               ) : (
                 <Link href={`/listing/${listing.id}/checkout`} className={cn(buttonVariants({ size: "lg" }), "w-full")}>

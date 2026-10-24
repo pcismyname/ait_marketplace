@@ -141,13 +141,17 @@ Current code has `RentalPhase = 'active' | 'return-pending' | 'released' | 'disp
 
 ## Current code vs. these rules
 
+Updated 2026-10-24 for branch `fix/business-rules-alignment`.
+
 | Rule | Code today | Change needed |
 |---|---|---|
-| Escrow fee `max(30, 3% of deposit)` | Flat `ESCROW_HANDLING_FEE = 30` in `lib/fees.ts` | Make it a function of the deposit |
-| Deposit min ฿200 / max ฿3,000, suggested by category | Free input; empty or 0 accepted (`app/sell/page.tsx`) | Add validation and category suggestions |
-| Sales: in person, or with protection | Sales are free with no checkout option | Add a "Pay with protection" option |
-| Owner payout 48 h after handover | Not modelled | Add when the escrow states are built |
-| Late, overdue and missing states | Not modelled | Extend `RentalPhase` |
+| Escrow fee `max(30, 3% of deposit)` | Done: `escrowHandlingFee` in `lib/fees.ts`, unit-tested | Compute it server-side too |
+| Buyer protection fee `10 + 3%`; sales in person or with protection | Done: `computeSaleQuote` in `lib/fees.ts`; sale checkout offers both options | Persist protected sales in the escrow states |
+| Deposit min ฿200 / max ฿3,000, suggested by category, 30–50% of value | Done: suggestions, limits and range helper in `lib/fees.ts`; sell and edit forms enforce them | Admin approval for items over ~฿6,000 (open): placeholder only |
+| Payment methods `promptpay` / `card` / `wallet`, simulated | Done: checkout shows all three with a "payments simulated" note | — |
+| Dispute window 48 h; owner payout 48 h after handover | Constants and helpers in `lib/fees.ts` (`DISPUTE_WINDOW_HOURS`, `ownerPayoutAt`) | Auto-release / payout job |
+| Rental states (§4) | `RentalPhase` has all ten states; rentals page derives overdue / missing in the UI | Persist the phases in the database; owner request/approve booking flow |
+| Late fee, missing after 7 days, owner capped at the deposit | Done: `dailyLateFee`, `returnStatus`, `settleDeposit`, `lateReturnSettlement`, unit-tested | Apply the settlement when a rental is closed |
 
 ## Open questions
 

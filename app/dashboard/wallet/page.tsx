@@ -2,12 +2,13 @@
 
 import { Plus, Building, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DISPUTE_WINDOW_HOURS } from '@/lib/fees'
 
 const TRANSACTIONS = [
-  { id: 'TX-1092', type: 'escrow_hold', amount: -500, date: 'Oct 7, 2026', label: 'Deposit held for "Mini Fridge"' },
+  { id: 'TX-1092', type: 'escrow_hold', amount: -800, date: 'Oct 7, 2026', label: 'Deposit held for "Mini Fridge"' },
   { id: 'TX-1085', type: 'payout', amount: 1200, date: 'Oct 1, 2026', label: 'Payout to K-Bank' },
-  { id: 'TX-1042', type: 'escrow_release', amount: 800, date: 'Sep 25, 2026', label: 'Deposit released from "Office Chair"' },
-  { id: 'TX-1011', type: 'sale', amount: 350, date: 'Sep 10, 2026', label: 'Sold "Calculus Textbook"' },
+  { id: 'TX-1042', type: 'escrow_release', amount: 500, date: 'Sep 25, 2026', label: `Deposit refunded for "Office Chair" (${DISPUTE_WINDOW_HOURS}h window closed)` },
+  { id: 'TX-1011', type: 'sale', amount: 350, date: 'Sep 10, 2026', label: `Protected sale released: "Calculus Textbook" (${DISPUTE_WINDOW_HOURS}h after handover)` },
 ]
 
 export default function WalletPage() {
@@ -31,9 +32,10 @@ export default function WalletPage() {
         {/* Escrow Balance */}
         <div className="border border-border bg-surface p-6">
           <p className="text-[13px] font-medium text-muted-foreground">Held in Escrow</p>
-          <p className="mt-2 font-display text-4xl font-bold">฿500</p>
+          <p className="mt-2 font-display text-4xl font-bold">฿800</p>
           <p className="mt-4 text-[12px] leading-relaxed text-muted-foreground">
-            Deposits currently held by PassItOn for active rentals. Will be released upon safe return.
+            Deposits held by PassItOn for your rentals, never by the owner. Refunded after the return once the
+            owner confirms, or automatically {DISPUTE_WINDOW_HOURS} hours after the return if there is no claim.
           </p>
         </div>
 
