@@ -140,12 +140,12 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
 - **Rentals always go through the platform.** Renter pays rental fee + 10% commission + escrow fee (`max(฿30, 3% of deposit)`) + refundable deposit.
 - **Sales: the buyer chooses.** *Pay in person*: free, paid directly to the seller, no escrow or dispute support. *Pay with protection*: price + ฿10 + 3%, held in escrow.
 - The seller/owner always receives their full listing price; platform fees are paid by the buyer/renter on top.
-- Payment methods: PromptPay QR (default, cheapest) and cards (for incoming international students without a Thai bank account)
+- Payment methods: PromptPay QR (default, cheapest), cards (for incoming international students without a Thai bank account) and the in-app wallet (refunded deposits land here first)
 - Gateway fees are absorbed by the platform; deposits are always refunded in full
 - Optional premium placement: ฿49 for 7 days
 
 **Escrow & Auto-Release**
-- Funds are held by the licensed payment gateway, never by the owner or the team's own bank account
+- Course build: escrow is simulated in-app. Real launch: funds are held by a licensed payment gateway, never by the owner or the team's own bank account
 - 48-hour dispute window opens at handover (protected sales) or at return (rentals)
 - Rental fee is paid out to the owner 48 hours after handover if no dispute is filed; the deposit stays held until return
 - Auto-release when the window closes with no dispute (via scheduled Supabase function)
