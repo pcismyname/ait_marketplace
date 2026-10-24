@@ -224,7 +224,7 @@ All payments, holds, payouts and refunds are **simulated state changes** (Busine
 - [ ] Responsive pass at phone/tablet/desktop widths (students will open it on phones).
 - [ ] Accessibility basics: labels, alt text, contrast, keyboard nav on core flows.
 - [ ] Security checklist: RLS policies have been added for the current text-based ID schema, but still need verification with a second account; no service-role key is in the client.
-- [ ] Deploy to Vercel from `main` with production env vars; confirm the **public live URL** works logged out and logged in.
+- [x] Deploy to Vercel from `master` with production env vars. Live at https://ait-marketplace.vercel.app (24 Oct 2026): Supabase URL + publishable key set for Production, Preview and Development; `/api/health/db` connected; test account signs in. Still to check: a full logged-in walkthrough in the browser.
 - [ ] Demo accounts + README with run instructions and test credentials (keep credentials out of the public repo; the local `.env.local` currently contains a test password and should not be committed).
 - [ ] Lighthouse run (performance/accessibility) and record scores for the report.
 
