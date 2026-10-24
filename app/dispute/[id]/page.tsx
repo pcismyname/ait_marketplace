@@ -7,6 +7,7 @@ import { ArrowLeft, AlertOctagon, UploadCloud } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { DISPUTE_WINDOW_HOURS } from '@/lib/fees'
 
 export default function DisputePage() {
   const { id } = useParams<{ id: string }>()
@@ -19,7 +20,7 @@ export default function DisputePage() {
     e.preventDefault()
     setSubmitting(true)
     setTimeout(() => {
-      toast.success('Dispute filed successfully', { description: 'The escrow funds have been frozen while we investigate.' })
+      toast.success('Dispute filed successfully', { description: 'The funds stay held in escrow while an admin investigates.' })
       router.push(`/transaction/${id}`)
     }, 1500)
   }
@@ -37,7 +38,13 @@ export default function DisputePage() {
         </div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">File a Dispute</h1>
         <p className="mt-2 text-[14px] text-muted-foreground">
-          If there's an issue with Transaction {id}, let us know. Escrow funds will be frozen immediately.
+          If there&apos;s an issue with Transaction {id}, let us know. The money stays held in escrow until an
+          admin reviews the chat history and the before/after photos.
+        </p>
+        <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
+          Disputes must be filed within {DISPUTE_WINDOW_HOURS} hours of the handover (protected sales) or the
+          return (rentals). After that the funds are released automatically. Sales paid in person have no
+          escrow, so they can&apos;t be disputed here. For rentals, the owner can never receive more than the deposit.
         </p>
       </div>
 
@@ -54,6 +61,7 @@ export default function DisputePage() {
               <SelectContent>
                 <SelectItem value="not_described">Item not as described</SelectItem>
                 <SelectItem value="damaged">Item is damaged/broken</SelectItem>
+                <SelectItem value="rental_damaged">Rented item returned damaged</SelectItem>
                 <SelectItem value="no_show">Seller did not show up</SelectItem>
                 <SelectItem value="fake">Item is counterfeit</SelectItem>
                 <SelectItem value="other">Other</SelectItem>

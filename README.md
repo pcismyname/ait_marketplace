@@ -27,10 +27,14 @@ in escrow and handling disputes.
 | `/chat` | In-platform private chat per listing (replies are canned) |
 | `/rentals` | Deposit escrow lifecycle: active, return pending, released, disputed |
 
-Renting an item opens a checkout that itemises the rental fee, the 10% platform
-commission, the flat escrow handling fee and the refundable deposit, then places the
-deposit in escrow and opens a chat with the owner. Fee constants live in
-`lib/fees.ts`.
+Renting an item opens a checkout that itemises the rental fee, the 10% rental
+commission, the escrow handling fee (`max(฿30, 3% of the deposit)`) and the
+refundable deposit, then places the deposit in escrow and opens a chat with the
+owner. Listing is free; a sale is either paid in person (free, no protection) or
+paid with protection (฿10 + 3% of the price, held until 48 hours after handover).
+The dispute window is 48 hours. All payments are simulated: no payment gateway is
+integrated. Fee constants live in `lib/fees.ts`; the rules they follow are in
+[docs/BusinessRules.md](docs/BusinessRules.md).
 
 Two demo sellers are campus shops (the "B" in C2B2C) listing new stock and a rental
 fleet next to student listings.

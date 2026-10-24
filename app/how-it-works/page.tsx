@@ -1,5 +1,17 @@
 import { ArrowRight, ShieldCheck, Repeat, HandCoins } from 'lucide-react'
 import Link from 'next/link'
+import {
+  BUYER_PROTECTION_BASE_FEE,
+  BUYER_PROTECTION_RATE,
+  DISPUTE_WINDOW_HOURS,
+  ESCROW_FEE_MIN,
+  ESCROW_FEE_RATE,
+  MISSING_AFTER_DAYS,
+  OWNER_PAYOUT_DELAY_HOURS,
+  RENTAL_COMMISSION_RATE,
+} from '@/lib/fees'
+
+const pct = (rate: number) => `${Math.round(rate * 100)}%`
 
 export default function HowItWorksPage() {
   return (
@@ -30,7 +42,7 @@ export default function HowItWorksPage() {
               </div>
               <div className="border border-border p-5 bg-background">
                 <p className="font-semibold mb-2">For Incoming Students</p>
-                <p className="text-muted-foreground">Post a "Need" before you even arrive in Thailand. We'll automatically notify you when matching items are listed.</p>
+                <p className="text-muted-foreground">Post a &ldquo;Need&rdquo; before you even arrive in Thailand. We&apos;ll automatically notify you when matching items are listed.</p>
               </div>
             </div>
           </section>
@@ -43,16 +55,31 @@ export default function HowItWorksPage() {
               <h2 className="text-2xl font-semibold tracking-tight">Escrow Protection</h2>
             </div>
             <p className="text-[14px] leading-relaxed text-muted-foreground mb-6">
-              We hold all payments securely until the item is handed over and verified. This protects both the buyer and the seller from no-shows and misrepresentations.
+              Listing is always free. When you buy, you choose how to pay. Paying in person is free, but
+              PassItOn can&apos;t step in if something goes wrong. Paying with protection lets us hold the
+              money until the handover is done.
             </p>
+            <div className="grid sm:grid-cols-2 gap-6 text-[13px] mb-8">
+              <div className="border border-border p-5 bg-background">
+                <p className="font-semibold mb-2">Pay in person</p>
+                <p className="text-muted-foreground">Pay the seller directly at pickup. Free, with no escrow and no dispute support.</p>
+              </div>
+              <div className="border border-border p-5 bg-background">
+                <p className="font-semibold mb-2">Pay with protection</p>
+                <p className="text-muted-foreground">
+                  ฿{BUYER_PROTECTION_BASE_FEE} + {pct(BUYER_PROTECTION_RATE)} of the price. The money is held until
+                  the handover plus {DISPUTE_WINDOW_HOURS} hours, and you can open a dispute in that window.
+                </p>
+              </div>
+            </div>
             <ul className="space-y-4 text-[13px] text-muted-foreground">
               <li className="flex gap-3">
                 <span className="font-semibold text-foreground">1.</span>
-                Buyer pays through PassItOn using PromptPay or Credit Card.
+                Buyer pays through PassItOn with PromptPay, card or wallet.
               </li>
               <li className="flex gap-3">
                 <span className="font-semibold text-foreground">2.</span>
-                Funds are held in our secure escrow account.
+                PassItOn holds the money in escrow. The seller doesn&apos;t receive it yet.
               </li>
               <li className="flex gap-3">
                 <span className="font-semibold text-foreground">3.</span>
@@ -60,7 +87,8 @@ export default function HowItWorksPage() {
               </li>
               <li className="flex gap-3">
                 <span className="font-semibold text-foreground">4.</span>
-                Buyer confirms receipt in the app, and funds are instantly released to the seller's wallet.
+                The money goes to the seller {DISPUTE_WINDOW_HOURS} hours after the handover, unless the buyer
+                opens a dispute. Confirming receipt early releases it straight away.
               </li>
             </ul>
           </section>
@@ -73,11 +101,31 @@ export default function HowItWorksPage() {
               <h2 className="text-2xl font-semibold tracking-tight">Renting Made Safe</h2>
             </div>
             <p className="text-[14px] leading-relaxed text-muted-foreground mb-6">
-              Don't want to buy? Rent items for a semester. Our platform handles the security deposit so you don't have to worry about cash.
+              Don&apos;t want to buy? Rent items for a week, a month or a semester. PassItOn holds the security
+              deposit, so the owner never handles it.
             </p>
-            <p className="text-[13px] leading-relaxed text-muted-foreground">
-              When renting, you pay the rental fee plus a refundable security deposit. PassItOn holds the deposit in escrow for the duration of the rental. Once you return the item in good condition, the owner confirms receipt and your deposit is immediately refunded.
-            </p>
+            <ul className="space-y-4 text-[13px] text-muted-foreground">
+              <li className="flex gap-3">
+                <span className="font-semibold text-foreground">1.</span>
+                Send a booking request. Once the owner approves, you pay the rental fee, a {pct(RENTAL_COMMISSION_RATE)} commission,
+                an escrow fee (฿{ESCROW_FEE_MIN} or {pct(ESCROW_FEE_RATE)} of the deposit, whichever is higher) and the refundable deposit.
+              </li>
+              <li className="flex gap-3">
+                <span className="font-semibold text-foreground">2.</span>
+                The owner receives the rental fee {OWNER_PAYOUT_DELAY_HOURS} hours after handover if no dispute is filed.
+                The deposit stays held until the item comes back.
+              </li>
+              <li className="flex gap-3">
+                <span className="font-semibold text-foreground">3.</span>
+                On return, the owner checks the condition against the handover photos. Confirming releases your
+                deposit; with no claim, it releases automatically after {DISPUTE_WINDOW_HOURS} hours.
+              </li>
+              <li className="flex gap-3">
+                <span className="font-semibold text-foreground">4.</span>
+                Late returns cost a daily late fee taken from the deposit. More than {MISSING_AFTER_DAYS} days late
+                counts as missing, and the full deposit goes to the owner. You never lose more than the deposit.
+              </li>
+            </ul>
           </section>
 
           <div className="text-center pt-8">

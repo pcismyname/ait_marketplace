@@ -3,11 +3,15 @@
 import { Package, ExternalLink } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
+import { computeSaleQuote, DISPUTE_WINDOW_HOURS, type SalePaymentMode } from '@/lib/fees'
+import { formatPrice } from '@/lib/format'
 
-const ORDERS = [
-  { id: 'ORD-5821', title: 'Calculus Early Transcendentals 8th Ed', seller: 'Priya S.', date: 'Oct 5, 2026', price: 450, status: 'completed' },
-  { id: 'ORD-5492', title: 'Desk Lamp (IKEA)', seller: 'John D.', date: 'Sep 12, 2026', price: 150, status: 'completed' },
-  { id: 'ORD-5103', title: 'Bicycle U-Lock', seller: 'Emma W.', date: 'Aug 28, 2026', price: 200, status: 'completed' },
+// Mock orders. Protected sales add the buyer protection fee and stay held in
+// escrow until DISPUTE_WINDOW_HOURS after handover (BusinessRules.md §2, §5).
+const ORDERS: { id: string; title: string; seller: string; date: string; price: number; mode: SalePaymentMode; status: 'held' | 'completed' }[] = [
+  { id: 'ORD-5821', title: 'Calculus Early Transcendentals 8th Ed', seller: 'Priya S.', date: 'Oct 5, 2026', price: 450, mode: 'protected', status: 'held' },
+  { id: 'ORD-5492', title: 'Desk Lamp (IKEA)', seller: 'John D.', date: 'Sep 12, 2026', price: 150, mode: 'in-person', status: 'completed' },
+  { id: 'ORD-5103', title: 'Bicycle U-Lock', seller: 'Emma W.', date: 'Aug 28, 2026', price: 200, mode: 'protected', status: 'completed' },
 ]
 
 export default function OrdersPage() {
@@ -41,13 +45,15 @@ export default function OrdersPage() {
                   <th className="px-6 py-3">Order ID</th>
                   <th className="px-6 py-3">Item</th>
                   <th className="px-6 py-3">Date</th>
-                  <th className="px-6 py-3">Price</th>
+                  <th className="px-6 py-3">Paid</th>
                   <th className="px-6 py-3">Status</th>
                   <th className="px-6 py-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {ORDERS.map((order) => (
+                {ORDERS.map((order) => {
+                  const quote = computeSaleQuote(order.price, order.mode)
+                  return (
                   <tr key={order.id} className="transition-colors hover:bg-muted/30">
                     <td className="whitespace-nowrap px-6 py-4 font-medium">{order.id}</td>
                     <td className="px-6 py-4">
@@ -55,11 +61,29 @@ export default function OrdersPage() {
                       <p className="text-[12px] text-muted-foreground">from {order.seller}</p>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-muted-foreground">{order.date}</td>
-                    <td className="whitespace-nowrap px-6 py-4 font-semibold">฿{order.price}</td>
                     <td className="whitespace-nowrap px-6 py-4">
-                      <span className="inline-flex items-center rounded-full bg-primary-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
-                        {order.status}
-                      </span>
+                      <p className="font-semibold">{formatPrice(quote.total)}</p>
+                      <p className="text-[12px] text-muted-foreground">
+                        {quote.escrow
+                          ? `Protected · incl. ${formatPrice(quote.protectionFee)} fee`
+                          : 'Paid in person · no protection'}
+                      </p>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4">
+                      {order.status === 'held' ? (
+                        <>
+                          <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+                            In escrow
+                          </span>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            Released to the seller {DISPUTE_WINDOW_HOURS}h after handover
+                          </p>
+                        </>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-primary-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                          {order.status}
+                        </span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-right">
                       <button className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-primary hover:underline">
@@ -67,7 +91,8 @@ export default function OrdersPage() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

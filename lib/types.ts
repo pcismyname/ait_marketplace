@@ -106,7 +106,24 @@ export interface Thread {
   messages: Message[]
 }
 
-export type RentalPhase = 'active' | 'return-pending' | 'released' | 'disputed'
+/**
+ * Rental states from docs/BusinessRules.md §4:
+ *   requested → approved → paid (deposit held) → active
+ *   active → return-pending → released
+ *   active → return-pending → disputed → resolved
+ *   active → overdue → missing (7+ days late, deposit to owner)
+ */
+export type RentalPhase =
+  | 'requested'
+  | 'approved'
+  | 'paid'
+  | 'active'
+  | 'return-pending'
+  | 'released'
+  | 'disputed'
+  | 'resolved'
+  | 'overdue'
+  | 'missing'
 
 export type PaymentMethod = 'promptpay' | 'card' | 'wallet'
 
