@@ -7,6 +7,7 @@ import { runEscrowJobs, timeTravel } from '@/lib/api'
 import { DISPUTE_WINDOW_HOURS, OWNER_PAYOUT_DELAY_HOURS } from '@/lib/fees'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { noteEscrowRun } from '@/lib/escrow-runner'
 
 /**
  * Demo tools: move a rental or purchase back in time (admin_time_travel), then
@@ -35,6 +36,7 @@ export function DemoTools({
     try {
       const kind = await timeTravel(dealId, h)
       const result = await runEscrowJobs()
+      noteEscrowRun(result)
       const did = [
         result.payouts && `${result.payouts} payout${result.payouts === 1 ? '' : 's'}`,
         result.rentalsReleased && `${result.rentalsReleased} rental deposit${result.rentalsReleased === 1 ? '' : 's'} released`,

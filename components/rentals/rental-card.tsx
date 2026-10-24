@@ -28,6 +28,7 @@ import type { Dispute, Listing, Rental } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { RateDealButton } from '@/components/rate-deal-button'
 import { EvidencePhotos } from './evidence-photos'
 import { PhotoActionDialog } from './photo-action-dialog'
 import { RespondRequestActions, approveBlockedReason } from './respond-request-actions'
@@ -56,11 +57,16 @@ export function RentalCard({
   role,
   listing,
   now,
+  reviewed,
+  onRated,
 }: {
   rental: Rental
   role: RentalRole
   listing: Listing | undefined
   now: Date
+  /** Whether the viewer already rated this (closed) rental; undefined while loading (useReviewedDeals). */
+  reviewed?: boolean
+  onRated?: () => void
 }) {
   const { getUser, rentals, threads, cancelRental, confirmHandover, markReturned, confirmReturn } = useMarketplace()
   const [busy, setBusy] = useState(false)
@@ -541,18 +547,37 @@ export function RentalCard({
             </div>
           )}
 
-          {(actions || !closed) && (
-            <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-              {actions}
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+            {actions}
+            {closed && onRated && (
+              <RateDealButton
+                target={{ rentalId: rental.id }}
+                subjectName={firstName}
+                subjectRole={role === 'renter' ? 'owner' : 'renter'}
+                reviewed={reviewed}
+                onRated={onRated}
+              />
+            )}
+            <div className="ml-auto flex items-center gap-4">
               <Link
-                href={chatHref}
-                className="ml-auto inline-flex items-center gap-1 text-[12px] text-primary hover:underline underline-offset-2"
+                href={`/transaction/${rental.id}`}
+                className="inline-flex items-center gap-1 text-[12px] text-primary hover:underline underline-offset-2"
+                data-testid="deal-details"
               >
-                <MessageCircle className="h-3.5 w-3.5" />
-                Message {firstName}
+                Deal details
+                <ArrowRight className="h-3.5 w-3.5" />
               </Link>
+              {!closed && (
+                <Link
+                  href={chatHref}
+                  className="inline-flex items-center gap-1 text-[12px] text-primary hover:underline underline-offset-2"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  Message {firstName}
+                </Link>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </article>

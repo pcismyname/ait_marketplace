@@ -1,6 +1,8 @@
 -- Row Level Security and privileges: a second account can't read or change
 -- other people's rentals, purchases, money, notifications or chats; nobody
 -- writes money / state columns directly; storage evidence paths are scoped.
+-- Data-independent: every count is scoped to rows this file creates, or is
+-- taken as a fresh user who owns nothing else, so it passes with demo data.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(45);
@@ -66,7 +68,7 @@ select is((select count(*)::int from public.notifications), 0, 'stranger: no not
 select is((select count(*)::int from public.threads), 0, 'stranger: no threads');
 select is((select count(*)::int from public.thread_participants), 0, 'stranger: no participants');
 select is((select count(*)::int from public.messages), 0, 'stranger: no messages');
-select is((select count(*)::int from public.listings), 2, 'stranger: listings are public');
+select is((select count(*)::int from public.listings where id in ('l-fridge', 'l-desk')), 2, 'stranger: listings are public');
 select throws_ok(format($$ update public.rentals set phase = 'released' where id = %L $$, pg_temp.id('r')), '42501', null, 'stranger cannot update a rental');
 select throws_ok(format($$ delete from public.transactions where id = %L $$, pg_temp.id('t')), '42501', null, 'stranger cannot delete a purchase');
 select throws_ok(format($$ insert into public.thread_participants (thread_id, user_id) values (%L, %L) $$, pg_temp.id('thread'), pg_temp.id('c')),
@@ -112,14 +114,15 @@ select throws_ok($$ insert into public.listings (id, seller_id, title, descripti
 
 -- ═══ Admins see everything (for disputes), anon sees only public data
 select pg_temp.login(pg_temp.id('admin'));
-select is((select count(*)::int from public.rentals), 1, 'admin sees rentals');
-select is((select count(*)::int from public.messages), 1, 'admin can read chat history for disputes');
-select is((select count(*)::int from public.wallet_ledger where user_id is null), 3, 'admin sees platform revenue rows');
+select is((select count(*)::int from public.rentals where id = pg_temp.id('r')), 1, 'admin sees other people''s rentals');
+select is((select count(*)::int from public.messages where thread_id = pg_temp.id('thread')), 1, 'admin can read chat history for disputes');
+select is((select count(*)::int from public.wallet_ledger where user_id is null
+  and (rental_id = pg_temp.id('r') or transaction_id = pg_temp.id('t'))), 3, 'admin sees platform revenue rows');
 select pg_temp.logout();
 
 select set_config('role', 'anon', true);
 select is((select count(*)::int from public.rentals), 0, 'anon: no rentals');
-select is((select count(*)::int from public.listings), 2, 'anon: listings are public');
+select is((select count(*)::int from public.listings where id in ('l-fridge', 'l-desk')), 2, 'anon: listings are public');
 select throws_ok($$ insert into public.listings (id, seller_id, title, description, category, type, price, condition, pickup_location)
   values ('l-y', 'x', 'X', 'X', 'other', 'sale', 100, 'good', 'Lobby') $$, '42501', null, 'anon cannot write');
 select throws_ok($$ select public.run_escrow_jobs() $$, '42501', null, 'anon cannot run the escrow jobs');

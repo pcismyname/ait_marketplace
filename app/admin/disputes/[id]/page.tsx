@@ -197,7 +197,7 @@ export default function AdminDisputeDetailPage() {
             )
           )}
 
-          <DemoTools dealId={dealId} onDone={() => void load()} />
+          {dispute.status === 'open' && <DemoTools dealId={dealId} onDone={() => void load()} />}
         </aside>
       </div>
     </div>

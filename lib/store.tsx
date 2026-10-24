@@ -26,6 +26,7 @@ import type { SalePaymentMode } from './fees'
 import { createClient } from '@/utils/supabase/client'
 import type { TablesInsert, TablesUpdate } from './database.types'
 import * as api from './api'
+import { maybeRunEscrowJobs } from './escrow-runner'
 import { ApiError, toApiError } from './api/client'
 import { LISTING_COLUMNS, mapListing, mapRental, mapTransaction, mapUser } from './api/mappers'
 import type {
@@ -243,7 +244,8 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
   const loadAll = useCallback(async (uid: string | null) => {
     if (uid) {
       // Lazy escrow work (payouts, auto-release, overdue) so a demo never waits for pg_cron.
-      await api.runEscrowJobs().catch((error) => console.warn('run_escrow_jobs:', error.message))
+      // Shared throttle (lib/escrow-runner.ts): skipped if the jobs ran in the last 20 s.
+      await maybeRunEscrowJobs()
     }
     const [listingsRes, historyRes, reviewsRes] = await Promise.all([
       supabase.from('listings').select(LISTING_COLUMNS).order('created_at', { ascending: false }),

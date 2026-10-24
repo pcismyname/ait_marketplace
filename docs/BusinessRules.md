@@ -148,19 +148,22 @@ All twelve states are persisted in `rentals.phase` and change only through the d
 
 ## Current code vs. these rules
 
-Updated 2026-10-25 for branch `feat/p0-core`. The server side is in `supabase/migrations/20261025010000_p0_core.sql`; the contract is in [Database.md](Database.md).
+Updated 2026-10-25 for branch `feat/p0-core`. The server side is in `supabase/migrations/` (`20261025010000_p0_core.sql` plus the four `20261025020…` feature migrations); the contract is in [Database.md](Database.md). End-to-end evidence: [tests/e2e/RESULTS.md](../tests/e2e/RESULTS.md).
 
 | Rule | Code today | Change needed |
 |---|---|---|
-| Escrow fee `max(30, 3% of deposit)`; commission 10% | `lib/fees.ts` and server-side `quote_rental` (same JS rounding); parity tested (pgTAP + `npm run test:db`). `pay_rental` charges the server quote. | — |
-| Buyer protection fee `10 + 3%`; sales in person or with protection | `computeSaleQuote` + `quote_sale`; `transactions` table with in-person (no escrow, no dispute, seller marks sold) and protected (held until handover + 48 h) states | Status page UI `/transaction/[id]` |
-| Deposit min ฿200 / max ฿3,000, suggested by category, 30–50% of value | Forms enforce it; the database refuses rental listings outside ฿200–฿3,000 and `request_rental` refuses listings without a valid deposit | Admin approval for items over ~฿6,000 (open): placeholder only (`listings.replacement_value` column) |
-| Payment methods `promptpay` / `card` / `wallet`, simulated | Recorded on the booking or purchase; `wallet` pays from the in-app balance (refunds and payouts land there) | — |
-| Booking flow request → approve → pay → handover | RPCs `request_rental`, `respond_rental`, `pay_rental`, `confirm_handover`; checkout and rentals page use them | Owner requests page UI |
-| Owner payout 48 h after handover; deposit held until return | `run_escrow_jobs` (pg_cron every 10 min, also called by the app) | — |
-| Dispute window 48 h, auto-release, early release on confirmation | `file_dispute` only inside the window; job auto-releases; `confirm_return` / `confirm_sale_receipt` release at once; reminders 24 h and 2 h before | Dispute and admin pages UI |
-| Late fee `ceil(rentalFee / periodDays)` per day, missing after 7 days, owner capped at the deposit | Applied in SQL at the return (`mark_returned`) and by the job (`overdue`, `missing`); `resolve_dispute` caps the owner at the deposit | — |
-| Who holds the money (simulated) | `wallet_ledger`: held / available / platform rows for every hold, payout, refund and fee | Wallet page UI |
+| Escrow fee `max(30, 3% of deposit)`; commission 10% | `lib/fees.ts` and server-side `quote_rental` (same JS rounding); parity tested (pgTAP + `npm run test:db`). `pay_rental` charges the server quote; checkout shows each line. | — |
+| Buyer protection fee `10 + 3%`; sales in person or with protection | `computeSaleQuote` + `quote_sale`; `transactions` with in-person (no escrow, no dispute, seller marks sold) and protected (held until handover + 48 h) states; status page `/transaction/[id]`, confirm receipt `/transaction/[id]/confirm` | — |
+| Premium placement ฿49 for 7 days, paid by the lister | `enable_premium_placement` records the simulated ฿49 charge and sets `featured_until` server-side; clients can't write `featured` directly; featured listings sort first | — |
+| Deposit min ฿200 / max ฿3,000, suggested by category, 30–50% of value | Sell and edit forms enforce it (replacement value saved); the database refuses rental listings outside ฿200–฿3,000 and fractional amounts; `request_rental` refuses listings without a valid deposit | Admin approval for items over ~฿6,000 (open): placeholder only (form note + `listings.replacement_value`) |
+| Payment methods `promptpay` / `card` / `wallet`, simulated | Recorded on the booking, purchase or premium charge; `wallet` pays from the in-app balance (refunds and payouts land there); "Demo mode — payments are simulated" note wherever money moves | — |
+| Booking flow request → approve → pay → handover | RPCs `request_rental`, `respond_rental`, `pay_rental`, `confirm_handover`; request dialog on the listing, owner requests page `/dashboard/listings/[id]/requests`, checkout only for an approved booking, handover needs a photo | — |
+| Owner payout 48 h after handover; deposit held until return | `run_escrow_jobs` (pg_cron every 10 min, also run by the app on sign-in and every 5 min while open); payout countdown on the rental card and deal page | — |
+| Dispute window 48 h, auto-release, early release on confirmation | `file_dispute` only inside the window (`/dispute/new`); job auto-releases; `confirm_return` / `confirm_sale_receipt` release at once; reminders 24 h and 2 h before; admin queue and resolution `/admin/disputes/[id]` with the §6 outcomes | — |
+| Rental returns need condition photos (§9) | Enforced in the UI for the renter's "mark returned" and the owner's confirmation (photos from either party count); `mark_returned` / `confirm_return` accept an empty list server-side | Optional: enforce in SQL too |
+| Late fee `ceil(rentalFee / periodDays)` per day, missing after 7 days, owner capped at the deposit | Applied in SQL at the return (`mark_returned`) and by the job (`overdue`, `missing`); `resolve_dispute` caps the owner at the deposit; the UI shows "late fee so far" while overdue | — |
+| Who holds the money (simulated) | `wallet_ledger`: held / available / platform rows for every hold, payout, refund and fee; `/dashboard/wallet` shows held vs available and the history | — |
+| Refund for a paid booking or protected purchase cancelled before handover | Not possible: paid deals can't be cancelled | Needs a team decision (not in these rules yet) |
 
 ## Open questions
 

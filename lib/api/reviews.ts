@@ -68,3 +68,20 @@ export async function getMyReviewForDeal(target: { rentalId?: string; transactio
     date: row.date,
   }
 }
+
+/**
+ * Ids of every rental and purchase the signed-in user has already reviewed,
+ * in one query (lists like /rentals and /dashboard/orders hide "Rate" for them).
+ */
+export async function listMyReviewedDealIds(): Promise<Set<string>> {
+  const uid = await requireUserId()
+  const rows = unwrap(
+    await db().from('reviews').select('rental_id, transaction_id').eq('author_id', uid),
+  )
+  const ids = new Set<string>()
+  for (const row of rows) {
+    if (row.rental_id) ids.add(row.rental_id)
+    if (row.transaction_id) ids.add(row.transaction_id)
+  }
+  return ids
+}

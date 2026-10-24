@@ -14,7 +14,8 @@
     "db:reset": "npx -y supabase@2.122.0 db reset",
     "db:types": "npx -y supabase@2.122.0 gen types typescript --local > lib/database.types.ts && npx -y oxfmt@0.74.0 lib/database.types.ts",
     "seed:demo": "node --no-warnings scripts/seed-demo.mjs",
-    "demo:flow": "node --no-warnings scripts/demo-flow.mjs"
+    "demo:flow": "node --no-warnings scripts/demo-flow.mjs",
+    "test:e2e": "node tests/e2e/run.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

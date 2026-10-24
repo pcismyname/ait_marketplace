@@ -482,7 +482,7 @@ function ActionsPanel({
         )
         break
       case 'approved':
-        if (role === 'renter') linkButton('/rentals', 'Pay to confirm the booking')
+        if (role === 'renter') linkButton(`/listing/${r.listingId}/checkout?rental=${id}`, 'Pay to confirm the booking')
         else note('Approved. Waiting for the renter to pay.')
         items.push(
           <Button key="cancel" variant="outline" className="h-10" disabled={busy}
@@ -498,6 +498,7 @@ function ActionsPanel({
             title="Confirm the handover"
             description={`Take photos of the item's condition at pickup. The due date and the owner's ${OWNER_PAYOUT_DELAY_HOURS}-hour payout clock start now.`}
             button="Confirm handover"
+            requirePhotos
             busy={busy}
             onSubmit={(photos) =>
               run(async () => confirmHandover(id, await uploadPhotos(kind, photos)), 'Handover confirmed')

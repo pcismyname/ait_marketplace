@@ -1,7 +1,9 @@
-import { type NextRequest, NextResponse } from 'next/server'
+import { type NextRequest } from 'next/server'
 import { createClient } from '@/utils/supabase/middleware'
 
-export async function middleware(request: NextRequest) {
+// Next 16 "proxy" convention (formerly middleware.ts): refreshes the Supabase
+// session cookie on every request. Runs on the Node.js runtime.
+export async function proxy(request: NextRequest) {
   const { supabase, response } = createClient(request)
   await supabase.auth.getUser()
   return response

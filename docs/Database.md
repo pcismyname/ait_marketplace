@@ -167,7 +167,7 @@ Each RPC checks `auth.uid()`, locks the row, validates the from-state and raises
 | `mark_notifications_read(p_ids?)` → int | self | — | `null` marks all |
 | `start_thread(p_listing_id, p_other_user_id, p_text, p_thread_id?, p_message_id?)` → `{thread_id, message_id, created}` | signed-in user | — | Reuses the pair's thread on that listing, or creates thread + participants + message atomically |
 | `mark_thread_read(p_thread_id)` | participant | — | Sets `last_read_at`; clears that thread's message notification |
-| `submit_review(p_rating, p_comment?, p_rental_id?, p_transaction_id?)` → reviews | a party of a closed deal | rental `released` / `resolved` / `missing`, or sale `released` / `resolved` / `completed` | One per author per deal; updates the subject's `rating` and `reviews_count` |
+| `submit_review(p_rating, p_comment?, p_rental_id?, p_transaction_id?)` → reviews | a party of a closed deal | rental `released` / `resolved` / `missing`, or sale `released` / `resolved` / `completed` | One per author per deal; updates the subject's `rating` and `reviews_count`. Client helpers in `lib/api/reviews.ts`: `getMyReviewForDeal(target)` (deal page) and `listMyReviewedDealIds()` (one query for list pages); UI `components/review-dialog.tsx` and `components/rate-deal-button.tsx` (on `/transaction/[id]`, `/rentals`, the requests page and `/dashboard/orders`) |
 | `admin_time_travel(p_id, p_hours)` → `'rental'` / `'sale'` | admin | — | Shifts a deal's timestamps back (for demos). Follow it with `run_escrow_jobs()`. |
 | `admin_moderate_listing(p_listing_id, p_action, p_reason?)` → `'hidden'` / `'restored'` / `'removed'` | admin | `hide`: listing → `paused` + `hidden_at` (refused while a deal is in progress) · `restore`: clears the flag (stays paused) · `remove`: deletes (refused with history) | Seller notified. Migration `20261025020300_admin_moderation.sql`; wrapper `moderateListing` in `lib/api/moderation.ts` |
 | `enable_premium_placement(p_listing_id, p_method = 'promptpay')` → listings | lister | listing `available`, not hidden, not already featured → featured for 7 days | Simulated ฿49 (BusinessRules §2): ledger payment −49 (`external`, or `available` for `wallet`, which needs the balance) and `platform_fee` +49 to the platform; `featured_until = now() + 7 days`; lister notified (`premium_placement`). Wrapper `enablePremiumPlacement` in `lib/api/listing-owner.ts` |
@@ -210,7 +210,7 @@ Kinds: `payment`, `hold`, `hold_release`, `payout`, `refund`, `claim` (deposit s
 - Admin access is `users.is_admin`, which can only be set with SQL or the secret key (`scripts/seed-demo.mjs` marks the demo admin).
 - `@ait.asia` only: the `enforce_ait_email` trigger on `auth.users` rejects any other domain on insert or on email change (subdomains and look-alikes too). The `before_user_created` auth hook (`private.hook_before_user_created`) returns a friendly 403 message. It is enabled locally in `supabase/config.toml`; on production, enable it in the dashboard (section 9).
 
-Tested in `supabase/tests/04_rls.test.sql`: a stranger can't see or modify another user's rentals, purchases, ledger, notifications or chats, and can't join threads or write item history. Parties can't write money columns. Anon can't run the jobs.
+Tested in `supabase/tests/04_rls.test.sql` (data-independent: counts are scoped to the rows the test creates, so it passes with demo data loaded): a stranger can't see or modify another user's rentals, purchases, ledger, notifications or chats, and can't join threads or write item history. Parties can't write money columns. Anon can't run the jobs.
 
 ---
 
@@ -228,7 +228,8 @@ Use `uploadListingPhoto(file)` (store the returned `publicUrl` in `listings.imag
 ## 8. Realtime and scheduled work
 
 - **Realtime** publishes `messages`, `notifications`, `rentals`, `transactions`, `disputes` and `dispute_comments`, filtered per subscriber by RLS. Helpers: `subscribeToMessages`, `subscribeToRentals`, `subscribeToTransactions`, `subscribeToNotifications(userId, …)`, `subscribeToDisputeComments(id, …)`. The store already follows messages, rentals and purchases.
-- **`run_escrow_jobs()`** is scheduled with pg_cron every 10 minutes (`pass-it-on-escrow-jobs`) when the extension exists. The migration still applies without pg_cron. The store also calls it on sign-in, and pages may call `runEscrowJobs()` before showing a deal. It is serialised with an advisory lock and safe to call often.
+- **`run_escrow_jobs()`** is scheduled with pg_cron every 10 minutes (`pass-it-on-escrow-jobs`) when the extension exists. The migration still applies without pg_cron. It is serialised with an advisory lock and safe to call often.
+- **Client-side runs** all go through one throttle, `lib/escrow-runner.ts` (last run shared across tabs in `localStorage`): the store runs the jobs on sign-in and on `refresh()` unless they ran in the last 20 s (`maybeRunEscrowJobs`); `components/escrow-job-runner.tsx` runs them every 5 minutes while a tab is visible; pages whose countdown hits zero call `requestEscrowRun()` (waits out the 20 s gap); the admin demo tools call the RPC directly and record it with `noteEscrowRun()`. Every run dispatches `ESCROW_RAN_EVENT` so the deal and wallet pages reload.
 
 ---
 
@@ -256,6 +257,7 @@ Then run:
 ```bash
 npm run db:reset            # re-apply migrations + supabase/seed.sql (empty)
 npm run seed:demo           # demo accounts + data → demo-accounts.local.md
+                            # (ratings recomputed from the seeded reviews; demo needs dated for the 6 Jan 2027 intake)
 npm run dev                 # app against the local stack
 ```
 
@@ -269,6 +271,9 @@ Mailpit (local email inbox) is at http://127.0.0.1:54324 and Studio at http://12
 | `npm run test:sql` | local | pgTAP (`supabase/tests/*.sql`): fee parity, every transition and the forbidden ones, ledger, late / missing, reminders, disputes and caps, RLS, the email trigger, misc RPCs |
 | `npm run test:db` | local | `quote_rental` / `quote_sale` over REST vs `lib/fees.ts` on a grid of inputs |
 | `npm run demo:flow` | local | Rental request → approve → pay → handover → payout → return → release, plus a protected sale, as two real users |
+| `npm run test:e2e` | local + `npm run dev` | Browser flows in `tests/e2e/` (seller, buyer, owner + renter with dispute and auto-release, late / missing, dead-link crawl, 390 / 1280 px quality pass) in headless Edge; writes `tests/e2e/RESULTS.md` |
+
+Every pgTAP file is data-independent: it creates its own users and rows inside a rolled-back transaction and only asserts on those, so `npm run test:sql` passes on an empty database and after `npm run seed:demo` alike.
 
 ### Regenerate types after a schema change
 
@@ -283,7 +288,7 @@ Add `supabase/migrations/<timestamp>_<name>.sql`, run `npm run db:reset && npm r
 ### Production push (manual, after review)
 
 1. `npx -y supabase@2.122.0 link --project-ref cnpjndeuohdrrdmohios` (already linked).
-2. `npx -y supabase@2.122.0 db push --dry-run`, which should list only `20261025010000_p0_core.sql`.
+2. `npx -y supabase@2.122.0 db push --dry-run`, which should list, in this order: `20261025010000_p0_core.sql`, `20261025020300_admin_moderation.sql`, `20261025020400_listing_featured_rank.sql`, `20261025020401_premium_placement.sql`, `20261025020500_needs_matching.sql`. (Production has none of them yet, so the order is fine and `--include-all` is not needed there. A local database that applied `…020500` before `…020401` existed needs `migration up --local --include-all`, or just `db reset`.)
 3. `npx -y supabase@2.122.0 db push`.
 4. Dashboard → Authentication → Hooks → *Before User Created* → Postgres function `private.hook_before_user_created` (friendly message; the trigger enforces the rule without it).
 4b. Dashboard → Authentication → URL Configuration → Redirect URLs: add `https://<site>/onboarding` (sign-up and `/verify-email` resend send the confirmation link back to `/onboarding`, where the browser client finishes the PKCE sign-in). Locally `supabase/config.toml` only allows `http://127.0.0.1:3000`, so confirmation links fall back to that site URL; the address is still confirmed and the student logs in from `/login`. Also add `https://<site>/reset-password?step=new` (the "Forgot password?" mail from `/reset-password` comes back there to set the new password). Locally that link falls back to `http://127.0.0.1:3000/`, where the reset form does not open; add `http://localhost:3000/**` to `additional_redirect_urls` (needs a Supabase restart) to test the whole flow locally.

@@ -198,8 +198,8 @@ export default function ListingDetailPage() {
                 {listing.deposit && (
                   <p className="mt-2">
                     Refundable deposit: <strong>{formatPrice(listing.deposit)}</strong>.
-                    Held by {BRAND}, never the owner. After the return, the owner has{' '}
-                    {DISPUTE_WINDOW_HOURS} hours to report damage; with no claim the deposit is refunded
+                    Held by {BRAND}, never the owner. After the return, either of you has{' '}
+                    {DISPUTE_WINDOW_HOURS} hours to report a problem; with no claim the deposit is refunded
                     automatically when that window closes, or at once if the owner confirms good condition.
                   </p>
                 )}

@@ -11,6 +11,7 @@ import { formatPrice } from '@/lib/format'
 import type { Rental, RentalPhase } from '@/lib/types'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { RentalCard } from '@/components/rentals/rental-card'
+import { useReviewedDeals } from '@/components/rate-deal-button'
 import { DemoPaymentsNote } from '@/components/rentals/demo-payments-note'
 import { useNow } from '@/components/rentals/use-now'
 import { DEPOSIT_HELD_PHASES, OPEN_PHASES, nextDeadline, type RentalRole } from '@/components/rentals/rental-helpers'
@@ -183,6 +184,7 @@ function RentalSections({
   now: Date
   empty: React.ReactNode
 }) {
+  const { reviewed, markReviewed } = useReviewedDeals()
   if (loading && rentals.length === 0) {
     return <p className="py-16 text-center text-[13px] text-muted-foreground">Loading your rentals…</p>
   }
@@ -192,7 +194,15 @@ function RentalSections({
   const open = rentals.filter((r) => OPEN_PHASES.has(r.phase) && !(role === 'owner' && r.phase === 'requested'))
   const history = rentals.filter((r) => !OPEN_PHASES.has(r.phase))
   const card = (r: Rental) => (
-    <RentalCard key={r.id} rental={r} role={role} listing={listings.find((l) => l.id === r.listingId)} now={now} />
+    <RentalCard
+      key={r.id}
+      rental={r}
+      role={role}
+      listing={listings.find((l) => l.id === r.listingId)}
+      now={now}
+      reviewed={reviewed ? reviewed.has(r.id) : undefined}
+      onRated={() => markReviewed(r.id)}
+    />
   )
 
   return (

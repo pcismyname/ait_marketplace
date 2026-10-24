@@ -15,6 +15,8 @@ import type { Rental, Transaction } from '@/lib/types'
 import { formatPrice } from '@/lib/format'
 import { dealStatus, formatDate, TONE_CLASS } from '@/lib/deal-status'
 import { cn } from '@/lib/utils'
+import { RateDealButton, useReviewedDeals } from '@/components/rate-deal-button'
+import type { ReviewTarget } from '@/components/review-dialog'
 
 type Tab = 'purchases' | 'sales' | 'renting' | 'lending'
 
@@ -27,11 +29,17 @@ interface OrderRow {
   amount: number | null
   amountNote: string
   status: { label: string; tone: keyof typeof TONE_CLASS }
+  /** Set once the deal is closed: who the viewer can rate. */
+  review?: { target: ReviewTarget; name: string; role: 'owner' | 'renter' | 'seller' | 'buyer' }
 }
+
+const CLOSED_SALE = new Set(['released', 'resolved', 'completed'])
+const CLOSED_RENTAL = new Set(['released', 'resolved', 'missing'])
 
 export default function OrdersPage() {
   const { transactions, rentals, listings, getUser, currentUserId, loading } = useMarketplace()
   const [tab, setTab] = useState<Tab>('purchases')
+  const { reviewed, markReviewed } = useReviewedDeals()
 
   const titleOf = useMemo(() => {
     const byId = new Map(listings.map((l) => [l.id, l.title]))
@@ -54,6 +62,12 @@ export default function OrdersPage() {
             : 'Protected · paid out after the window'
           : 'Paid in person · no protection',
       status: dealStatus({ kind: 'sale', transaction: t }),
+      review:
+        CLOSED_SALE.has(t.status) && t.buyerId
+          ? side === 'buyer'
+            ? { target: { transactionId: t.id }, name: getUser(t.sellerId).name, role: 'seller' }
+            : { target: { transactionId: t.id }, name: getUser(t.buyerId).name, role: 'buyer' }
+          : undefined,
     })
     const rental = (r: Rental, side: 'renter' | 'owner'): OrderRow => {
       const closedUnpaid = (r.phase === 'declined' || r.phase === 'cancelled') && r.totalPaid === undefined
@@ -73,6 +87,11 @@ export default function OrdersPage() {
             ? `${r.totalPaid !== undefined ? 'Paid' : 'Due'} · incl. ${formatPrice(r.deposit)} deposit`
             : `Rental fee${r.rentalPeriod ? ` ${r.rentalPeriod}` : ''}${r.payoutReleasedAt ? ' · paid out' : ''}`,
         status: dealStatus({ kind: 'rental', rental: r }),
+        review: CLOSED_RENTAL.has(r.phase)
+          ? side === 'renter'
+            ? { target: { rentalId: r.id }, name: getUser(r.ownerId).name, role: 'owner' }
+            : { target: { rentalId: r.id }, name: getUser(r.renterId).name, role: 'renter' }
+          : undefined,
       }
     }
     return {
@@ -165,6 +184,17 @@ export default function OrdersPage() {
                 </span>
                 <ArrowRight className="hidden h-4 w-4 text-muted-foreground sm:block" />
               </Link>
+              {row.review && (
+                <div className="flex justify-end px-4 pb-3 sm:px-6">
+                  <RateDealButton
+                    target={row.review.target}
+                    subjectName={row.review.name}
+                    subjectRole={row.review.role}
+                    reviewed={reviewed ? reviewed.has(row.id) : undefined}
+                    onRated={() => markReviewed(row.id)}
+                  />
+                </div>
+              )}
             </li>
           ))}
         </ul>

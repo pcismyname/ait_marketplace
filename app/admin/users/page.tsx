@@ -40,6 +40,7 @@ export default function AdminUsersPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search name or email…"
+            aria-label="Search users"
             className="h-10 w-full rounded-md border border-input bg-surface pl-9 pr-3 text-[13px] outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>

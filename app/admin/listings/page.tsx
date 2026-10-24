@@ -97,12 +97,13 @@ export default function AdminListingsPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search title or seller…"
+            aria-label="Search listings"
             className="h-10 w-full rounded-md border border-input bg-surface pl-9 pr-3 text-[13px] outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
 
-      <div className="mb-4 flex gap-1" role="tablist">
+      <div className="no-scrollbar mb-4 flex gap-1 overflow-x-auto" role="tablist" aria-label="Listing status">
         {(
           [
             ['all', 'All'],
@@ -174,6 +175,7 @@ export default function AdminListingsPage() {
                                 value={reason}
                                 onChange={(e) => setReason(e.target.value)}
                                 placeholder="Reason, shown to the seller (optional)"
+                                aria-label="Reason, shown to the seller"
                                 className="h-9 w-full rounded-md border border-input bg-surface px-2 text-[12px] outline-none focus:border-primary"
                                 data-testid="moderation-reason"
                               />

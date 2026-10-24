@@ -11,6 +11,7 @@ import type { Rental } from '@/lib/types'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { RentalCard } from '@/components/rentals/rental-card'
+import { useReviewedDeals } from '@/components/rate-deal-button'
 import { DemoPaymentsNote } from '@/components/rentals/demo-payments-note'
 import { RespondRequestActions, approveBlockedReason } from '@/components/rentals/respond-request-actions'
 import { OPEN_PHASES, rentalQuote } from '@/components/rentals/rental-helpers'
@@ -27,6 +28,7 @@ export default function ListingRequestsPage() {
   const { listings, rentals, currentUserId, loading, refresh, getUser } = useMarketplace()
   const now = useNow()
   const listing = listings.find((l) => l.id === id)
+  const { reviewed, markReviewed } = useReviewedDeals()
 
   useEffect(() => {
     void refresh()
@@ -114,7 +116,15 @@ export default function ListingRequestsPage() {
           <h2 className="mb-4 text-[13px] font-semibold">Approved and running</h2>
           <div className="space-y-3">
             {inProgress.map((r) => (
-              <RentalCard key={r.id} rental={r} role="owner" listing={listing} now={now} />
+              <RentalCard
+                key={r.id}
+                rental={r}
+                role="owner"
+                listing={listing}
+                now={now}
+                reviewed={reviewed ? reviewed.has(r.id) : undefined}
+                onRated={() => markReviewed(r.id)}
+              />
             ))}
           </div>
         </section>
@@ -125,7 +135,15 @@ export default function ListingRequestsPage() {
           <h2 className="mb-4 text-[13px] font-semibold">Past requests and rentals</h2>
           <div className="space-y-3">
             {past.map((r) => (
-              <RentalCard key={r.id} rental={r} role="owner" listing={listing} now={now} />
+              <RentalCard
+                key={r.id}
+                rental={r}
+                role="owner"
+                listing={listing}
+                now={now}
+                reviewed={reviewed ? reviewed.has(r.id) : undefined}
+                onRated={() => markReviewed(r.id)}
+              />
             ))}
           </div>
         </section>

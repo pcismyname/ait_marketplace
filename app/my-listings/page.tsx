@@ -409,7 +409,7 @@ function OwnerCard({
     <div className="group flex flex-col" data-testid="owner-listing" data-listing-id={listing.id}>
       {/* Image */}
       <div className="relative aspect-[3/4] w-full overflow-hidden bg-surface-tinted">
-        <Link href={`/listing/${listing.id}`} className="absolute inset-0">
+        <Link href={`/listing/${listing.id}`} className="absolute inset-0" aria-label={listing.title}>
           {hasRealImage(listing.images[0]) ? (
             <Image
               src={listing.images[0]}

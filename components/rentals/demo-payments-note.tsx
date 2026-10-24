@@ -1,15 +1,6 @@
-import { cn } from '@/lib/utils'
+import { SimulatedPaymentsNote } from '@/components/simulated-payments-note'
 
-/** Shown wherever money moves: no gateway is integrated (BusinessRules §7). */
+/** Rental pages: the shared demo-mode note, boxed. */
 export function DemoPaymentsNote({ className }: { className?: string }) {
-  return (
-    <p
-      className={cn(
-        'border border-dashed border-border bg-surface px-3 py-2 text-center text-[11px] font-medium text-foreground',
-        className,
-      )}
-    >
-      Demo mode — payments are simulated, no real money moves.
-    </p>
-  )
+  return <SimulatedPaymentsNote variant="boxed" className={className} />
 }

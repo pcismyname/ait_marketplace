@@ -167,9 +167,23 @@ for (const [index, listing] of LISTINGS.entries()) {
 }
 console.log(`✓ ${LISTINGS.length} listings`)
 
+// Rating and review count come from the review rows (as submit_review does),
+// not from the persona's display numbers.
+for (const account of Object.values(accounts)) {
+  const { data: rows, error } = await admin.from('reviews').select('rating').eq('subject_id', account.id)
+  if (error) throw new Error(`count reviews: ${error.message}`)
+  const count = rows.length
+  const rating = count ? Math.round((rows.reduce((sum, r) => sum + Number(r.rating), 0) / count) * 10) / 10 : 0
+  await must(admin.from('users').update({ rating, reviews_count: count }).eq('id', account.id), 'rating')
+}
+
+// Needs are dated for the next intake (6 Jan 2027) so they are open and show
+// matches; the sample data's 'August 2026' would already be closed.
+const NEXT_INTAKE = { label: 'January 2027', date: '2027-01-06' }
 await must(admin.from('needs').insert(NEEDS.map((n, i) => ({
-  id: uuidFor(4000 + i), user_id: accounts.renter.id, title: n.title, category: n.category, note: n.note,
-  arrival_date: n.arrivalDate, created_at: n.createdAt,
+  id: uuidFor(4000 + i), user_id: accounts.renter.id, title: n.title, category: n.category,
+  note: n.note?.replace(/August/g, 'January') ?? null,
+  arrival_date: NEXT_INTAKE.label, needed_by: NEXT_INTAKE.date, listing_type: 'any', created_at: n.createdAt,
 }))), 'needs')
 
 // ─── Deals in different states, through the real RPCs ───────────────────────

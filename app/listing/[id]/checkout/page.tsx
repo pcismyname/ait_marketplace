@@ -82,7 +82,7 @@ function Checkout() {
 function RentCheckout({ listing }: { listing: Listing }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { rentals, currentUserId, payRental, getUser } = useMarketplace()
+  const { rentals, currentUserId, payRental, getUser, loading } = useMarketplace()
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('promptpay')
   const [processing, setProcessing] = useState(false)
   const [walletAvailable, setWalletAvailable] = useState<number | null>(null)
@@ -100,11 +100,33 @@ function RentCheckout({ listing }: { listing: Listing }) {
 
   const mine = rentals.filter((r) => r.listingId === listing.id && r.renterId === currentUserId)
   const requestedId = searchParams.get('rental')
+  // An explicit ?rental= wins; otherwise only an open booking (approved, then
+  // requested) counts. A finished booking of the same item means "request again".
   const rental: Rental | undefined =
     (requestedId ? mine.find((r) => r.id === requestedId) : undefined) ??
     mine.find((r) => r.phase === 'approved') ??
-    mine[0]
+    mine.find((r) => r.phase === 'requested')
   const owner = getUser(listing.sellerId)
+
+  if (listing.sellerId === currentUserId) {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-24 text-center" data-testid="not-payable">
+        <Info className="mx-auto h-8 w-8 text-primary" />
+        <h1 className="mt-5 text-2xl font-semibold tracking-tight">This is your listing</h1>
+        <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">
+          Renters pay here after you approve their request. Review and approve requests from your listing&apos;s
+          requests page.
+        </p>
+        <Link href={`/dashboard/listings/${listing.id}/requests`} className={cn(buttonVariants({ size: 'lg' }), 'mt-8 px-5')}>
+          Booking requests
+        </Link>
+      </div>
+    )
+  }
+
+  if (!rental && loading) {
+    return <p className="py-24 text-center text-[13px] text-muted-foreground">Loading your booking…</p>
+  }
 
   if (!rental || rental.phase !== 'approved') {
     return <NotPayable listing={listing} rental={rental} ownerName={owner.name} />
