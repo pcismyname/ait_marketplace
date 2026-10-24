@@ -1,0 +1,40 @@
+flowchart TD
+    A[Owner logs in] --> B["Create Listing (select 'For Rent')"]
+    B --> C["Set rental price + period (week / month / semester), condition, pickup location"]
+    C --> D["Set deposit: suggested by category, adjustable within ฿200 - ฿3,000"]
+    D --> E["Listing published to marketplace (free to list)"]
+    E --> F{Renter requests booking?}
+    F -- No --> E
+    F -- Yes --> G[Renter sends booking request]
+    G --> H{Owner approves request?}
+    H -- "No, declines" --> E
+    H -- Yes --> I["Renter pays rental fee + 10% commission + escrow fee + deposit (simulated in-app)"]
+    I --> J["Funds held in escrow by platform (owner never holds the deposit)"]
+    J --> K[Item handed over at pickup - handover photos taken]
+    K --> L{"Dispute filed within 48 h of handover?"}
+    L -- Yes --> L2["Admin reviews handover dispute - payout waits for the decision"]
+    L -- No --> M["Owner receives full rental fee, 48 h after handover"]
+    M --> N[Rental period active - deposit still held by platform]
+    N --> O{Returned by due date?}
+
+    O -- "More than 7 days late" --> Y["Counted as missing: full deposit to owner"]
+    O -- "Late, up to 7 days" --> Z["Late fee ceil(rental fee / period days) per day, taken from deposit"]
+    Z --> P
+    O -- On time --> P["Owner confirms return condition with photos (compares with handover photos)"]
+
+    P --> Q["48-hour dispute window opens at return"]
+    Q --> R{Owner files damage claim within window?}
+    R -- "No claim - window closes" --> S["Funds auto-released: remaining deposit refunded to renter"]
+    R -- "Owner confirms early, good condition" --> S
+    R -- "Yes, claim filed" --> T[Owner files claim with photos and chat evidence]
+    T --> U[Admin reviews dispute]
+    U --> V{Admin finding}
+    V -- "Normal wear" --> S
+    V -- "Repairable damage" --> W["Repair cost to owner, rest of deposit refunded to renter"]
+    V -- "Lost or destroyed" --> X["Full deposit to owner (owner never receives more than the deposit)"]
+
+    S --> AA[Both parties rate each other]
+    W --> AA
+    X --> AA
+    Y --> AA
+    AA --> AB[Item history updated]

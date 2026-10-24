@@ -1,0 +1,32 @@
+flowchart TD
+    A[Buyer logs in] --> B[Browse/Search marketplace]
+    B --> C[Filter by category, price, location]
+    C --> D["View listing detail page (listing price shown, no commission on sales)"]
+    D --> E{Interested?}
+    E -- No --> B
+    E -- Yes --> F[Send chat message to seller]
+    F --> G[Negotiate pickup time/logistics via chat]
+    G --> H[Proceed to checkout]
+    H --> I{Choose how to pay}
+
+    I -- "Pay in person (free)" --> J["Pay seller directly at pickup: no escrow, no dispute support"]
+    J --> K[Seller marks listing sold]
+    K --> R
+
+    I -- "Pay with protection" --> L["Pay listing price + ฿10 + 3% (simulated in-app: PromptPay / card / wallet)"]
+    L --> M[Payment held in escrow by platform]
+    M --> N[Meet seller at agreed pickup location]
+    N --> O[Receive item from seller]
+    O --> P["48-hour dispute window opens at handover"]
+    P --> Q{Item matches listing description?}
+    Q -- Yes --> S["Buyer confirms receipt (releases at once) - or takes no action and the window closes"]
+    S --> T["Escrow releases payment to seller (full listing price)"]
+    Q -- No --> U[Buyer files dispute with evidence within 48 hours]
+    U --> V["Admin reviews dispute (chat history, photos)"]
+    V --> W{Item not as described?}
+    W -- No --> T
+    W -- Yes --> X[Full or partial refund to buyer]
+
+    T --> R[Buyer rates seller]
+    X --> R
+    R --> Y["Item added to buyer's owned items - lifecycle updated"]

@@ -11,4 +11,4 @@ The source of truth for the project. When something changes, update the doc that
 | [Mapping&UF.md](Mapping&UF.md) | Planned full app: page map, feature list, user flow diagrams | Follows the four above |
 | [UserFlows.md](UserFlows.md) | Routes and flows that exist in the app today | Describes the code as built |
 
-Figures (user flows, use case diagram) are in [../figures/](../figures/). The original course brief and proposal are in `E-business_Project_Doc (2).pdf` at the repo root.
+Figures (user flows, use case diagram) are in [../figures/](../figures/); their sources and re-render steps are in [../figures/README.md](../figures/README.md). The original course brief and proposal are in `E-business_Project_Doc (2).pdf` at the repo root.

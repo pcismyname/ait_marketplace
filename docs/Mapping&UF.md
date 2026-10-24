@@ -140,12 +140,12 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
 - **Rentals always go through the platform.** Renter pays rental fee + 10% commission + escrow fee (`max(฿30, 3% of deposit)`) + refundable deposit.
 - **Sales: the buyer chooses.** *Pay in person*: free, paid directly to the seller, no escrow or dispute support. *Pay with protection*: price + ฿10 + 3%, held in escrow.
 - The seller/owner always receives their full listing price; platform fees are paid by the buyer/renter on top.
-- Payment methods: PromptPay QR (default, cheapest) and cards (for incoming international students without a Thai bank account)
+- Payment methods: PromptPay QR (default, cheapest), cards (for incoming international students without a Thai bank account) and the in-app wallet (refunded deposits land here first)
 - Gateway fees are absorbed by the platform; deposits are always refunded in full
 - Optional premium placement: ฿49 for 7 days
 
 **Escrow & Auto-Release**
-- Funds are held by the licensed payment gateway, never by the owner or the team's own bank account
+- Course build: escrow is simulated in-app. Real launch: funds are held by a licensed payment gateway, never by the owner or the team's own bank account
 - 48-hour dispute window opens at handover (protected sales) or at return (rentals)
 - Rental fee is paid out to the owner 48 hours after handover if no dispute is filed; the deposit stays held until return
 - Auto-release when the window closes with no dispute (via scheduled Supabase function)
@@ -176,6 +176,8 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
 
 ## User Flow Diagrams
 
+These diagrams are the sources in [../figures/src/](../figures/src/), rendered to `figures/*_userflow.png` (see [../figures/README.md](../figures/README.md)); edit the `.mmd` file and copy it here so both stay the same.
+
 Rentals and protected sales share one escrow pattern: **payment held → 48-hour dispute window opens at handover/return → auto-release if silent, dispute path if raised.** It is a single reusable mechanism (a scheduled Supabase function checking window expiry). Sales paid in person skip it entirely.
 
 ### Seller Perspective — Selling an Item
@@ -183,29 +185,38 @@ Rentals and protected sales share one escrow pattern: **payment held → 48-hour
 ```mermaid
 flowchart TD
     A[Seller logs in] --> B["Create Listing (select 'For Sale')"]
-    B --> C[Set price, upload photos, condition, pickup location]
-    C --> D[Listing published to marketplace - free to list]
-    D --> E{Buyer interested?}
-    E -- No --> D
-    E -- Yes --> F[Buyer sends chat message]
-    F --> G[Negotiate details & confirm pickup time via chat]
-    G --> H{How does the buyer pay?}
-    H -- Pay in person --> I[Buyer pays seller directly at pickup]
-    I --> J[Item handed over - seller marks listing sold]
-    J --> Q
-    H -- Pay with protection --> K["Buyer pays price + ฿10 + 3% via gateway"]
-    K --> L[Payment held in escrow by the gateway]
-    L --> M[Item handed over at pickup location]
-    M --> N["48-hour dispute window opens"]
-    N --> O{Buyer files dispute within window?}
-    O -- No dispute - window expires --> P["Funds auto-released: seller gets full price"]
-    O -- Buyer confirms early --> P
-    P --> Q[Seller and buyer rate each other]
-    Q --> R[Item lifecycle updated: new owner recorded]
-    O -- Yes, dispute filed --> S[Admin reviews dispute]
-    S --> T{Resolved in buyer's favor?}
-    T -- Yes --> U[Full or partial refund to buyer]
-    T -- No --> P
+    B --> C[Set listing price, upload photos, condition, pickup location]
+    C --> D{"Add premium placement? (optional)"}
+    D -- "Yes" --> D2["Pay ฿49 (simulated): top of search for 7 days"]
+    D -- "No" --> E
+    D2 --> E["Listing published to marketplace (free to list)"]
+    E --> F{Buyer interested?}
+    F -- No --> E
+    F -- Yes --> G[Buyer sends chat message]
+    G --> H[Negotiate details & confirm pickup time via chat]
+    H --> I{How does the buyer pay?}
+
+    I -- "Pay in person (free)" --> J[Buyer pays seller directly at pickup]
+    J --> K["Item handed over - seller marks listing sold (no escrow, no dispute support)"]
+    K --> S
+
+    I -- "Pay with protection" --> L["Buyer pays listing price + ฿10 + 3% (simulated in-app)"]
+    L --> M[Payment held in escrow by platform]
+    M --> N[Seller and buyer meet at pickup location]
+    N --> O[Item handed over to buyer]
+    O --> P["48-hour dispute window opens at handover"]
+    P --> Q{Buyer files dispute within window?}
+    Q -- "No dispute - window closes after 48 h" --> R["Funds auto-released: seller gets full listing price"]
+    Q -- "Buyer confirms early" --> R
+    Q -- "Yes, dispute filed" --> T["Admin reviews dispute (chat history, photos)"]
+    T --> U{Item not as described?}
+    U -- No --> R
+    U -- Yes --> V[Full or partial refund to buyer]
+
+    R --> S[Seller rates buyer]
+    V --> S
+    S --> W[Buyer rates seller]
+    W --> X["Item lifecycle updated: new owner recorded"]
 ```
 
 ### Buyer Perspective — Buying an Item
@@ -214,28 +225,35 @@ flowchart TD
 flowchart TD
     A[Buyer logs in] --> B[Browse/Search marketplace]
     B --> C[Filter by category, price, location]
-    C --> D[View listing detail page]
+    C --> D["View listing detail page (listing price shown, no commission on sales)"]
     D --> E{Interested?}
     E -- No --> B
     E -- Yes --> F[Send chat message to seller]
     F --> G[Negotiate pickup time/logistics via chat]
-    G --> H{Choose how to pay}
-    H -- Pay in person --> I[Pay seller directly at pickup - free, no protection]
-    I --> Q
-    H -- Pay with protection --> J["Pay price + ฿10 + 3% via PromptPay or card"]
-    J --> K[Payment held in escrow by the gateway]
-    K --> L[Meet seller, receive item]
-    L --> M["48-hour dispute window opens"]
-    M --> N{Item matches listing description?}
-    N -- Yes --> O[Buyer confirms receipt - or takes no action and window expires]
-    O --> P[Escrow releases payout to seller]
-    P --> Q[Buyer rates seller]
-    Q --> R[Item added to buyer's owned items - lifecycle updated]
-    N -- No --> S[Buyer files dispute with evidence before window closes]
-    S --> T[Admin reviews dispute]
-    T --> U{Resolved in buyer's favor?}
-    U -- Yes --> V[Full or partial refund to buyer]
-    U -- No --> P
+    G --> H[Proceed to checkout]
+    H --> I{Choose how to pay}
+
+    I -- "Pay in person (free)" --> J["Pay seller directly at pickup: no escrow, no dispute support"]
+    J --> K[Seller marks listing sold]
+    K --> R
+
+    I -- "Pay with protection" --> L["Pay listing price + ฿10 + 3% (simulated in-app: PromptPay / card / wallet)"]
+    L --> M[Payment held in escrow by platform]
+    M --> N[Meet seller at agreed pickup location]
+    N --> O[Receive item from seller]
+    O --> P["48-hour dispute window opens at handover"]
+    P --> Q{Item matches listing description?}
+    Q -- Yes --> S["Buyer confirms receipt (releases at once) - or takes no action and the window closes"]
+    S --> T["Escrow releases payment to seller (full listing price)"]
+    Q -- No --> U[Buyer files dispute with evidence within 48 hours]
+    U --> V["Admin reviews dispute (chat history, photos)"]
+    V --> W{Item not as described?}
+    W -- No --> T
+    W -- Yes --> X[Full or partial refund to buyer]
+
+    T --> R[Buyer rates seller]
+    X --> R
+    R --> Y["Item added to buyer's owned items - lifecycle updated"]
 ```
 
 ### Owner Perspective — Renting Out an Item
@@ -243,34 +261,44 @@ flowchart TD
 ```mermaid
 flowchart TD
     A[Owner logs in] --> B["Create Listing (select 'For Rent')"]
-    B --> C["Set rental price + period; deposit pre-filled by category (฿200-3,000)"]
-    C --> D[Listing published to marketplace]
-    D --> E{Renter requests booking?}
-    E -- No --> D
-    E -- Yes --> F[Renter sends booking request]
-    F --> G[Owner approves request]
-    G --> H["Renter pays rental fee + 10% + escrow fee + deposit via gateway"]
-    H --> I[Funds held in escrow by the gateway]
-    I --> J[Item handed over at pickup - handover photos taken]
-    J --> K{"Dispute within 48 hrs of handover?"}
-    K -- No --> L[Owner receives full rental fee]
-    K -- Yes --> X[Admin reviews handover dispute]
-    L --> M[Rental period active - deposit still held]
-    M --> N{Returned by due date?}
-    N -- More than 7 days late --> Y[Counted as missing - full deposit to owner]
-    N -- Late, under 7 days --> Z[Daily late fee taken from deposit]
-    Z --> O
-    N -- On time --> O[Owner checks condition against handover photos]
-    O --> P{"Owner files damage claim within 48 hrs?"}
-    P -- No claim - window expires --> Q[Remaining deposit refunded to renter]
-    P -- Owner confirms good condition --> Q
-    Q --> R[Both parties rate each other]
-    R --> S[Item history updated]
-    P -- Yes, claim filed --> T[Admin reviews photos and chat]
-    T --> U{Outcome}
-    U -- Normal wear --> Q
-    U -- Repairable damage --> V[Repair cost to owner, rest refunded to renter]
-    U -- Lost or destroyed --> W[Full deposit to owner]
+    B --> C["Set rental price + period (week / month / semester), condition, pickup location"]
+    C --> D["Set deposit: suggested by category, adjustable within ฿200 - ฿3,000"]
+    D --> E["Listing published to marketplace (free to list)"]
+    E --> F{Renter requests booking?}
+    F -- No --> E
+    F -- Yes --> G[Renter sends booking request]
+    G --> H{Owner approves request?}
+    H -- "No, declines" --> E
+    H -- Yes --> I["Renter pays rental fee + 10% commission + escrow fee + deposit (simulated in-app)"]
+    I --> J["Funds held in escrow by platform (owner never holds the deposit)"]
+    J --> K[Item handed over at pickup - handover photos taken]
+    K --> L{"Dispute filed within 48 h of handover?"}
+    L -- Yes --> L2["Admin reviews handover dispute - payout waits for the decision"]
+    L -- No --> M["Owner receives full rental fee, 48 h after handover"]
+    M --> N[Rental period active - deposit still held by platform]
+    N --> O{Returned by due date?}
+
+    O -- "More than 7 days late" --> Y["Counted as missing: full deposit to owner"]
+    O -- "Late, up to 7 days" --> Z["Late fee ceil(rental fee / period days) per day, taken from deposit"]
+    Z --> P
+    O -- On time --> P["Owner confirms return condition with photos (compares with handover photos)"]
+
+    P --> Q["48-hour dispute window opens at return"]
+    Q --> R{Owner files damage claim within window?}
+    R -- "No claim - window closes" --> S["Funds auto-released: remaining deposit refunded to renter"]
+    R -- "Owner confirms early, good condition" --> S
+    R -- "Yes, claim filed" --> T[Owner files claim with photos and chat evidence]
+    T --> U[Admin reviews dispute]
+    U --> V{Admin finding}
+    V -- "Normal wear" --> S
+    V -- "Repairable damage" --> W["Repair cost to owner, rest of deposit refunded to renter"]
+    V -- "Lost or destroyed" --> X["Full deposit to owner (owner never receives more than the deposit)"]
+
+    S --> AA[Both parties rate each other]
+    W --> AA
+    X --> AA
+    Y --> AA
+    AA --> AB[Item history updated]
 ```
 
 ### Renter Perspective — Renting an Item
@@ -285,23 +313,32 @@ flowchart TD
     E -- Yes --> F[Send booking request to owner]
     F --> G{Owner approves?}
     G -- No --> B
-    G -- Yes --> H["Pay rental fee + 10% + escrow fee + deposit (PromptPay or card)"]
-    H --> I[Funds held in escrow by the gateway]
-    I --> J[Meet owner, receive item]
-    J --> K[Use item during rental period]
+    G -- Yes --> H["Pay rental fee + 10% commission + escrow fee max(฿30, 3% of deposit) + refundable deposit (simulated in-app: PromptPay / card / wallet)"]
+    H --> I[Funds held in escrow by platform]
+    I --> J[Meet owner, receive item - handover photos taken]
+    J --> J2["Rental fee paid out to owner 48 h after handover if no dispute - deposit stays held"]
+    J2 --> K[Use item during rental period]
     K --> L{Returned by due date?}
-    L -- Late --> M[Daily late fee taken from deposit]
+
+    L -- "More than 7 days late" --> MM["Counted as missing: full deposit to owner"]
+    L -- "Late, up to 7 days" --> M["Daily late fee ceil(rental fee / period days) taken from deposit"]
     M --> N
-    L -- On time --> N["48-hour dispute window opens at return"]
-    N --> O{Owner raises damage claim within window?}
-    O -- No claim - window expires --> P["Remaining deposit refunded to renter"]
-    O -- Owner confirms early, good condition --> P
-    P --> Q[Renter rates owner]
-    O -- Yes, claim filed --> R[Admin reviews dispute]
-    R --> S{Outcome}
-    S -- Normal wear --> P
-    S -- Repairable damage --> T[Repair cost deducted, rest refunded]
-    S -- Lost or destroyed --> U[Deposit forfeited to owner]
+    L -- On time --> N["Return item - owner confirms condition with photos"]
+
+    N --> O["48-hour dispute window opens at return"]
+    O --> P{Owner raises damage claim within window?}
+    P -- "No claim - window closes" --> Q["Remaining deposit auto-refunded to renter"]
+    P -- "Owner confirms early, good condition" --> Q
+    P -- "Yes, claim filed" --> R["Admin reviews dispute (chat history, before/after photos)"]
+    R --> S{Admin finding}
+    S -- "Normal wear" --> Q
+    S -- "Repairable damage" --> T[Repair cost to owner, rest of deposit refunded]
+    S -- "Lost or destroyed" --> U["Full deposit to owner (renter's liability is capped at the deposit)"]
+
+    Q --> V[Renter rates owner]
+    T --> V
+    U --> V
+    MM --> V
 ```
 
 ---

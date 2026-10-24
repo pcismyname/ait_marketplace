@@ -1,0 +1,35 @@
+flowchart TD
+    A[Renter logs in] --> B[Browse/Search rentals]
+    B --> C[Filter by category, dates, location]
+    C --> D["View listing - rental price, fees and deposit shown"]
+    D --> E{Interested?}
+    E -- No --> B
+    E -- Yes --> F[Send booking request to owner]
+    F --> G{Owner approves?}
+    G -- No --> B
+    G -- Yes --> H["Pay rental fee + 10% commission + escrow fee max(฿30, 3% of deposit) + refundable deposit (simulated in-app: PromptPay / card / wallet)"]
+    H --> I[Funds held in escrow by platform]
+    I --> J[Meet owner, receive item - handover photos taken]
+    J --> J2["Rental fee paid out to owner 48 h after handover if no dispute - deposit stays held"]
+    J2 --> K[Use item during rental period]
+    K --> L{Returned by due date?}
+
+    L -- "More than 7 days late" --> MM["Counted as missing: full deposit to owner"]
+    L -- "Late, up to 7 days" --> M["Daily late fee ceil(rental fee / period days) taken from deposit"]
+    M --> N
+    L -- On time --> N["Return item - owner confirms condition with photos"]
+
+    N --> O["48-hour dispute window opens at return"]
+    O --> P{Owner raises damage claim within window?}
+    P -- "No claim - window closes" --> Q["Remaining deposit auto-refunded to renter"]
+    P -- "Owner confirms early, good condition" --> Q
+    P -- "Yes, claim filed" --> R["Admin reviews dispute (chat history, before/after photos)"]
+    R --> S{Admin finding}
+    S -- "Normal wear" --> Q
+    S -- "Repairable damage" --> T[Repair cost to owner, rest of deposit refunded]
+    S -- "Lost or destroyed" --> U["Full deposit to owner (renter's liability is capped at the deposit)"]
+
+    Q --> V[Renter rates owner]
+    T --> V
+    U --> V
+    MM --> V
