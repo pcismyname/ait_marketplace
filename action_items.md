@@ -149,9 +149,9 @@ Current status (updated 24 October 2026): Next.js App Router + Tailwind + shadcn
 ### 2.3 Listings & discovery
 - [x] `[P0]` Listings CRUD actions persist to the database; photo upload to Supabase Storage and image validation remain.
 - [x] `[P0]` Deposit rules on the sell and edit forms: deposit pre-filled with the category suggestion (kitchen 300, textbooks 200, sports 300, furniture 500, electronics 800, bicycles 1,000, other 300), limited to ฿200–฿3,000, no rental without a deposit (done on branch fix/business-rules-alignment).
-- [ ] `[P1]` Ask for the item's replacement value on rental listings and enforce the 30–50% range with `depositRangeForValue` (helper exists; form field still to add if not already).
-- [ ] `[P1]` Placeholder for **admin approval of rentals worth more than ~฿6,000** (`needsRentalApproval`): flag the listing and show "needs admin approval". How approval works is **(open)** — don't build more.
-- [ ] `[P1]` Premium placement: the edit page says the ฿49 is "deducted from sale"; BusinessRules §2 says the lister pays ฿49 for 7 days **when enabled** (simulated). Make the sell and edit forms say the same thing and store the 7-day expiry.
+- [x] `[P1]` Optional replacement-value field on the sell and edit forms for rentals; when filled, the deposit must sit within 30–50% of it (`depositRangeForValue`) (done on branch fix/business-rules-alignment). The value is a form helper only and is not saved (no column yet).
+- [ ] `[P1]` Placeholder for **admin approval of rentals worth more than ~฿6,000** (`needsRentalApproval`): the sell and edit forms already show a "needs admin approval" note; still to do: flag the listing itself. How approval works is **(open)** — don't build more.
+- [ ] `[P1]` Premium placement: sell and edit forms now both say the lister pays ฿49 for 7 days **when enabled** (simulated), per BusinessRules §2 (done on branch fix/business-rules-alignment); still to do: store the 7-day expiry.
 - [ ] `[P0]` `/dashboard/listings`: tabs for active / sold / rented / draft; edit, pause, delete, mark status.
 - [ ] `[P0]` `/dashboard/listings/[id]/edit`.
 - [ ] `[P0]` Browse/search/filter/sort running as DB queries (index on category, type, status, created_at; text search).
@@ -256,7 +256,7 @@ Required sections come from the brief; status refers to what already exists in t
 | 6 | **Target customers/users** | Partial | Add personas for outgoing and incoming students, segment size with a sourced estimate, needs/pain points, adoption barriers. |
 | 7 | **Existing/potential competitors** | Drafted (table) | Add a feature-comparison matrix (verification, rental support, escrow, calendar matching, search/filter, fees) and a short positioning statement. |
 | 8 | **Investment required** | **Not started** | One-off vs. recurring costs, with assumptions (see 3.2). |
-| 9 | **Projected revenues & expenses** | **Not started** | Start from BusinessRules §10 planning numbers; 3 scenarios (75 / 150 / 300 rentals per semester), break-even (see 3.2). |
+| 9 | **Projected revenues & expenses** | **Not started** | 3-year projection by semester, starting from BusinessRules §10 planning numbers; 3 scenarios (75 / 150 / 300 rentals per semester), break-even (see 3.2). |
 | 10 | **Technical infrastructure** | **Not started** | Architecture diagram, stack and why, data model/ERD, security, scalability, CI/CD, environments, monitoring. |
 | 11 | **Human resources needed** | **Not started** | Team roles during build; post-launch roles (maintainer, community moderator/dispute handler, campus ambassadors); hours/cost estimate. |
 | 12 | **Payment methods & delivery** | **Not started** | Methods `promptpay` (default), `card` (international students without a Thai account), `wallet`; fee display; escrow flow; 48-hour dispute window; owner payout 48 h after handover; refunds; late fees. State that the course build simulates payments, then describe the real launch (licensed gateway holds funds, Omise fees, Payment Systems Act — BusinessRules §7). Delivery = campus pickup/handover points, no shipping. |
