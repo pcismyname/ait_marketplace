@@ -40,7 +40,7 @@ This file was checked against BusinessRules.md and Timeline.md. Each mismatch an
 | 12 | Owner approval of bookings was `[P1]` | §4 booking flow: request → owner approves → renter pays | Raised to `[P0]` (it is part of the required flow) |
 | 13 | Rentals of items > ~฿6,000 not covered | §3: renting them needs admin approval **(open)** | Placeholder item only |
 | 14 | Finance assumptions to be invented | §10 planning numbers (150 rentals/semester, ~฿34 net per rental, lean pilot vs. paid staff) | Finance section now starts from §10 |
-| 15 | Section 4 said change "24-48 hrs" to "24 hrs" and add the 4% fee | 48 h; escrow fee `max(฿30, 3%)` | Section 4 rewritten; the stale text is in the figures, not README.md |
+| 15 | Section 4 said change "24-48 hrs" to "24 hrs" and add the 4% fee | 48 h; escrow fee `max(฿30, 3%)` | Section 4 rewritten; the figures were redrawn on 24 Oct 2026 (Section 4) |
 | 16 | "Replace 'free sales listing' / 'rental commission only' language" | §1–2: listing **is** free and commission **is** rental-only | Item inverted: keep that language, add the optional buyer protection fee |
 
 ---
@@ -280,7 +280,7 @@ Required sections come from the brief; status refers to what already exists in t
 ### 3.3 Implementation chapter (evidence)
 - [ ] Architecture diagram (Next.js on Vercel ↔ Supabase Auth/Postgres/Storage/Realtime/scheduled jobs). Payments are a simulated module inside the app; draw the licensed gateway only as a dashed "real launch" box.
 - [ ] ERD of the final schema.
-- [ ] Final **page map** and the **four user-flow diagrams** (regenerate from the Mermaid diagrams in [docs/Mapping&UF.md](docs/Mapping&UF.md), which already follow the rules; see Section 4).
+- [ ] Final **page map** and the **four user-flow diagrams** (the flows are redrawn and follow the rules: `figures/*_userflow.png`, sources in [figures/src/](figures/src/); re-render if the rules change; see Section 4).
 - [ ] Screenshots, in flow order: landing → signup/verify → browse → listing detail → booking request/approval → checkout (in-person sale, protected sale, rental) → transaction/escrow status → confirm → dispute → chat → needs/matches → dashboards → admin dispute queue.
 - [ ] Explain the key mechanisms: fee calculation (`lib/fees.ts`), deposit suggestion/limits, rental state machine, auto-release and owner payout job, late fee / missing rule, matching logic, seasonal detection.
 - [ ] **Implemented vs. planned table** — be transparent that payments, escrow holds, payouts and refunds are simulated (no gateway by scope decision), and what is future work.
@@ -311,8 +311,8 @@ Required sections come from the brief; status refers to what already exists in t
 ## 4. Consistency fixes across existing material
 
 - [ ] Revenue language everywhere (proposal text, progress deck revenue slide, README, report) must match BusinessRules §1–2: listing is **free**, the 10% commission is on **rentals only**, plus the escrow handling fee `max(฿30, 3% of deposit)`, the optional buyer protection fee (฿10 + 3%) on sales, and premium placement ฿49 / 7 days. ([docs/Proposal.md](docs/Proposal.md) already matches; check the deck.)
-- [ ] Update the user-flow figures: `figures/renter_userflow.png` (and the owner/buyer/seller PNGs) still say "Return dispute window opens (24-48 hrs)" and "Pay rental fee + deposit online" — regenerate them from the Mermaid diagrams in [docs/Mapping&UF.md](docs/Mapping&UF.md) so they say **48 hours**, show commission + escrow fee `max(฿30, 3%)` + deposit, the owner payout 48 h after handover, the late/missing path, and the dispute outcomes (not "deposit forfeited to owner").
-- [ ] Update `figures/usecase_diagram.svg` / `.png`: "optional, within 24-48 h" → "within 48 h"; the "Payment gateway (Omise / 2C2P)" actor should be relabelled as simulated payments in the course build (gateway = real launch only).
+- [x] Update the user-flow figures: `figures/renter_userflow.png` (and the owner/buyer/seller PNGs) still say "Return dispute window opens (24-48 hrs)" and "Pay rental fee + deposit online" — regenerate them from the Mermaid diagrams in [docs/Mapping&UF.md](docs/Mapping&UF.md) so they say **48 hours**, show commission + escrow fee `max(฿30, 3%)` + deposit, the owner payout 48 h after handover, the late/missing path, and the dispute outcomes (not "deposit forfeited to owner"). *Done 24 Oct 2026: all four redrawn from Mermaid sources in [figures/src/](figures/src/) (also copied into Mapping&UF.md); no sales commission, in-person vs. protected sale, simulated payments, 48-hour windows, late fee / missing, dispute outcomes. Re-render steps in [figures/README.md](figures/README.md).*
+- [x] Update `figures/usecase_diagram.svg` / `.png`: "optional, within 24-48 h" → "within 48 h"; the "Payment gateway (Omise / 2C2P)" actor should be relabelled as simulated payments in the course build (gateway = real launch only). *Done 24 Oct 2026: gateway tag is now "Simulated payment (in-app)", windows are 48 h, and "Receive payout" and "Settle late returns" use cases were added.*
 - [x] README fee wording: "the flat escrow handling fee" → `max(฿30, 3% of the deposit)`, and sales paid in person or with protection (fixed 24 Oct 2026).
 - [ ] If any progress-deck slides are reused: fix the duplicate "07." in the contents slide and the "Comission" typo on the revenue slide, and check the fee numbers on the revenue slide against BusinessRules §2.
 - [ ] Reconcile route names between README, audit, and the real app.

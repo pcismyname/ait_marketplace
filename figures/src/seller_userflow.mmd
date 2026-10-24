@@ -1,0 +1,34 @@
+flowchart TD
+    A[Seller logs in] --> B["Create Listing (select 'For Sale')"]
+    B --> C[Set listing price, upload photos, condition, pickup location]
+    C --> D{"Add premium placement? (optional)"}
+    D -- "Yes" --> D2["Pay ฿49 (simulated): top of search for 7 days"]
+    D -- "No" --> E
+    D2 --> E["Listing published to marketplace (free to list)"]
+    E --> F{Buyer interested?}
+    F -- No --> E
+    F -- Yes --> G[Buyer sends chat message]
+    G --> H[Negotiate details & confirm pickup time via chat]
+    H --> I{How does the buyer pay?}
+
+    I -- "Pay in person (free)" --> J[Buyer pays seller directly at pickup]
+    J --> K["Item handed over - seller marks listing sold (no escrow, no dispute support)"]
+    K --> S
+
+    I -- "Pay with protection" --> L["Buyer pays listing price + ฿10 + 3% (simulated in-app)"]
+    L --> M[Payment held in escrow by platform]
+    M --> N[Seller and buyer meet at pickup location]
+    N --> O[Item handed over to buyer]
+    O --> P["48-hour dispute window opens at handover"]
+    P --> Q{Buyer files dispute within window?}
+    Q -- "No dispute - window closes after 48 h" --> R["Funds auto-released: seller gets full listing price"]
+    Q -- "Buyer confirms early" --> R
+    Q -- "Yes, dispute filed" --> T["Admin reviews dispute (chat history, photos)"]
+    T --> U{Item not as described?}
+    U -- No --> R
+    U -- Yes --> V[Full or partial refund to buyer]
+
+    R --> S[Seller rates buyer]
+    V --> S
+    S --> W[Buyer rates seller]
+    W --> X["Item lifecycle updated: new owner recorded"]

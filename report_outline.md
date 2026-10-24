@@ -123,7 +123,7 @@ Extra cases worth one line each in the report:
 - [ ] Fig. 2 — C2B2C value-flow diagram
 - [ ] Fig. 3 — Money flow for an in-person sale, a protected sale and a rental (who pays what, what is held, when the owner is paid, what is released)
 - [ ] Fig. 4 — Page map
-- [ ] Fig. 5–8 — The four user flows (seller, buyer, owner, renter), regenerated from docs/Mapping&UF.md: 48-hour dispute window, escrow handling fee `max(฿30, 3%)`, booking approval, owner payout 48 h after handover, late/missing path
+- [ ] Fig. 5–8 — The four user flows (seller, buyer, owner, renter): `figures/*_userflow.png`, redrawn 24 Oct 2026 from `figures/src/*.mmd` (same as docs/Mapping&UF.md): 48-hour dispute window, escrow handling fee `max(฿30, 3%)`, booking approval, owner payout 48 h after handover, late/missing path
 - [ ] Fig. 9 — System architecture
 - [ ] Fig. 10 — Database ERD
 - [ ] Fig. 11 — Rental and protected-sale state machine (BusinessRules §4)
