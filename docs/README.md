@@ -7,6 +7,7 @@ The source of truth for the project. When something changes, update the doc that
 | [Proposal.md](Proposal.md) | What PassItOn is and why: background, literature, purpose, business model, features, strategy, revenue model, customers, competitors | Wins on *what* and *why* |
 | [BusinessRules.md](BusinessRules.md) | Money logic: fees, deposits, rentals, sales, disputes, who holds the money, payment methods, planning numbers | Wins on anything involving money |
 | [Timeline.md](Timeline.md) | Phases, dates, scope (live / simulated / out of scope), report rubric checklist, risks | Wins on scope and dates |
+| [Database.md](Database.md) | Supabase schema, rental and sale state machines as built, every RPC, RLS, storage paths; how to run the local stack, test, regenerate types and push to production | Follows BusinessRules.md; wins on the API contract for app code |
 | [Design.md](Design.md) | Visual and UX decisions: colors, type, components, copy | Wins on visuals |
 | [Mapping&UF.md](Mapping&UF.md) | Planned full app: page map, feature list, user flow diagrams | Follows the four above |
 | [UserFlows.md](UserFlows.md) | Routes and flows that exist in the app today | Describes the code as built |

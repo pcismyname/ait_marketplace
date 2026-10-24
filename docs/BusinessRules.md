@@ -90,7 +90,14 @@ active → return-pending → disputed → resolved (admin splits the deposit)
 active → overdue → missing                    (7+ days late, deposit to owner)
 ```
 
-Current code has `RentalPhase = 'active' | 'return-pending' | 'released' | 'disputed'`; the other states are still to build.
+Two more states complete the booking step (a clarification of the flow above, not a money rule; no money has moved in either):
+
+```
+requested → declined                 (the owner says no)
+requested / approved → cancelled     (renter or owner drops it before payment)
+```
+
+All twelve states are persisted in `rentals.phase` and change only through the database functions in [Database.md](Database.md).
 
 ## 5. Sales
 
@@ -141,17 +148,19 @@ Current code has `RentalPhase = 'active' | 'return-pending' | 'released' | 'disp
 
 ## Current code vs. these rules
 
-Updated 2026-10-24 for branch `fix/business-rules-alignment`.
+Updated 2026-10-25 for branch `feat/p0-core`. The server side is in `supabase/migrations/20261025010000_p0_core.sql`; the contract is in [Database.md](Database.md).
 
 | Rule | Code today | Change needed |
 |---|---|---|
-| Escrow fee `max(30, 3% of deposit)` | Done: `escrowHandlingFee` in `lib/fees.ts`, unit-tested | Compute it server-side too |
-| Buyer protection fee `10 + 3%`; sales in person or with protection | Done: `computeSaleQuote` in `lib/fees.ts`; sale checkout offers both options | Persist protected sales in the escrow states |
-| Deposit min ฿200 / max ฿3,000, suggested by category, 30–50% of value | Done: suggestions, limits and range helper in `lib/fees.ts`; sell and edit forms enforce them | Admin approval for items over ~฿6,000 (open): placeholder only |
-| Payment methods `promptpay` / `card` / `wallet`, simulated | Done: checkout shows all three with a "payments simulated" note | — |
-| Dispute window 48 h; owner payout 48 h after handover | Constants and helpers in `lib/fees.ts` (`DISPUTE_WINDOW_HOURS`, `ownerPayoutAt`) | Auto-release / payout job |
-| Rental states (§4) | `RentalPhase` has all ten states; rentals page derives overdue / missing in the UI | Persist the phases in the database; owner request/approve booking flow |
-| Late fee, missing after 7 days, owner capped at the deposit | Done: `dailyLateFee`, `returnStatus`, `settleDeposit`, `lateReturnSettlement`, unit-tested | Apply the settlement when a rental is closed |
+| Escrow fee `max(30, 3% of deposit)`; commission 10% | `lib/fees.ts` and server-side `quote_rental` (same JS rounding); parity tested (pgTAP + `npm run test:db`). `pay_rental` charges the server quote. | — |
+| Buyer protection fee `10 + 3%`; sales in person or with protection | `computeSaleQuote` + `quote_sale`; `transactions` table with in-person (no escrow, no dispute, seller marks sold) and protected (held until handover + 48 h) states | Status page UI `/transaction/[id]` |
+| Deposit min ฿200 / max ฿3,000, suggested by category, 30–50% of value | Forms enforce it; the database refuses rental listings outside ฿200–฿3,000 and `request_rental` refuses listings without a valid deposit | Admin approval for items over ~฿6,000 (open): placeholder only (`listings.replacement_value` column) |
+| Payment methods `promptpay` / `card` / `wallet`, simulated | Recorded on the booking or purchase; `wallet` pays from the in-app balance (refunds and payouts land there) | — |
+| Booking flow request → approve → pay → handover | RPCs `request_rental`, `respond_rental`, `pay_rental`, `confirm_handover`; checkout and rentals page use them | Owner requests page UI |
+| Owner payout 48 h after handover; deposit held until return | `run_escrow_jobs` (pg_cron every 10 min, also called by the app) | — |
+| Dispute window 48 h, auto-release, early release on confirmation | `file_dispute` only inside the window; job auto-releases; `confirm_return` / `confirm_sale_receipt` release at once; reminders 24 h and 2 h before | Dispute and admin pages UI |
+| Late fee `ceil(rentalFee / periodDays)` per day, missing after 7 days, owner capped at the deposit | Applied in SQL at the return (`mark_returned`) and by the job (`overdue`, `missing`); `resolve_dispute` caps the owner at the deposit | — |
+| Who holds the money (simulated) | `wallet_ledger`: held / available / platform rows for every hold, payout, refund and fee | Wallet page UI |
 
 ## Open questions
 
