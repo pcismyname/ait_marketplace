@@ -5,7 +5,7 @@
 //   external   paid in by PromptPay / card (history only)
 
 import type { LedgerEntry, WalletSummary } from '../types'
-import { db, unwrap } from './client'
+import { db, requireUserId, unwrap } from './client'
 import { mapLedgerEntry } from './mappers'
 
 export async function getWalletSummary(): Promise<WalletSummary> {
@@ -19,10 +19,17 @@ export async function getWalletSummary(): Promise<WalletSummary> {
   }
 }
 
-/** The user's ledger rows, newest first. */
+/** The signed-in user's own ledger rows, newest first. Filtered on user_id
+ *  because admin RLS can read every row (other users' and platform rows). */
 export async function listLedger(limit = 100): Promise<LedgerEntry[]> {
+  const uid = await requireUserId()
   const rows = unwrap(
-    await db().from('wallet_ledger').select('*').order('created_at', { ascending: false }).limit(limit),
+    await db()
+      .from('wallet_ledger')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(limit),
   )
   return rows.map(mapLedgerEntry)
 }

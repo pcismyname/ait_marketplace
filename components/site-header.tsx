@@ -21,11 +21,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { AnnouncementBar } from '@/components/announcement-bar'
+import { NotificationBell } from '@/components/notification-bell'
 
 export function SiteHeader() {
   const pathname = usePathname()
   const router = useRouter()
-  const { currentUserId, threads, favoriteIds, logout, getUser } = useMarketplace()
+  const { currentUserId, threads, favoriteIds, logout, getUser, isAdmin } = useMarketplace()
   const me = getUser(currentUserId)
 
   const [searchOpen, setSearchOpen] = useState(false)
@@ -107,7 +108,10 @@ export function SiteHeader() {
 
           <div className="flex-1" />
 
-          {/* Right icons — desktop */}
+          {/* Right icons. One shared row so the notification bell mounts once
+              (one Realtime channel, one count query) on desktop and mobile. */}
+          <div className="flex items-center gap-1 md:gap-0">
+          {/* Right icons — desktop (before the bell) */}
           <div className="hidden items-center md:flex">
 
             {/* Search trigger */}
@@ -133,6 +137,13 @@ export function SiteHeader() {
               )}
             </Link>
 
+          </div>
+
+          {/* Notifications (unread count), desktop and mobile */}
+          <NotificationBell />
+
+          {/* Right icons — desktop (after the bell) */}
+          <div className="hidden items-center md:flex">
             {/* Messages */}
             <Link
               href="/chat"
@@ -185,6 +196,11 @@ export function SiteHeader() {
                 <DropdownMenuItem render={<Link href="/dashboard/settings" />} className="flex cursor-pointer items-center px-3 py-2 text-[12px] hover:bg-muted rounded-sm">
                   Settings
                 </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem render={<Link href="/admin/dashboard" />} className="flex cursor-pointer items-center px-3 py-2 text-[12px] font-semibold hover:bg-muted rounded-sm">
+                    Admin
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator className="my-1 border-border" />
                 <DropdownMenuItem 
                   onClick={() => {
@@ -215,6 +231,7 @@ export function SiteHeader() {
             >
               <AlignJustify className="h-[18px] w-[18px]" />
             </button>
+          </div>
           </div>
         </div>
 

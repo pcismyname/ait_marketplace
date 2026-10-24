@@ -81,8 +81,12 @@ export interface Listing {
   timesChangedHands: number
   history: HistoryEvent[]
   reviews: Review[]
-  /** Premium placement: shown first in search and matching. */
+  /** Premium placement: shown first in search and matching (false once featuredUntil has passed). */
   featured?: boolean
+  /** When premium placement ends (7 days after it was turned on). Empty on legacy rows: no expiry. */
+  featuredUntil?: string
+  /** Owner's estimate of what the item costs to buy again (deposit rule, BusinessRules §3). */
+  replacementValue?: number
   /** Light stat surfaced in My Listings. */
   viewCount?: number
 }

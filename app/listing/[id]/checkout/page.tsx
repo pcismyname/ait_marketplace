@@ -1,11 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { toast } from 'sonner'
 import {
   ArrowLeft,
+  CircleCheck,
+  Clock,
   CreditCard,
   Handshake,
   Info,
@@ -16,9 +19,9 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
+import { getWalletSummary } from '@/lib/api'
 import { BRAND, PAYMENT_METHODS } from '@/lib/data'
 import {
-  computeRentalQuote,
   computeSaleQuote,
   BUYER_PROTECTION_BASE_FEE,
   BUYER_PROTECTION_RATE,
@@ -29,9 +32,11 @@ import {
   RENTAL_COMMISSION_RATE,
   type SalePaymentMode,
 } from '@/lib/fees'
-import { formatPrice } from '@/lib/format'
-import type { PaymentMethod } from '@/lib/types'
-import { Button } from '@/components/ui/button'
+import { formatPrice, relativeTime } from '@/lib/format'
+import type { Listing, PaymentMethod, Rental } from '@/lib/types'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { DemoPaymentsNote } from '@/components/rentals/demo-payments-note'
+import { PHASE_META, rentalQuote } from '@/components/rentals/rental-helpers'
 import { cn } from '@/lib/utils'
 
 const METHOD_ICONS: Record<PaymentMethod, LucideIcon> = {
@@ -50,58 +55,224 @@ const METHOD_NOTES: Record<PaymentMethod, string> = {
 const pct = (rate: number) => `${Math.round(rate * 100)}%`
 
 export default function CheckoutPage() {
-  const { id } = useParams<{ id: string }>()
-  const router = useRouter()
-  const {
-    listings, rentals, currentUserId, requestRental, payRental, createSale, startThread, getThreadForListing,
-  } = useMarketplace()
-  const listing = listings.find(l => l.id === id)
+  return (
+    <Suspense fallback={null}>
+      <Checkout />
+    </Suspense>
+  )
+}
 
+function Checkout() {
+  const { id } = useParams<{ id: string }>()
+  const { listings, loading } = useMarketplace()
+  const listing = listings.find((l) => l.id === id)
+
+  if (!listing) {
+    return (
+      <p className="py-24 text-center text-[13px] text-muted-foreground">
+        {loading ? 'Loading…' : 'This listing is no longer available.'}
+      </p>
+    )
+  }
+  return listing.type === 'rent' ? <RentCheckout listing={listing} /> : <SaleCheckout listing={listing} />
+}
+
+// ─── Rental: pay an approved booking (BusinessRules §4) ─────────────────────
+
+function RentCheckout({ listing }: { listing: Listing }) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { rentals, currentUserId, payRental, getUser } = useMarketplace()
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('promptpay')
+  const [processing, setProcessing] = useState(false)
+  const [walletAvailable, setWalletAvailable] = useState<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getWalletSummary().then(
+      (s) => !cancelled && setWalletAvailable(s.available),
+      () => undefined,
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const mine = rentals.filter((r) => r.listingId === listing.id && r.renterId === currentUserId)
+  const requestedId = searchParams.get('rental')
+  const rental: Rental | undefined =
+    (requestedId ? mine.find((r) => r.id === requestedId) : undefined) ??
+    mine.find((r) => r.phase === 'approved') ??
+    mine[0]
+  const owner = getUser(listing.sellerId)
+
+  if (!rental || rental.phase !== 'approved') {
+    return <NotPayable listing={listing} rental={rental} ownerName={owner.name} />
+  }
+
+  // pay_rental charges quote_rental(rental_fee, deposit) from the booking's
+  // columns; computeRentalQuote is the same function (parity-tested).
+  const quote = rentalQuote(rental)
+  const walletShort = walletAvailable !== null && walletAvailable < quote.totalDueNow
+
+  const onPay = async () => {
+    setProcessing(true)
+    try {
+      const paid = await payRental(rental.id, paymentMethod)
+      toast.success('Booking paid (simulated)', {
+        description: `${formatPrice(paid.totalPaid ?? quote.totalDueNow)} paid. The ${formatPrice(paid.deposit)} deposit is held by ${BRAND} until the item comes back.`,
+      })
+      router.push('/rentals?view=renting')
+    } catch (error) {
+      toast.error('Payment failed', { description: error instanceof Error ? error.message : String(error) })
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  return (
+    <CheckoutShell
+      title="Pay for your booking"
+      intro={`${owner.name} approved your request ${relativeTime(rental.approvedAt ?? rental.requestedAt)}. One payment covers the rental, the platform fees and the refundable deposit.`}
+      left={
+        <>
+          <MethodPicker
+            value={paymentMethod}
+            onChange={setPaymentMethod}
+            walletAvailable={walletAvailable}
+            walletShort={walletShort}
+          />
+          <div className="flex items-start gap-3 border border-border bg-surface p-5">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div>
+              <p className="text-[13px] font-semibold text-foreground">How the deposit is held</p>
+              <ul className="mt-1 list-disc space-y-1 pl-4 text-[12px] leading-relaxed text-muted-foreground">
+                <li>The deposit is held by {BRAND}. The owner never holds it.</li>
+                <li>
+                  The owner receives the rental fee {OWNER_PAYOUT_DELAY_HOURS} hours after handover. Your{' '}
+                  {rental.periodDays}-day rental period starts at handover.
+                </li>
+                <li>
+                  After you return the item there is a {DISPUTE_WINDOW_HOURS}-hour window to report a problem. With no
+                  dispute the deposit (minus any late fee) is refunded to your wallet when it closes, or at once when
+                  the owner confirms a good return.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </>
+      }
+      summary={
+        <>
+          <SummaryHeader listing={listing} />
+          <dl className="space-y-3 border-t border-border pt-4 text-[13px]" data-testid="rent-quote">
+            <SummaryRow label={`Rental fee (${rental.rentalPeriod ?? 'per semester'})`} value={quote.rentalFee} />
+            <SummaryRow label={`Platform commission (${pct(RENTAL_COMMISSION_RATE)})`} value={quote.commission} />
+            <SummaryRow
+              label="Escrow handling fee"
+              hint={`max(${formatPrice(ESCROW_FEE_MIN)}, ${pct(ESCROW_FEE_RATE)} of deposit)`}
+              value={quote.handlingFee}
+            />
+            <SummaryRow label="Deposit" hint="Refundable, held by the platform" value={quote.deposit} />
+          </dl>
+          <div className="flex items-end justify-between border-t border-border pt-4">
+            <p className="text-[14px] font-semibold">Total due now</p>
+            <p className="font-display text-2xl font-bold text-foreground" data-testid="rent-total">
+              {formatPrice(quote.totalDueNow)}
+            </p>
+          </div>
+          <p className="-mt-4 text-[11px] text-muted-foreground">
+            {formatPrice(quote.refundable)} of this comes back to you after the return.
+          </p>
+          <Button
+            onClick={onPay}
+            disabled={processing || (paymentMethod === 'wallet' && walletShort)}
+            className="h-11 w-full text-[13px] font-semibold"
+          >
+            {processing ? 'Processing…' : `Pay ${formatPrice(quote.totalDueNow)}`}
+          </Button>
+          <DemoPaymentsNote />
+        </>
+      }
+    />
+  )
+}
+
+function NotPayable({ listing, rental, ownerName }: { listing: Listing; rental?: Rental; ownerName: string }) {
+  let title: string
+  let body: string
+  let href = `/listing/${listing.id}`
+  let cta = 'Back to the listing'
+  let Icon: LucideIcon = Info
+
+  if (!rental) {
+    title = 'Request to book first'
+    body = `Rentals are paid only after the owner approves. Send ${ownerName} a booking request from the listing page; you'll be able to pay here once it's approved.`
+  } else if (rental.phase === 'requested') {
+    Icon = Clock
+    title = 'Waiting for the owner to approve'
+    body = `${ownerName} hasn't answered your request yet. You'll get a notification when it's approved, and then you can pay here.`
+    href = '/rentals?view=renting'
+    cta = 'Go to My Rentals'
+  } else if (rental.phase === 'declined' || rental.phase === 'cancelled') {
+    title = rental.phase === 'declined' ? 'This request was declined' : 'This booking was cancelled'
+    body = `Nothing was paid.${rental.declineReason ? ` Reason: “${rental.declineReason}”.` : ''} You can send a new request if the item is available.`
+  } else {
+    Icon = CircleCheck
+    title = 'This booking is already paid'
+    body = `Its status is “${PHASE_META[rental.phase].label}”. Track the handover, return and deposit in My Rentals.`
+    href = '/rentals?view=renting'
+    cta = 'Go to My Rentals'
+  }
+
+  return (
+    <div className="mx-auto max-w-xl px-4 py-24 text-center" data-testid="not-payable">
+      <Icon className="mx-auto h-8 w-8 text-primary" />
+      <h1 className="mt-5 text-2xl font-semibold tracking-tight">{title}</h1>
+      <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">{body}</p>
+      <Link href={href} className={cn(buttonVariants({ size: 'lg' }), 'mt-8 px-5')}>
+        {cta}
+      </Link>
+    </div>
+  )
+}
+
+// ─── Sale: in person or with protection (BusinessRules §5) ──────────────────
+
+function SaleCheckout({ listing }: { listing: Listing }) {
+  const router = useRouter()
+  const { createSale, startThread, getThreadForListing } = useMarketplace()
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('promptpay')
   const [saleMode, setSaleMode] = useState<SalePaymentMode>('protected')
   const [processing, setProcessing] = useState(false)
+  const [walletAvailable, setWalletAvailable] = useState<number | null>(null)
 
-  if (!listing) return null
+  useEffect(() => {
+    let cancelled = false
+    getWalletSummary().then(
+      (s) => !cancelled && setWalletAvailable(s.available),
+      () => undefined,
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
-  const isRent = listing.type === 'rent'
-  const rentQuote = isRent ? computeRentalQuote({ price: listing.price, deposit: listing.deposit }) : null
-  const saleQuote = isRent ? null : computeSaleQuote(listing.price, saleMode)
-  const inPerson = saleQuote?.mode === 'in-person'
-  const total = rentQuote ? rentQuote.totalDueNow : saleQuote!.total
-  const methodLabel = PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label
-  // Rental booking flow (BusinessRules §4): request → owner approves → renter pays.
-  const myRentals = rentals.filter(r => r.listingId === listing.id && r.renterId === currentUserId)
-  const approvedRental = myRentals.find(r => r.phase === 'approved')
-  const waitingRental = myRentals.find(r => r.phase === 'requested')
+  const saleQuote = computeSaleQuote(listing.price, saleMode)
+  const inPerson = saleQuote.mode === 'in-person'
+  const total = saleQuote.total
+  const walletShort = walletAvailable !== null && walletAvailable < total
+  const methodLabel = PAYMENT_METHODS.find((m) => m.id === paymentMethod)?.label
 
   const messageSeller = (text: string) => {
     if (!getThreadForListing(listing.id)) startThread(listing.id, listing.sellerId, text)
   }
 
   // Simulated: no gateway, no real money (BusinessRules.md §7). The server
-  // computes the amounts and moves the booking / purchase to its next state.
+  // computes the amounts and moves the purchase to its next state.
   const onPay = async () => {
     setProcessing(true)
     try {
-      if (isRent) {
-        if (approvedRental) {
-          await payRental(approvedRental.id, paymentMethod)
-          toast.success('Booking paid (simulated)', {
-            description: `${formatPrice(rentQuote!.deposit)} deposit is held by ${BRAND} until the item comes back.`,
-          })
-        } else {
-          await requestRental(listing.id)
-          messageSeller(
-            `Hi! I just requested to rent "${listing.title}". Once you approve, I'll pay and we can meet at ${listing.pickupLocation}.`,
-          )
-          toast.success('Rental request sent', {
-            description: `The owner approves it first, then you pay ${formatPrice(total)} here.`,
-          })
-        }
-        router.push('/rentals')
-        return
-      }
-
       if (inPerson) {
         await createSale(listing.id, 'in-person')
         messageSeller(
@@ -129,62 +300,37 @@ export default function CheckoutPage() {
     }
   }
 
-  const ctaLabel = processing
-    ? 'Processing...'
-    : inPerson
-      ? 'Confirm in-person purchase'
-      : isRent && !approvedRental
-        ? waitingRental ? 'Waiting for the owner to approve' : 'Send rental request'
-        : `Pay ${formatPrice(total)}`
-
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 md:py-12">
-      <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-3 mb-6">
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back
-      </Button>
-
-      <div className="grid gap-10 lg:grid-cols-[1fr_380px]">
-
-        {/* Left Col: how to pay */}
-        <div className="space-y-8">
-          <div className="mb-12">
-            <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Checkout</h1>
-            <p className="mt-4 text-[14px] text-muted-foreground">
-              {isRent
-                ? 'One payment covers the rental, the platform fees and the refundable deposit.'
-                : 'Choose how you want to pay for this item.'}
-            </p>
+    <CheckoutShell
+      title="Checkout"
+      intro="Choose how you want to pay for this item."
+      left={
+        <>
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold tracking-tight">How do you want to pay?</h2>
+            <div className="grid gap-3" role="radiogroup" aria-label="Sale payment option">
+              <ModeOption
+                active={saleMode === 'protected'}
+                onSelect={() => setSaleMode('protected')}
+                icon={ShieldCheck}
+                title="Pay with protection"
+                price={`+ ${formatPrice(computeSaleQuote(listing.price, 'protected').protectionFee)}`}
+                description={`${formatPrice(BUYER_PROTECTION_BASE_FEE)} + ${pct(BUYER_PROTECTION_RATE)} of the price. ${BRAND} holds your money until handover plus ${DISPUTE_WINDOW_HOURS} hours. If the item isn't as described, you can open a dispute in that window.`}
+              />
+              <ModeOption
+                active={saleMode === 'in-person'}
+                onSelect={() => setSaleMode('in-person')}
+                icon={Handshake}
+                title="Pay in person"
+                price="Free"
+                description="Pay the seller directly when you meet. No escrow and no dispute support: once you hand over the money, it's between you and the seller."
+              />
+            </div>
           </div>
 
-          {/* Sale: in person vs. with protection (BusinessRules.md §2, §5) */}
-          {!isRent && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold tracking-tight">How do you want to pay?</h2>
-              <div className="grid gap-3" role="radiogroup" aria-label="Sale payment option">
-                <ModeOption
-                  active={saleMode === 'protected'}
-                  onSelect={() => setSaleMode('protected')}
-                  icon={ShieldCheck}
-                  title="Pay with protection"
-                  price={`+ ${formatPrice(computeSaleQuote(listing.price, 'protected').protectionFee)}`}
-                  description={`${formatPrice(BUYER_PROTECTION_BASE_FEE)} + ${pct(BUYER_PROTECTION_RATE)} of the price. ${BRAND} holds your money until handover plus ${DISPUTE_WINDOW_HOURS} hours. If the item isn't as described, you can open a dispute in that window.`}
-                />
-                <ModeOption
-                  active={saleMode === 'in-person'}
-                  onSelect={() => setSaleMode('in-person')}
-                  icon={Handshake}
-                  title="Pay in person"
-                  price="Free"
-                  description="Pay the seller directly when you meet. No escrow and no dispute support: once you hand over the money, it's between you and the seller."
-                />
-              </div>
-            </div>
-          )}
-
           {inPerson ? (
-            <div className="border border-border bg-surface p-5 flex items-start gap-3">
-              <Info className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 border border-border bg-surface p-5">
+              <Info className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
               <div>
                 <p className="text-[13px] font-semibold text-foreground">Nothing is paid online</p>
                 <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
@@ -195,148 +341,174 @@ export default function CheckoutPage() {
             </div>
           ) : (
             <>
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold tracking-tight">Payment method</h2>
-                <div className="grid gap-3" role="radiogroup" aria-label="Payment method">
-                  {PAYMENT_METHODS.map(m => {
-                    const Icon = METHOD_ICONS[m.id]
-                    const active = paymentMethod === m.id
-                    return (
-                      <label
-                        key={m.id}
-                        className={cn(
-                          'flex cursor-pointer items-center gap-3 border p-4 transition-all',
-                          active ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-card',
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            'flex h-10 w-10 shrink-0 items-center justify-center rounded-md',
-                            active ? 'bg-primary text-primary-foreground' : 'bg-surface-tinted text-muted-foreground',
-                          )}
-                        >
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-semibold text-foreground">{m.label}</p>
-                          <p className="text-[11px] text-muted-foreground">{m.hint}</p>
-                          <p className="mt-0.5 text-[11px] font-medium text-primary">{METHOD_NOTES[m.id]}</p>
-                        </div>
-                        <input
-                          type="radio"
-                          name="payment"
-                          checked={active}
-                          onChange={() => setPaymentMethod(m.id)}
-                          className="h-4 w-4 text-primary focus:ring-primary"
-                        />
-                      </label>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="border border-border bg-surface p-5 flex items-start gap-3">
-                <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+              <MethodPicker
+                value={paymentMethod}
+                onChange={setPaymentMethod}
+                walletAvailable={walletAvailable}
+                walletShort={walletShort}
+              />
+              <div className="flex items-start gap-3 border border-border bg-surface p-5">
+                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                 <div>
-                  <p className="text-[13px] font-semibold text-foreground">
-                    {isRent ? 'How the deposit is held' : 'Buyer protection'}
+                  <p className="text-[13px] font-semibold text-foreground">Buyer protection</p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                    Your payment is held by {BRAND}, not the seller. After handover you have {DISPUTE_WINDOW_HOURS} hours
+                    to open a dispute. If you don&apos;t, the money is released to the seller automatically when the
+                    window closes. Confirming receipt sooner releases it at once.
                   </p>
-                  {isRent ? (
-                    <ul className="mt-1 list-disc space-y-1 pl-4 text-[12px] leading-relaxed text-muted-foreground">
-                      <li>The deposit is held by {BRAND}. The owner never holds it.</li>
-                      <li>The owner receives the rental fee {OWNER_PAYOUT_DELAY_HOURS} hours after handover, unless a dispute is filed.</li>
-                      <li>
-                        After you return the item there is a {DISPUTE_WINDOW_HOURS}-hour window for the owner to report
-                        damage. If no claim is made, the deposit is refunded automatically when it closes; if the owner
-                        confirms good condition sooner, it is refunded at once.
-                      </li>
-                    </ul>
-                  ) : (
-                    <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                      Your payment is held by {BRAND}, not the seller. After handover you have {DISPUTE_WINDOW_HOURS} hours
-                      to open a dispute. If you don&apos;t, the money is released to the seller automatically when the window
-                      closes. Confirming receipt sooner releases it at once.
-                    </p>
-                  )}
                 </div>
               </div>
             </>
           )}
-        </div>
-
-        {/* Right Col: Order Summary */}
-        <div>
-          <div className="sticky top-24 border border-border bg-card p-6 space-y-6">
-            <h2 className="text-lg font-semibold tracking-tight">Order Summary</h2>
-
-            <div className="flex gap-4">
-              <div className="relative aspect-[3/4] w-20 shrink-0 overflow-hidden rounded-md bg-surface-tinted">
-                <Image src={listing.images[0]} alt={listing.title} fill className="object-cover" />
-              </div>
-              <div className="flex flex-col justify-center">
-                <p className="text-[14px] font-semibold line-clamp-2">{listing.title}</p>
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  <Tag className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-[12px] font-medium text-muted-foreground capitalize">{listing.type}</span>
-                </div>
-              </div>
-            </div>
-
-            <dl className="space-y-3 border-t border-border pt-4 text-[13px]">
-              {rentQuote ? (
-                <>
-                  <SummaryRow label={`Rental fee (${listing.rentalPeriod ?? 'per semester'})`} value={rentQuote.rentalFee} />
-                  <SummaryRow label={`Platform commission (${pct(RENTAL_COMMISSION_RATE)})`} value={rentQuote.commission} />
-                  <SummaryRow
-                    label="Escrow handling fee"
-                    hint={`max(${formatPrice(ESCROW_FEE_MIN)}, ${pct(ESCROW_FEE_RATE)} of deposit)`}
-                    value={rentQuote.handlingFee}
-                  />
-                  <SummaryRow label="Deposit" hint="Refundable, held by the platform" value={rentQuote.deposit} />
-                </>
-              ) : (
-                <>
-                  <SummaryRow label="Item price" value={saleQuote!.price} />
-                  {inPerson ? (
-                    <SummaryRow label="Protection" hint="Not included" value={0} />
-                  ) : (
-                    <SummaryRow
-                      label="Buyer protection fee"
-                      hint={`${formatPrice(BUYER_PROTECTION_BASE_FEE)} + ${pct(BUYER_PROTECTION_RATE)} of price`}
-                      value={saleQuote!.protectionFee}
-                    />
-                  )}
-                </>
-              )}
-            </dl>
-
-            <div className="flex items-end justify-between border-t border-border pt-4">
-              <p className="text-[14px] font-semibold">
-                {rentQuote ? 'Total due now' : inPerson ? 'Pay the seller at handover' : 'Total to pay'}
-              </p>
-              <p className="font-display text-2xl font-bold text-foreground">{formatPrice(total)}</p>
-            </div>
-            {rentQuote && (
-              <p className="-mt-4 text-[11px] text-muted-foreground">
-                {formatPrice(rentQuote.refundable)} of this comes back to you after the return.
-              </p>
+        </>
+      }
+      summary={
+        <>
+          <SummaryHeader listing={listing} />
+          <dl className="space-y-3 border-t border-border pt-4 text-[13px]">
+            <SummaryRow label="Item price" value={saleQuote.price} />
+            {inPerson ? (
+              <SummaryRow label="Protection" hint="Not included" value={0} />
+            ) : (
+              <SummaryRow
+                label="Buyer protection fee"
+                hint={`${formatPrice(BUYER_PROTECTION_BASE_FEE)} + ${pct(BUYER_PROTECTION_RATE)} of price`}
+                value={saleQuote.protectionFee}
+              />
             )}
+          </dl>
+          <div className="flex items-end justify-between border-t border-border pt-4">
+            <p className="text-[14px] font-semibold">{inPerson ? 'Pay the seller at handover' : 'Total to pay'}</p>
+            <p className="font-display text-2xl font-bold text-foreground">{formatPrice(total)}</p>
+          </div>
+          <Button
+            onClick={onPay}
+            disabled={processing || (!inPerson && paymentMethod === 'wallet' && walletShort)}
+            className="h-11 w-full text-[13px] font-semibold"
+          >
+            {processing ? 'Processing…' : inPerson ? 'Confirm in-person purchase' : `Pay ${formatPrice(total)}`}
+          </Button>
+          {!inPerson && <DemoPaymentsNote />}
+        </>
+      }
+    />
+  )
+}
 
-            <Button onClick={onPay} disabled={processing || (isRent && !approvedRental && Boolean(waitingRental))} className="w-full h-11 text-[13px] font-semibold">
-              {ctaLabel}
-            </Button>
+// ─── Shared pieces ──────────────────────────────────────────────────────────
 
-            <div className="space-y-2 text-center text-[10px] text-muted-foreground px-2">
-              {!inPerson && (
-                <p className="border border-dashed border-border bg-surface px-3 py-2 text-[11px] font-medium text-foreground">
-                  Demo mode — payments are simulated, no real money moves.
-                </p>
-              )}
-              <p>By confirming, you agree to the {BRAND} terms of service.</p>
-            </div>
+function CheckoutShell({
+  title,
+  intro,
+  left,
+  summary,
+}: {
+  title: string
+  intro: string
+  left: React.ReactNode
+  summary: React.ReactNode
+}) {
+  const router = useRouter()
+  return (
+    <div className="mx-auto max-w-4xl px-4 py-8 md:py-12">
+      <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-3 mb-6">
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back
+      </Button>
+      <div className="grid gap-10 lg:grid-cols-[1fr_380px]">
+        <div className="space-y-8">
+          <div className="mb-12">
+            <h1 className="font-display text-4xl font-bold tracking-tight md:text-5xl">{title}</h1>
+            <p className="mt-4 text-[14px] text-muted-foreground">{intro}</p>
+          </div>
+          {left}
+        </div>
+        <div>
+          <div className="sticky top-24 space-y-6 border border-border bg-card p-6">
+            <h2 className="text-lg font-semibold tracking-tight">Order Summary</h2>
+            {summary}
+            <p className="text-center text-[10px] text-muted-foreground">
+              By confirming, you agree to the {BRAND} terms of service.
+            </p>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
 
+function SummaryHeader({ listing }: { listing: Listing }) {
+  return (
+    <div className="flex gap-4">
+      <div className="relative aspect-[3/4] w-20 shrink-0 overflow-hidden rounded-md bg-surface-tinted">
+        <Image src={listing.images[0]} alt={listing.title} fill className="object-cover" />
+      </div>
+      <div className="flex flex-col justify-center">
+        <p className="line-clamp-2 text-[14px] font-semibold">{listing.title}</p>
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <Tag className="h-3 w-3 text-muted-foreground" />
+          <span className="text-[12px] font-medium capitalize text-muted-foreground">{listing.type}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MethodPicker({
+  value,
+  onChange,
+  walletAvailable,
+  walletShort,
+}: {
+  value: PaymentMethod
+  onChange: (method: PaymentMethod) => void
+  walletAvailable: number | null
+  walletShort: boolean
+}) {
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold tracking-tight">Payment method</h2>
+      <div className="grid gap-3" role="radiogroup" aria-label="Payment method">
+        {PAYMENT_METHODS.map((m) => {
+          const Icon = METHOD_ICONS[m.id]
+          const active = value === m.id
+          const isWallet = m.id === 'wallet'
+          return (
+            <label
+              key={m.id}
+              className={cn(
+                'flex cursor-pointer items-center gap-3 border p-4 transition-all',
+                active ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-card',
+              )}
+            >
+              <div
+                className={cn(
+                  'flex h-10 w-10 shrink-0 items-center justify-center rounded-md',
+                  active ? 'bg-primary text-primary-foreground' : 'bg-surface-tinted text-muted-foreground',
+                )}
+              >
+                <Icon className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-semibold text-foreground">{m.label}</p>
+                <p className="text-[11px] text-muted-foreground">{m.hint}</p>
+                <p className="mt-0.5 text-[11px] font-medium text-primary">
+                  {isWallet && walletAvailable !== null
+                    ? `Available: ${formatPrice(walletAvailable)}${walletShort ? ' · not enough for this payment' : ''}`
+                    : METHOD_NOTES[m.id]}
+                </p>
+              </div>
+              <input
+                type="radio"
+                name="payment"
+                value={m.id}
+                checked={active}
+                onChange={() => onChange(m.id)}
+                className="h-4 w-4 text-primary focus:ring-primary"
+              />
+            </label>
+          )
+        })}
       </div>
     </div>
   )

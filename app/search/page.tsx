@@ -1,13 +1,16 @@
 import { redirect } from 'next/navigation'
 
-export default function SearchRedirectPage({
+// /search?q=desk&type=rent… is an alias of /browse: keep every query param so
+// shared links land on the same results.
+export default async function SearchRedirectPage({
   searchParams,
 }: {
-  searchParams: { q?: string }
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  // Redirect to the browse page with the search query
-  if (searchParams.q) {
-    redirect(`/browse?q=${encodeURIComponent(searchParams.q)}`)
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(await searchParams)) {
+    for (const v of Array.isArray(value) ? value : value === undefined ? [] : [value]) params.append(key, v)
   }
-  redirect('/browse')
+  const query = params.toString()
+  redirect(query ? `/browse?${query}` : '/browse')
 }

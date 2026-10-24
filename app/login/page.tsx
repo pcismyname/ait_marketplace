@@ -1,36 +1,53 @@
 'use client'
 
+// Email + password login (Supabase Auth). After a successful login the
+// AuthGuard sends the user on: to ?next=, to /onboarding if it isn't done,
+// or home. Unconfirmed accounts get a link to /verify-email to resend the
+// confirmation mail.
+
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import { useSearchParams } from 'next/navigation'
 import { ArrowRight, Mail } from 'lucide-react'
-import { toast } from 'sonner'
-
+import { Button } from '@/components/ui/button'
 import { useMarketplace } from '@/lib/store'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { AuthNotice } from '@/components/auth-notice'
 
-export default function LoginPage() {
+const isAitEmail = (email: string) => /^[^@\s]+@ait\.asia$/i.test(email)
+
+function LoginInner() {
   const { login } = useMarketplace()
-  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [email, setEmail] = useState(searchParams.get('email') ?? '')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<{ message: string; unconfirmed?: boolean } | null>(null)
+  const next = searchParams.get('next')
+  const signupHref = next ? `/signup?next=${encodeURIComponent(next)}` : '/signup'
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    const email = (document.getElementById('email') as HTMLInputElement).value
-    if (!email.toLowerCase().endsWith('@ait.asia')) {
-      toast.error('Invalid email', { description: 'Please use your @ait.asia email address.' })
+    const address = email.trim().toLowerCase()
+    if (!isAitEmail(address)) {
+      setError({ message: 'PassItOn is only open to @ait.asia email addresses.' })
       return
     }
-
+    setError(null)
     setLoading(true)
-    const error = await login(email, (document.getElementById('password') as HTMLInputElement).value)
-    setLoading(false)
-    if (error) {
-      toast.error('Could not log in', { description: error })
-      return
+    const message = await login(address, password)
+    if (message) {
+      setLoading(false)
+      const unconfirmed = /not confirmed/i.test(message)
+      setError({
+        message: unconfirmed
+          ? 'Confirm your email address first. We sent you a link when you signed up.'
+          : /invalid login credentials/i.test(message)
+            ? 'That email and password don’t match an account.'
+            : message,
+        unconfirmed,
+      })
     }
-    router.push('/')
+    // On success the AuthGuard redirects; keep the button in its loading state.
   }
 
   return (
@@ -44,7 +61,26 @@ export default function LoginPage() {
       </div>
 
       <div className="mt-8 border border-border bg-card p-6 md:p-8">
-        <form onSubmit={onSubmit} className="space-y-4">
+        {searchParams.get('confirmed') && !error && (
+          <AuthNotice tone="success" className="mb-5">Your email is confirmed. Log in to finish setting up.</AuthNotice>
+        )}
+        {error && (
+          <AuthNotice tone="error" className="mb-5" testId="login-error">
+            {error.message}
+            {error.unconfirmed && (
+              <>
+                {' '}
+                <Link
+                  href={`/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`}
+                  className="font-semibold underline underline-offset-2"
+                >
+                  Resend the confirmation email
+                </Link>
+              </>
+            )}
+          </AuthNotice>
+        )}
+        <form onSubmit={onSubmit} className="space-y-4" noValidate>
           <div className="space-y-1.5">
             <label htmlFor="email" className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
               AIT Email Address
@@ -54,6 +90,9 @@ export default function LoginPage() {
               <input
                 id="email"
                 type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="st123456@ait.asia"
                 className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-[13px] outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
                 required
@@ -62,24 +101,31 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-baseline justify-between gap-3">
               <label htmlFor="password" className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Password
               </label>
-              <a href="#" className="text-[11px] font-medium text-primary hover:underline">
+              <Link
+                href={email.trim() ? `/reset-password?email=${encodeURIComponent(email.trim().toLowerCase())}` : '/reset-password'}
+                className="text-[12px] font-medium text-primary hover:underline"
+                data-testid="forgot-password"
+              >
                 Forgot password?
-              </a>
+              </Link>
             </div>
             <input
               id="password"
               type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
               required
             />
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full h-11 text-[13px] font-semibold mt-2">
+          <Button type="submit" disabled={loading || !email || !password} className="w-full h-11 text-[13px] font-semibold mt-2">
             {loading ? 'Logging in...' : (
               <>Log in <ArrowRight className="ml-2 h-4 w-4" /></>
             )}
@@ -88,11 +134,19 @@ export default function LoginPage() {
 
         <div className="mt-6 text-center text-[13px] text-muted-foreground">
           New to PassItOn?{' '}
-          <Link href="/signup" className="font-semibold text-primary hover:underline">
+          <Link href={signupHref} className="font-semibold text-primary hover:underline">
             Create an account
           </Link>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginInner />
+    </Suspense>
   )
 }

@@ -15,7 +15,7 @@ Schema: [`supabase/migrations/`](../supabase/migrations/) (`20261025000000_remot
 2. **Import from `@/lib/api`** in client components (`import { payRental } from '@/lib/api'`). Every function throws `ApiError`, whose `message` is written for users and can go straight into a toast.
 3. **Fees in the UI come from `lib/fees.ts`**, and the server computes the same numbers (`quote_rental`, `quote_sale`; parity is tested). The server never trusts a client total.
 4. **IDs are text** (UUID strings) everywhere, like the baseline. `auth.uid()::text = users.id`.
-5. **Notifications link to `/transaction/<id>`** for both rentals and sales. Resolve the id with `getDeal(id)` from `lib/api/deals.ts`. Owner booking requests link to `/dashboard/listings/<listingId>/requests`, disputes to `/dispute/<disputeId>`, chat to `/chat?thread=<threadId>`.
+5. **Notifications link to `/transaction/<id>`** for both rentals and sales. Resolve the id with `getDeal(id)` from `lib/api/deals.ts`. Owner booking requests link to `/dashboard/listings/<listingId>/requests`, disputes to `/dispute/<disputeId>`, chat to `/chat?thread=<threadId>`, pre-arrival matches (`need_match`) to `/listing/<listingId>`.
 
 ---
 
@@ -27,7 +27,7 @@ Schema: [`supabase/migrations/`](../supabase/migrations/) (`20261025000000_remot
 | `listings` | Items for sale or rent. Adds `replacement_value`, `featured_until`, `updated_at`, and `search` (a generated tsvector). | Everyone, logged out too | Seller (insert, update, delete); admins (update, delete). Guarded, see below. |
 | `listing_history` | Item history ("Bought in person", …) | Everyone | Seller of the listing. The RPCs append to it. |
 | `reviews` | Adds `subject_id` (the reviewed user), `rental_id`, `transaction_id`; role can be `owner` | Everyone | `submit_review` only |
-| `needs` | Pre-arrival requests | Signed-in users | Own rows (insert, update, delete) |
+| `needs` | Pre-arrival requests. `needed_by` (date) and `listing_type` (`any` / `sale` / `rent`) added by `20261025020500_needs_matching.sql`; a trigger fills `needed_by` from legacy free-text `arrival_date` (`'August 2026'` → 2026-08-01). | Signed-in users | Own rows (insert, update, delete) |
 | `favorites` | Saved listings | Own rows | Own rows |
 | `threads` · `thread_participants` · `messages` | Chat. `threads.created_by`, `thread_participants.last_read_at` added. | Participants and admins (admins need the chat history for disputes) | `start_thread` creates threads and participants. Participants insert messages. |
 | `rentals` | Rental bookings (section 3.1) | Renter, owner, admins | RPCs only |
@@ -45,9 +45,28 @@ Schema: [`supabase/migrations/`](../supabase/migrations/) (`20261025000000_remot
 - `rented` is set only by `pay_rental`. While a booking (`approved` … `overdue`) or a protected sale (`paid`, `handed-over`, `disputed`) is in progress, the status can't be changed by hand.
 - A listing with rental or sale history can't be deleted; pause it instead.
 
+### Premium placement, type lock, whole baht (`listings_premium_type_guard` trigger, clients only)
+
+Migration `20261025020401_premium_placement.sql`:
+
+- Clients can't write `featured` or `featured_until`. A client insert always starts unfeatured; an update that changes either is refused. Premium placement goes through `enable_premium_placement` / `end_premium_placement` (section 4). Rows with `featured = true` and no `featured_until` can only come from SQL or the seed script, and count as featured with no end date (legacy).
+- The type (`sale` ↔ `rent`) can't change while a rental is `requested`, an in-person purchase is `pending`, or a deal is in progress (`respond_rental` and `mark_sold` don't re-check the type).
+- Price and deposit must be whole baht when they are written (insert, or when they change).
+- Deleting a listing cascades to its pending requests, purchase intents and chat threads. The `listings_notify_deleted` trigger (before delete) sends each other student involved one `listing_removed` notification. If the delete is refused, the notifications roll back with it.
+
+Tested in `supabase/tests/20261025020401_premium_placement.test.sql`.
+
+### Admin moderation (`listings_moderation_guard` trigger, clients only)
+
+`listings.hidden_at`, `hidden_by`, `hidden_reason` (migration `20261025020300_admin_moderation.sql`) are set only by admins, through `admin_moderate_listing`. A hidden listing is `paused`, and its seller can't change its status (relist it) or clear the flag until an admin restores it; other edits still work. Non-admin inserts get the columns nulled. Hidden listings stay publicly readable (they are just `paused`). Tested in `supabase/tests/20261025020300_admin_moderation.test.sql`.
+
 ### Browse and search
 
 The table has indexes on `category`, `type`, `status`, `created_at desc` and `seller_id`, plus a GIN index on `search`. The search vector weights the title as A, the description as B, and the category and pickup location as C. `searchListings({ q, category, type, status, sort, … })` in `lib/api/listings.ts` uses web-search syntax (`desk -broken "mini fridge"`).
+
+- `searchListingsPage(search)` returns `{ listings, total }` (exact count) for "N items" and "Load more". Extra filters: `condition`, `pickupLocation`, `statuses` (several at once), `ids` (favourites; an empty list matches nothing). `match: 'prefix'` matches the start of each word for search as you type (`fri` finds "fridge"); text with quotes, `-` or `or` still uses web-search syntax.
+- **Featured first** (`20261025020400_listing_featured_rank.sql`): `public.is_featured(listings)` is a PostgREST computed field, true while `featured` is set and `featured_until` is empty (legacy rows) or in the future. Both search helpers order by `is_featured desc`, then the chosen sort, then `id` (stable pages). `mapListing` sets `Listing.featured` from the same rule. Tested in `supabase/tests/20261025020400_listing_featured.test.sql`.
+- The app's browse (`/`, `/browse`, `/search` redirects there) shows `available`, `reserved` and `rented` listings; the URL query string (`q`, `type`, `category`, `condition`, `location`, `min`, `max`, `sort`, `seller`, `favorites=1`) is the source of truth.
 
 ---
 
@@ -112,6 +131,12 @@ protected:  create_sale(protected, method) ──► paid ── confirm_sale_ha
 - Protected: on payment the price is held for the seller, the protection fee goes to the platform, and the listing becomes `reserved`. On release the seller gets the price and the listing becomes `sold` (`times_changed_hands + 1`, plus a history row).
 - Resolution for sales: `not-as-described` refunds `amount` (default: the full price, capped at the price) to the buyer's wallet, and the seller gets the rest. A full refund pauses the listing instead of marking it sold. `normal-wear` rejects the claim, and the seller is paid in full. The protection fee is not refunded.
 
+### 3.3 Pre-arrival matching (`20261025020500_needs_matching.sql`)
+
+A need matches a listing when the listing is `available` (paused, hidden, reserved, rented and sold listings never match), the category is the same, the type fits (`needs.listing_type` is `any` or equals `listings.type`), the listing isn't the need owner's own, and the need is **open**: no `needed_by`, or `needed_by` at most 30 days ago (`private.need_is_open`; students keep looking in their first month). The rule lives once in `private.need_matches_listing` and is used by `match_needs` and by the trigger below. BusinessRules §9: matches are held until the student arrives, so there is no lower bound on how early a match can show.
+
+`listings_notify_need_matches` (after insert, or an update of status / category / type that leaves the listing `available`) sends the owner of every open matching need one notification, kind `need_match`, linking to `/listing/<id>`, deduplicated per need and listing (`match:<need>:<listing>`), so a listing that comes back to `available` doesn't notify twice. Client wrappers: `lib/api/needs.ts` (`listNeeds`, `createNeed`, `updateNeedDate`, `deleteNeed`, `matchNeeds`, `isNeedOpen`).
+
 ---
 
 ## 4. RPCs (all `SECURITY DEFINER`, `search_path = public`)
@@ -144,6 +169,11 @@ Each RPC checks `auth.uid()`, locks the row, validates the from-state and raises
 | `mark_thread_read(p_thread_id)` | participant | — | Sets `last_read_at`; clears that thread's message notification |
 | `submit_review(p_rating, p_comment?, p_rental_id?, p_transaction_id?)` → reviews | a party of a closed deal | rental `released` / `resolved` / `missing`, or sale `released` / `resolved` / `completed` | One per author per deal; updates the subject's `rating` and `reviews_count` |
 | `admin_time_travel(p_id, p_hours)` → `'rental'` / `'sale'` | admin | — | Shifts a deal's timestamps back (for demos). Follow it with `run_escrow_jobs()`. |
+| `admin_moderate_listing(p_listing_id, p_action, p_reason?)` → `'hidden'` / `'restored'` / `'removed'` | admin | `hide`: listing → `paused` + `hidden_at` (refused while a deal is in progress) · `restore`: clears the flag (stays paused) · `remove`: deletes (refused with history) | Seller notified. Migration `20261025020300_admin_moderation.sql`; wrapper `moderateListing` in `lib/api/moderation.ts` |
+| `enable_premium_placement(p_listing_id, p_method = 'promptpay')` → listings | lister | listing `available`, not hidden, not already featured → featured for 7 days | Simulated ฿49 (BusinessRules §2): ledger payment −49 (`external`, or `available` for `wallet`, which needs the balance) and `platform_fee` +49 to the platform; `featured_until = now() + 7 days`; lister notified (`premium_placement`). Wrapper `enablePremiumPlacement` in `lib/api/listing-owner.ts` |
+| `end_premium_placement(p_listing_id)` → listings | lister | featured → not featured | Ends it early. No refund. Wrapper `endPremiumPlacement` |
+| `admin_stats()` → jsonb | admin | — (read) | `/admin/dashboard` counters: users, admins, listings, activeListings, hiddenListings, open/resolvedDisputes, rentalsInProgress, salesInEscrow, `heldEscrow` (Σ ledger `held`), `platformRevenue` (Σ ledger `platform`). Wrapper `getAdminStats` |
+| `match_needs(p_need_id?)` → `{need_id, listing_id, featured, listed_at}[]` | signed-in user | — (read) | Pre-arrival matching (section 3.3). No argument: the caller's own needs; with an id: that need. Featured listings first, then newest. |
 | `is_admin()`, `is_thread_participant(id)`, `is_rental_party(id)`, `is_transaction_party(id)`, `is_dispute_party(id)`, `can_read_evidence(path)`, `can_write_evidence(path)`, `listing_has_open_deal(id)`, `listing_has_history(id)` | RLS predicates (callable, return booleans about the caller) | — | — |
 
 Internal helpers live in the `private` schema, which the API can't see: `js_round` (JavaScript `Math.round`), `period_days`, `late_settlement`, `ledger`, `notify`, `settle_rental`, `release_sale`, …
@@ -161,7 +191,7 @@ Each row is `(user_id, kind, bucket, amount, memo, rental_id | transaction_id | 
 | `held` | The platform holds this for the user: a renter's deposit, or an owner's or seller's payout that isn't released yet |
 | `available` | The user's in-app wallet (refunds, payouts). It can pay with method `wallet`. |
 | `external` | Paid in from PromptPay or card. History only; not a balance. |
-| `platform` | Platform revenue (`user_id` is null): commission, escrow fee, protection fee |
+| `platform` | Platform revenue (`user_id` is null): commission, escrow fee, protection fee, premium placement |
 
 Kinds: `payment`, `hold`, `hold_release`, `payout`, `refund`, `claim` (deposit share to the owner), `platform_fee`, `withdrawal`. Balances: `held = Σ held`, `available = Σ available` (`get_wallet_summary`). Example, the mini fridge (฿250 + ฿25 + ฿30 + ฿800):
 
@@ -256,6 +286,7 @@ Add `supabase/migrations/<timestamp>_<name>.sql`, run `npm run db:reset && npm r
 2. `npx -y supabase@2.122.0 db push --dry-run`, which should list only `20261025010000_p0_core.sql`.
 3. `npx -y supabase@2.122.0 db push`.
 4. Dashboard → Authentication → Hooks → *Before User Created* → Postgres function `private.hook_before_user_created` (friendly message; the trigger enforces the rule without it).
+4b. Dashboard → Authentication → URL Configuration → Redirect URLs: add `https://<site>/onboarding` (sign-up and `/verify-email` resend send the confirmation link back to `/onboarding`, where the browser client finishes the PKCE sign-in). Locally `supabase/config.toml` only allows `http://127.0.0.1:3000`, so confirmation links fall back to that site URL; the address is still confirmed and the student logs in from `/login`. Also add `https://<site>/reset-password?step=new` (the "Forgot password?" mail from `/reset-password` comes back there to set the new password). Locally that link falls back to `http://127.0.0.1:3000/`, where the reset form does not open; add `http://localhost:3000/**` to `additional_redirect_urls` (needs a Supabase restart) to test the whole flow locally.
 5. Dashboard → Database → Extensions: check `pg_cron` is on and the job `pass-it-on-escrow-jobs` exists (`select * from cron.job`). If not, enable pg_cron and run the scheduling block at the end of the migration.
 6. Existing rows are backfilled by the migration: legacy rentals get `owner_id`, fee columns from `quote`, and timestamps. Their payouts count as already settled, with no ledger history. Every auth user gets a profile row.
 7. Optional: `node scripts/seed-demo.mjs --production` with `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` set in the environment. It refuses non-local URLs without the flag.
@@ -266,4 +297,4 @@ Add `supabase/migrations/<timestamp>_<name>.sql`, run `npm run db:reset && npm r
 
 - Admin approval for rentals worth more than ฿6,000: the `listings.replacement_value` column exists; there is no flow yet.
 - A paid booking or protected purchase can't be cancelled before handover. The refund rule for a no-show isn't in BusinessRules.md yet; it needs a team decision. Until then an admin has to step in.
-- Premium placement: `featured` stays client-writable as before; `featured_until` exists for the 7-day expiry. No charge is recorded.
+- Premium placement is no longer open: it is charged (simulated ฿49 for 7 days) by `enable_premium_placement`, see section 4.

@@ -1,150 +1,252 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import Image from 'next/image'
 import { toast } from 'sonner'
-import { ImagePlus, X, Tag, Sparkles, Info } from 'lucide-react'
+import { Tag, Sparkles, Info, Loader2, Lock, Pause, Play, Trash2, PackageSearch, ArrowLeft } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
 import { BRAND, CATEGORIES, PICKUP_LOCATIONS, CONDITION_LABELS, categoryLabel } from '@/lib/data'
 import {
   DEPOSIT_MAX, DEPOSIT_MIN, DEPOSIT_VALUE_MAX_RATE, DEPOSIT_VALUE_MIN_RATE,
   ESCROW_FEE_MIN, ESCROW_FEE_RATE, HIGH_VALUE_RENTAL_THRESHOLD,
   PREMIUM_PLACEMENT_DAYS, PREMIUM_PLACEMENT_FEE, RENTAL_COMMISSION_RATE,
-  depositRangeForValue, escrowHandlingFee, needsRentalApproval, suggestedDeposit, validateDeposit,
+  suggestedDeposit,
 } from '@/lib/fees'
 import { formatPrice } from '@/lib/format'
+import { OPEN_DEAL_MESSAGE, PENDING_TYPE_MESSAGE, historyMessage, listingLocks } from '@/lib/listing-locks'
 import type { CategoryId, Condition, ListingType } from '@/lib/types'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import { PhotoUploader, MAX_LISTING_PHOTOS, deleteStoredPhotos } from '@/components/photo-uploader'
+import {
+  CATEGORY_ITEMS, CONDITION_ITEMS, FormError, listMissing, pct, useListingForm,
+} from '@/components/listing-form'
+import { PremiumPaymentFields, syncPremiumPlacement } from '@/components/premium-placement'
 import { cn } from '@/lib/utils'
 
-/** A rate such as 0.03 as a whole percentage (3). */
-const pct = (rate: number) => Math.round(rate * 100)
+const PERIOD_ITEMS = [{ value: 'per semester', label: 'Per Semester (4 months)' }, { value: 'per month', label: 'Per Month' }, { value: 'per week', label: 'Per Week' }]
+
+const STATUS_LABELS = {
+  available: 'Active',
+  reserved: 'Reserved',
+  rented: 'Rented out',
+  sold: 'Sold',
+  paused: 'Paused',
+} as const
 
 export default function EditListingPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { listings, updateListingStatus } = useMarketplace()
-  const fileRef = useRef<HTMLInputElement>(null)
+  const {
+    listings, rentals, transactions, threads, currentUserId, loading, updateListing, updateListingStatus, deleteListing,
+    refresh,
+  } = useMarketplace()
+  const listing = listings.find((l) => l.id === id)
+  const form = useListingForm()
+  const {
+    type, title, description, category, condition, price, deposit, replacementValue, rentalPeriod, pickup, premium,
+    premiumMethod, valueRange, suggestion, depositError, escrowFee, highValue, photos,
+  } = form
 
-  const [loading, setLoading] = useState(true)
-  
-  // Form State
-  const [type, setType]               = useState<ListingType>('sale')
-  const [title, setTitle]             = useState('')
-  const [description, setDescription] = useState('')
-  const [category, setCategory]       = useState<CategoryId | ''>('')
-  const [condition, setCondition]     = useState<Condition | ''>('')
-  const [price, setPrice]             = useState('')
-  const [deposit, setDeposit]         = useState('')
-  // False while the deposit still holds the platform's suggestion; it then
-  // follows category / value changes. Typing a deposit sets it to true.
-  const [depositTouched, setDepositTouched] = useState(false)
-  // Helper field only, never saved: listings have no replacement-value column.
-  // It narrows the allowed deposit to 30–50% of the value (BusinessRules.md §3).
-  const [replacementValue, setReplacementValue] = useState('')
-  const [rentalPeriod, setRentalPeriod] = useState('per semester')
-  const [pickup, setPickup]           = useState('')
-  const [images, setImages]           = useState<string[]>([])
-  const [premium, setPremium]         = useState(false)
+  const [loadedId, setLoadedId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [busyStatus, setBusyStatus] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [triedSubmit, setTriedSubmit] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
-  // ─── Deposit rules (BusinessRules.md §3) ──────────────────────────────────
-  const toValue = (raw: string) => (Number(raw) > 0 ? Number(raw) : undefined)
-  const itemValue = toValue(replacementValue)
-  const valueRange = itemValue !== undefined ? depositRangeForValue(itemValue) : null
-
-  /** Category suggestion, kept inside the value range when a value is given. */
-  const suggestionFor = (cat: CategoryId | '', amount: number | undefined) => {
-    const base = suggestedDeposit(cat || undefined)
-    if (amount === undefined) return base
-    const { min, max } = depositRangeForValue(amount)
-    return Math.min(max, Math.max(min, base))
-  }
-  const suggestion = suggestionFor(category, itemValue)
-
-  const prefillDeposit = (cat: CategoryId | '', amount: number | undefined) => {
-    if (!depositTouched) setDeposit(String(suggestionFor(cat, amount)))
+  // Fill the form once, when the listing first arrives (not on every refresh).
+  // (State adjusted during render, as React recommends over an effect.)
+  if (listing && loadedId !== listing.id) {
+    setLoadedId(listing.id)
+    form.loadFrom(listing)
   }
 
-  const onTypeChange = (next: ListingType) => {
-    setType(next)
-    if (next === 'rent') prefillDeposit(category, itemValue)
-  }
-  const onCategoryChange = (next: CategoryId) => {
-    setCategory(next)
-    if (type === 'rent') prefillDeposit(next, itemValue)
-  }
-  const onReplacementValueChange = (raw: string) => {
-    setReplacementValue(raw)
-    if (type === 'rent') prefillDeposit(category, toValue(raw))
-  }
+  const locks = useMemo(
+    () => (listing ? listingLocks(listing, rentals, transactions) : null),
+    [listing, rentals, transactions],
+  )
 
-  const depositAmount = deposit.trim() === '' ? undefined : Number(deposit)
-  const depositError = type === 'rent' ? validateDeposit(depositAmount, itemValue) : null
-  const escrowFee = type === 'rent' && !depositError && depositAmount ? escrowHandlingFee(depositAmount) : null
-  const highValue = needsRentalApproval(itemValue)
-
-  useEffect(() => {
-    const listing = listings.find(l => l.id === id)
-    if (listing) {
-      setType(listing.type)
-      setTitle(listing.title)
-      setDescription(listing.description)
-      setCategory(listing.category)
-      setCondition(listing.condition)
-      setPrice(listing.price.toString())
-      // Legacy rentals without a deposit start from the category suggestion.
-      setDeposit(
-        listing.deposit ? listing.deposit.toString()
-          : listing.type === 'rent' ? String(suggestedDeposit(listing.category))
-          : '',
-      )
-      setDepositTouched(Boolean(listing.deposit))
-      setRentalPeriod(listing.rentalPeriod || 'per semester')
-      setPickup(listing.pickupLocation)
-      setImages(listing.images.filter(img => img !== '/placeholder.svg'))
-      setPremium(listing.featured || false)
-    }
-    setLoading(false)
-  }, [id, listings])
-
-  const onFiles = (files: FileList | null) => {
-    if (!files) return
-    const urls = Array.from(files).map((f) => URL.createObjectURL(f))
-    setImages((prev) => [...prev, ...urls].slice(0, 5))
+  if (loading || (listing && loadedId !== listing.id)) {
+    return (
+      <div className="space-y-6" aria-busy="true">
+        <div className="h-10 w-64 animate-pulse rounded bg-muted" />
+        <div className="max-w-2xl space-y-4">
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-10 animate-pulse rounded bg-muted" />)}
+        </div>
+      </div>
+    )
   }
 
-  const valid =
-    title.trim() && description.trim() && category && condition &&
-    Number(price) > 0 && pickup && (type === 'sale' || depositError === null)
+  if (!listing || listing.sellerId !== currentUserId) {
+    return (
+      <div className="flex flex-col items-center border border-dashed border-border py-20 text-center">
+        <PackageSearch className="h-7 w-7 text-muted-foreground/40" strokeWidth={1.25} />
+        <p className="mt-4 text-[15px] font-medium">
+          {listing ? 'You can only edit your own listings' : 'Listing not found'}
+        </p>
+        <p className="mt-1 text-[13px] text-muted-foreground">
+          {listing ? 'This item belongs to another student.' : 'It may have been deleted.'}
+        </p>
+        <Link href="/my-listings" className="mt-5 text-[13px] text-primary hover:underline underline-offset-2">
+          ← Back to my listings
+        </Link>
+      </div>
+    )
+  }
 
-  const onSubmit = (e: React.FormEvent) => {
+  const openDeal = locks?.openDeal ?? false
+  const hasHistory = locks?.hasHistory ?? false
+  const canToggle = !openDeal && (listing.status === 'available' || listing.status === 'paused')
+  const pendingCount = (locks?.pendingRequests.length ?? 0) + (locks?.pendingPurchases.length ?? 0)
+  const typeLocked = hasHistory || openDeal || pendingCount > 0
+  const premiumActive = Boolean(listing.featured)
+  // Premium placement can be bought for an active listing only (enable_premium_placement).
+  const premiumUnavailable = !premiumActive && listing.status !== 'available'
+  const hasChat = threads.some((t) => t.listingId === listing.id)
+
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!valid) { toast.error('Please complete all required fields'); return }
-    
-    // In a real app we'd dispatch an updateListing action. 
-    // For this mock, we just show a toast and redirect.
-    toast.success('Listing updated successfully!')
+    setTriedSubmit(true)
+    setError(null)
+    if (photos.busy) { toast.error('Wait for the photos to finish uploading'); return }
+    if (form.missing.length > 0) { toast.error('Please complete all required fields'); return }
+
+    setSaving(true)
+    const input = form.toInput()
+    try {
+      await updateListing(listing.id, input)
+      // Photos taken off the listing: remove them from storage now that it's saved.
+      deleteStoredPhotos(listing.images.filter((url) => !input.images.includes(url)))
+      try {
+        const { change } = await syncPremiumPlacement(listing, premium, premiumMethod)
+        if (change) void refresh()
+        toast.success('Listing updated', {
+          description: change === 'enabled'
+            ? `Premium placement is on for ${PREMIUM_PLACEMENT_DAYS} days. Paid ${formatPrice(PREMIUM_PLACEMENT_FEE)} (simulated).`
+            : change === 'ended' ? 'Premium placement ended. No refund.' : input.title,
+        })
+      } catch (err) {
+        toast.warning('Changes saved, but premium placement was not changed', {
+          description: `${err instanceof Error ? err.message : String(err)} Nothing was charged.`,
+        })
+      }
+      router.push('/my-listings')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
+      toast.error('Could not save your changes', { description: message })
+      setSaving(false)
+    }
+  }
+
+  const onToggleStatus = async () => {
+    const next = listing.status === 'paused' ? 'available' : 'paused'
+    setBusyStatus(true)
+    setError(null)
+    try {
+      await updateListingStatus(listing.id, next)
+      toast.success(next === 'paused' ? 'Listing paused' : 'Listing is active again', { description: listing.title })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
+      toast.error('Could not change the status', { description: message })
+    } finally {
+      setBusyStatus(false)
+    }
+  }
+
+  const onDelete = async () => {
+    setBusyStatus(true)
+    setError(null)
+    try {
+      await deleteListing(listing.id)
+      deleteStoredPhotos(listing.images)
+      photos.discardFresh()
+      toast('Listing deleted', { description: listing.title })
+      router.push('/my-listings')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
+      toast.error('Could not delete the listing', { description: message })
+      setBusyStatus(false)
+    } finally {
+      setConfirmDelete(false)
+    }
+  }
+
+  const onCancel = () => {
+    photos.discardFresh()
     router.push('/my-listings')
   }
-
-  if (loading) return null
 
   return (
     <div className="space-y-10">
       <div className="mb-12">
+        <Link href="/my-listings" className="mb-4 inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-3 w-3" /> My listings
+        </Link>
         <p className="label-tag mb-2">My account</p>
         <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Edit Listing</h1>
-        <p className="mt-4 text-[14px] text-muted-foreground">Make changes to &ldquo;{title || id}&rdquo;.</p>
+        <p className="mt-4 text-[14px] text-muted-foreground">Make changes to &ldquo;{listing.title}&rdquo;.</p>
       </div>
 
-      <form onSubmit={onSubmit} className="max-w-2xl space-y-7">
+      {/* Status & lifecycle */}
+      <div className="max-w-2xl border border-border bg-card p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="label-tag">Status</p>
+            <p className="mt-1 text-[14px] font-semibold" data-testid="listing-status">{STATUS_LABELS[listing.status]}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {listing.type === 'rent' && (
+              <Link
+                href={`/dashboard/listings/${listing.id}/requests`}
+                className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              >
+                <PackageSearch className="mr-1.5 h-3.5 w-3.5" />
+                Rental requests{locks && locks.pendingRequests.length > 0 ? ` (${locks.pendingRequests.length})` : ''}
+              </Link>
+            )}
+            {canToggle && (
+              <Button type="button" variant="outline" size="sm" onClick={onToggleStatus} disabled={busyStatus}>
+                {listing.status === 'paused'
+                  ? <><Play className="mr-1.5 h-3.5 w-3.5" /> Make active</>
+                  : <><Pause className="mr-1.5 h-3.5 w-3.5" /> Pause</>}
+              </Button>
+            )}
+            <Button
+              type="button" variant="outline" size="sm"
+              onClick={() => setConfirmDelete(true)}
+              disabled={busyStatus || hasHistory}
+              title={hasHistory ? historyMessage(listing.status) : undefined}
+              className="text-destructive hover:text-destructive"
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete
+            </Button>
+          </div>
+        </div>
+        {(openDeal || hasHistory) && (
+          <div className="flex items-start gap-2 text-[12px] leading-relaxed text-muted-foreground">
+            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <p>
+              {openDeal && <>{OPEN_DEAL_MESSAGE} </>}
+              {hasHistory && historyMessage(listing.status)}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <form onSubmit={onSubmit} className="max-w-2xl space-y-7" noValidate>
 
         {/* Sale vs Rent */}
         <div>
@@ -157,9 +259,11 @@ export default function EditListingPage() {
               <button
                 key={value}
                 type="button"
-                onClick={() => onTypeChange(value)}
+                onClick={() => form.onTypeChange(value)}
+                disabled={typeLocked}
+                aria-pressed={type === value}
                 className={cn(
-                  'flex items-center gap-2 transition-all duration-150',
+                  'flex items-center gap-2 transition-all duration-150 disabled:cursor-not-allowed',
                   type === value ? 'text-foreground' : 'text-muted-foreground hover:text-foreground/80'
                 )}
               >
@@ -176,24 +280,32 @@ export default function EditListingPage() {
               </button>
             ))}
           </div>
+          {(hasHistory || openDeal) ? (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              The type is fixed once the item has been rented or sold through {BRAND}.
+            </p>
+          ) : pendingCount > 0 && (
+            <p className="mt-2 text-[11px] text-muted-foreground">{PENDING_TYPE_MESSAGE}</p>
+          )}
         </div>
 
         {/* Basic Details */}
         <div className="space-y-5">
           <div className="grid gap-5 md:grid-cols-2">
             <div className="space-y-1.5 md:col-span-2">
-              <Label>Listing title</Label>
+              <Label htmlFor="title">Listing title</Label>
               <Input
+                id="title"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => form.setTitle(e.target.value)}
                 placeholder="What are you listing?"
                 className="font-medium"
               />
             </div>
             <div className="space-y-1.5">
               <Label>Category</Label>
-              <Select value={category} onValueChange={(v) => onCategoryChange(v as CategoryId)}>
-                <SelectTrigger>
+              <Select items={CATEGORY_ITEMS} value={category} onValueChange={(v) => form.onCategoryChange(v as CategoryId)}>
+                <SelectTrigger aria-label="Category">
                   <SelectValue placeholder="Select..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -205,8 +317,8 @@ export default function EditListingPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Condition</Label>
-              <Select value={condition} onValueChange={(v) => setCondition(v as Condition)}>
-                <SelectTrigger>
+              <Select items={CONDITION_ITEMS} value={condition} onValueChange={(v) => form.setCondition(v as Condition)}>
+                <SelectTrigger aria-label="Condition">
                   <SelectValue placeholder="Select..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -218,10 +330,11 @@ export default function EditListingPage() {
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Description</Label>
+            <Label htmlFor="description">Description</Label>
             <Textarea
+              id="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => form.setDescription(e.target.value)}
               placeholder="Any flaws, history, or reasons for passing it on?"
               className="min-h-[100px] text-[13px] leading-relaxed resize-none"
             />
@@ -230,35 +343,8 @@ export default function EditListingPage() {
 
         {/* Photos */}
         <div className="space-y-1.5">
-          <Label>Photos (max 5)</Label>
-          <div className="flex flex-wrap gap-3">
-            {images.map((src, i) => (
-              <div key={i} className="relative h-24 w-24 border border-border bg-surface-tinted overflow-hidden">
-                <Image src={src} alt="Preview" fill className="object-cover" />
-                <button
-                  type="button"
-                  onClick={() => setImages(images.filter((_, idx) => idx !== i))}
-                  className="absolute right-1 top-1 rounded-full bg-background/80 p-1 text-foreground backdrop-blur-sm hover:bg-background"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-            {images.length < 5 && (
-              <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center border border-dashed border-border bg-card text-muted-foreground hover:bg-muted/50 transition-colors">
-                <ImagePlus className="h-6 w-6" />
-                <span className="mt-2 text-[10px] font-semibold uppercase tracking-wider">Add</span>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => onFiles(e.target.files)}
-                />
-              </label>
-            )}
-          </div>
+          <Label htmlFor="listing-photos">Photos (max {MAX_LISTING_PHOTOS})</Label>
+          <PhotoUploader photos={photos} />
         </div>
 
         {/* Pricing */}
@@ -272,16 +358,20 @@ export default function EditListingPage() {
               <p className="text-[11px] text-muted-foreground">Set your {type === 'sale' ? 'selling' : 'rental'} terms</p>
             </div>
           </div>
-          
+
           <div className="grid gap-5 md:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>{type === 'sale' ? 'Price' : 'Rental Price'}</Label>
+              <Label htmlFor="price">{type === 'sale' ? 'Price' : 'Rental Price'}</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 font-display font-semibold text-muted-foreground">฿</span>
                 <Input
+                  id="price"
                   type="number"
+                  inputMode="numeric"
+                  min={1}
+                  step={1}
                   value={price}
-                  onChange={(e) => setPrice(e.target.value)}
+                  onChange={(e) => form.setPrice(e.target.value)}
                   placeholder="0"
                   className="pl-8 font-medium"
                 />
@@ -291,8 +381,8 @@ export default function EditListingPage() {
             {type === 'rent' && (
               <div className="space-y-1.5">
                 <Label>Rental Period</Label>
-                <Select value={rentalPeriod} onValueChange={(v) => setRentalPeriod(v ?? 'per semester')}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select items={PERIOD_ITEMS} value={rentalPeriod} onValueChange={(v) => form.setRentalPeriod(v ?? 'per semester')}>
+                  <SelectTrigger aria-label="Rental period"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="per semester">Per Semester (4 months)</SelectItem>
                     <SelectItem value="per month">Per Month</SelectItem>
@@ -301,7 +391,7 @@ export default function EditListingPage() {
                 </Select>
               </div>
             )}
-            
+
             {type === 'rent' && (
               <div className="space-y-1.5 md:col-span-2">
                 <Label htmlFor="deposit">Security Deposit (Refundable)</Label>
@@ -315,7 +405,7 @@ export default function EditListingPage() {
                     min={valueRange?.min ?? DEPOSIT_MIN}
                     max={valueRange?.max ?? DEPOSIT_MAX}
                     value={deposit}
-                    onChange={(e) => { setDeposit(e.target.value); setDepositTouched(true) }}
+                    onChange={(e) => form.onDepositChange(e.target.value)}
                     placeholder={String(suggestion)}
                     aria-invalid={depositError ? true : undefined}
                     aria-describedby={depositError ? 'deposit-hint deposit-error' : 'deposit-hint'}
@@ -332,7 +422,7 @@ export default function EditListingPage() {
                       {' '}
                       <button
                         type="button"
-                        onClick={() => { setDeposit(String(suggestion)); setDepositTouched(false) }}
+                        onClick={form.applySuggestion}
                         className="font-semibold text-primary hover:underline underline-offset-2"
                       >
                         Use {formatPrice(suggestion)}
@@ -343,6 +433,11 @@ export default function EditListingPage() {
                 {depositError && (
                   <p id="deposit-error" role="alert" className="text-[11px] leading-relaxed text-destructive">
                     {depositError}
+                  </p>
+                )}
+                {openDeal && (
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Bookings already made keep the price and deposit they were quoted.
                   </p>
                 )}
               </div>
@@ -361,7 +456,7 @@ export default function EditListingPage() {
                     inputMode="numeric"
                     min={0}
                     value={replacementValue}
-                    onChange={(e) => onReplacementValueChange(e.target.value)}
+                    onChange={(e) => form.onReplacementValueChange(e.target.value)}
                     placeholder="What it would cost to buy again"
                     aria-describedby="replacement-value-hint"
                     className="pl-8 font-medium"
@@ -370,7 +465,7 @@ export default function EditListingPage() {
                 <p id="replacement-value-hint" className="text-[11px] text-muted-foreground leading-relaxed">
                   {valueRange
                     ? <>For this value the deposit must be {formatPrice(valueRange.min)} – {formatPrice(valueRange.max)} ({pct(DEPOSIT_VALUE_MIN_RATE)}–{pct(DEPOSIT_VALUE_MAX_RATE)}% of the value, within {formatPrice(DEPOSIT_MIN)} – {formatPrice(DEPOSIT_MAX)}).</>
-                    : <>Helps set a fair deposit: {pct(DEPOSIT_VALUE_MIN_RATE)}–{pct(DEPOSIT_VALUE_MAX_RATE)}% of the value. Not shown on the listing.</>}
+                    : <>Helps set a fair deposit: {pct(DEPOSIT_VALUE_MIN_RATE)}–{pct(DEPOSIT_VALUE_MAX_RATE)}% of the value. Saved with the listing but not shown to renters.</>}
                 </p>
               </div>
             )}
@@ -401,8 +496,8 @@ export default function EditListingPage() {
         <div className="space-y-5">
           <div className="space-y-1.5">
             <Label>Pickup Location</Label>
-            <Select value={pickup} onValueChange={(v) => setPickup(v ?? '')}>
-              <SelectTrigger><SelectValue placeholder="Where should they pick it up?" /></SelectTrigger>
+            <Select value={pickup} onValueChange={(v) => form.setPickup(v ?? '')}>
+              <SelectTrigger aria-label="Pickup location"><SelectValue placeholder="Where should they pick it up?" /></SelectTrigger>
               <SelectContent>
                 {PICKUP_LOCATIONS.map((loc) => (
                   <SelectItem key={loc} value={loc}>{loc}</SelectItem>
@@ -411,40 +506,85 @@ export default function EditListingPage() {
             </Select>
           </div>
 
-          <label className={cn(
-            'flex cursor-pointer items-start gap-4 border p-5 transition-all',
+          <div className={cn(
+            'flex items-start gap-4 border p-5 transition-all',
             premium ? 'border-primary bg-primary/5' : 'border-border bg-card'
           )}>
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-amber-100 text-amber-600">
               <Sparkles className="h-5 w-5" />
             </div>
             <div className="flex-1 space-y-1">
-              <p className="text-[13px] font-semibold text-amber-700">Premium Placement</p>
+              <label htmlFor="premium-placement" className="block cursor-pointer text-[13px] font-semibold text-amber-700">
+                Premium Placement
+              </label>
               <p className="text-[12px] leading-relaxed text-muted-foreground">
                 {formatPrice(PREMIUM_PLACEMENT_FEE)} for {PREMIUM_PLACEMENT_DAYS} days at the top of search and
-                pre-arrival matching. Paid by you when enabled (simulated).
+                pre-arrival matching, paid by you.
               </p>
+              {premiumUnavailable ? (
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Only an active listing can be promoted.
+                </p>
+              ) : (
+                <PremiumPaymentFields
+                  premium={premium}
+                  method={premiumMethod}
+                  onMethodChange={form.setPremiumMethod}
+                  active={premiumActive}
+                  activeUntil={listing.featuredUntil}
+                  action="save"
+                  className="pt-1"
+                />
+              )}
             </div>
             <div className="pt-2">
               <input
+                id="premium-placement"
                 type="checkbox"
                 checked={premium}
-                onChange={(e) => setPremium(e.target.checked)}
-                className="h-4 w-4 rounded-sm border-primary text-primary focus:ring-primary"
+                disabled={premiumUnavailable}
+                onChange={(e) => form.setPremium(e.target.checked)}
+                aria-label="Premium placement"
+                className="h-4 w-4 rounded-sm border-primary text-primary focus:ring-primary disabled:opacity-40"
               />
             </div>
-          </label>
+          </div>
         </div>
 
+        {triedSubmit && form.missing.length > 0 && (
+          <FormError message={`Add ${listMissing(form.missing)} to save.`} />
+        )}
+        <FormError message={error} />
+
         <div className="pt-4 flex gap-4">
-          <Button type="button" variant="outline" className="flex-1" onClick={() => router.push('/my-listings')}>
+          <Button type="button" variant="outline" className="flex-1" onClick={onCancel} disabled={saving}>
             Cancel
           </Button>
-          <Button type="submit" className="flex-1" disabled={!valid}>
-            Save Changes
+          <Button type="submit" className="flex-1" disabled={saving || photos.busy}>
+            {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>
+              : photos.busy ? 'Uploading photos…'
+              : 'Save Changes'}
           </Button>
         </div>
       </form>
+
+      <Dialog open={confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete listing?</DialogTitle>
+            <DialogDescription>
+              This permanently removes <strong>&ldquo;{listing.title}&rdquo;</strong> from the marketplace.
+              {pendingCount > 0 && ' Open requests and purchase intents for it are removed too.'}
+              {hasChat && ' Conversations about it are deleted with it.'}
+              {(pendingCount > 0 || hasChat) && ' The students involved are notified.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={onDelete} disabled={busyStatus}>Delete listing</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

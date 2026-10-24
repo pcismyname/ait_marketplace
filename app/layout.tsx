@@ -8,6 +8,7 @@ import { MarketplaceProvider } from '@/lib/store'
 import { SiteHeader } from '@/components/site-header'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthGuard } from '@/components/auth-guard'
+import { EscrowJobRunner } from '@/components/escrow-job-runner'
 
 const instrumentSans = Instrument_Sans({
   subsets: ['latin'],
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
             </AuthGuard>
           </Suspense>
           <Toaster position="top-center" />
+          <EscrowJobRunner />
         </MarketplaceProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

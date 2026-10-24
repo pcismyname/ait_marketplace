@@ -1,81 +1,101 @@
 'use client'
 
-import { Search, UserCheck, UserX, MoreHorizontal } from 'lucide-react'
+// Users (P2): read-only list of profiles with an admin badge. Admin rights are
+// set in the database only (users.is_admin), never from the app.
 
-const USERS = [
-  { id: 'st123456', name: 'Alex W.', program: 'Computer Science', batch: "Fall '24", status: 'Active', verified: true },
-  { id: 'st123457', name: 'Priya S.', program: 'Data Science', batch: "Spring '24", status: 'Active', verified: true },
-  { id: 'AIT-2026-X', name: 'Incoming Student', program: 'Civil Eng', batch: "Fall '26", status: 'Pending', verified: false },
-  { id: 'st100000', name: 'John D.', program: 'Management', batch: "Fall '23", status: 'Suspended', verified: true },
-]
+import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { Loader2, Search, ShieldCheck, Store } from 'lucide-react'
+import { listAllUsers } from '@/lib/api/moderation'
+import type { User } from '@/lib/types'
 
 export default function AdminUsersPage() {
+  const [users, setUsers] = useState<User[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+
+  useEffect(() => {
+    listAllUsers().then(setUsers, (e: Error) => setError(e.message))
+  }, [])
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return (users ?? []).filter((u) => !q || `${u.name} ${u.email ?? ''} ${u.program}`.toLowerCase().includes(q))
+  }, [users, query])
+
   return (
-    <div className="w-full px-4 py-16 lg:px-12 xl:px-20 min-h-screen max-w-7xl mx-auto">
-      <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+    <div>
+      <div className="mb-8 flex flex-col justify-between gap-6 md:flex-row md:items-end">
         <div>
-          <p className="text-[12px] font-semibold tracking-widest uppercase text-muted-foreground mb-3">Admin Portal</p>
-          <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">User Management</h1>
+          <p className="label-tag mb-2">Admin</p>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Users</h1>
+          <p className="mt-2 max-w-xl text-[14px] text-muted-foreground">
+            Everyone signed up with an AIT email. Admin rights are granted in the database, not here.
+          </p>
         </div>
-        
         <div className="relative w-full md:w-64">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input 
-            type="text" 
-            placeholder="Search users..." 
-            className="h-10 w-full border border-input bg-surface pl-9 pr-3 text-[13px] outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search name or email…"
+            className="h-10 w-full rounded-md border border-input bg-surface pl-9 pr-3 text-[13px] outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
 
-      <div className="border border-border bg-surface overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-[13px]">
-            <thead className="bg-muted/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <th className="px-6 py-4 border-b border-border">ID / Email</th>
-                <th className="px-6 py-4 border-b border-border">Name</th>
-                <th className="px-6 py-4 border-b border-border">Program</th>
-                <th className="px-6 py-4 border-b border-border">Verification</th>
-                <th className="px-6 py-4 border-b border-border">Status</th>
-                <th className="px-6 py-4 border-b border-border text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {USERS.map((u) => (
-                <tr key={u.id} className="transition-colors hover:bg-muted/30">
-                  <td className="whitespace-nowrap px-6 py-4 font-medium">{u.id}</td>
-                  <td className="whitespace-nowrap px-6 py-4 font-semibold">{u.name}</td>
-                  <td className="whitespace-nowrap px-6 py-4 text-muted-foreground">{u.program} &middot; {u.batch}</td>
-                  <td className="whitespace-nowrap px-6 py-4">
-                    {u.verified ? (
-                      <span className="inline-flex items-center gap-1.5 text-primary text-[11px] font-semibold uppercase tracking-wider">
-                        <UserCheck className="h-3.5 w-3.5" /> Verified
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 text-amber-600 text-[11px] font-semibold uppercase tracking-wider">
-                        <UserX className="h-3.5 w-3.5" /> Pending
-                      </span>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <span className={`inline-flex px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                      u.status === 'Active' ? 'bg-primary-muted text-primary' : 
-                      u.status === 'Pending' ? 'bg-amber-100 text-amber-700' : 'bg-destructive/10 text-destructive'
-                    }`}>
-                      {u.status}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-right">
-                    <button className="text-muted-foreground hover:text-foreground transition-colors p-1">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </button>
-                  </td>
+      {error && <p className="mb-4 text-[13px] text-destructive">Could not load users: {error}</p>}
+
+      <div className="overflow-hidden rounded-xl border border-border bg-surface">
+        {users === null ? (
+          <div className="flex justify-center py-16 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[13px]" data-testid="user-table">
+              <thead className="bg-muted/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="border-b border-border px-5 py-3">Name</th>
+                  <th className="border-b border-border px-5 py-3">Email</th>
+                  <th className="border-b border-border px-5 py-3">Program</th>
+                  <th className="border-b border-border px-5 py-3">Rating</th>
+                  <th className="border-b border-border px-5 py-3">Joined</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {visible.map((u) => (
+                  <tr key={u.id} className="transition-colors hover:bg-muted/30">
+                    <td className="whitespace-nowrap px-5 py-4">
+                      <Link href={`/profile/${u.id}`} className="font-semibold hover:text-primary hover:underline">
+                        {u.name}
+                      </Link>
+                      {u.isAdmin && (
+                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-foreground px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-background">
+                          <ShieldCheck className="h-3 w-3" /> Admin
+                        </span>
+                      )}
+                      {u.kind === 'shop' && (
+                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-primary-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+                          <Store className="h-3 w-3" /> Shop
+                        </span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-muted-foreground">{u.email ?? '—'}</td>
+                    <td className="whitespace-nowrap px-5 py-4 text-muted-foreground">
+                      {[u.program, u.batch].filter(Boolean).join(' · ') || '—'}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4">
+                      {u.reviewsCount > 0 ? `${u.rating.toFixed(1)} (${u.reviewsCount})` : '—'}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-muted-foreground">{u.joined || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

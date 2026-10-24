@@ -254,6 +254,9 @@ export type Database = {
           description: string;
           featured: boolean;
           featured_until: string | null;
+          hidden_at: string | null;
+          hidden_by: string | null;
+          hidden_reason: string | null;
           id: string;
           images: string[];
           pickup_location: string;
@@ -268,8 +271,9 @@ export type Database = {
           type: string;
           updated_at: string;
           view_count: number;
+          is_featured: boolean | null;
         };
-        ComputedFields: never;
+        ComputedFields: "is_featured";
         Insert: {
           category: string;
           condition: string;
@@ -278,6 +282,9 @@ export type Database = {
           description: string;
           featured?: boolean;
           featured_until?: string | null;
+          hidden_at?: string | null;
+          hidden_by?: string | null;
+          hidden_reason?: string | null;
           id?: string;
           images?: string[];
           pickup_location: string;
@@ -301,6 +308,9 @@ export type Database = {
           description?: string;
           featured?: boolean;
           featured_until?: string | null;
+          hidden_at?: string | null;
+          hidden_by?: string | null;
+          hidden_reason?: string | null;
           id?: string;
           images?: string[];
           pickup_location?: string;
@@ -317,6 +327,13 @@ export type Database = {
           view_count?: number;
         };
         Relationships: [
+          {
+            foreignKeyName: "listings_hidden_by_fkey";
+            columns: ["hidden_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "listings_seller_id_fkey";
             columns: ["seller_id"];
@@ -372,6 +389,8 @@ export type Database = {
           category: string;
           created_at: string | null;
           id: string;
+          listing_type: string;
+          needed_by: string | null;
           note: string | null;
           title: string;
           user_id: string;
@@ -382,6 +401,8 @@ export type Database = {
           category: string;
           created_at?: string | null;
           id?: string;
+          listing_type?: string;
+          needed_by?: string | null;
           note?: string | null;
           title: string;
           user_id: string;
@@ -391,6 +412,8 @@ export type Database = {
           category?: string;
           created_at?: string | null;
           id?: string;
+          listing_type?: string;
+          needed_by?: string | null;
           note?: string | null;
           title?: string;
           user_id?: string;
@@ -1018,6 +1041,11 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      admin_moderate_listing: {
+        Args: { p_action: string; p_listing_id: string; p_reason?: string };
+        Returns: string;
+      };
+      admin_stats: { Args: Record<PropertyKey, never>; Returns: Json };
       admin_time_travel: { Args: { p_hours: number; p_id: string }; Returns: string };
       can_read_evidence: { Args: { p_name: string }; Returns: boolean };
       can_write_evidence: { Args: { p_name: string }; Returns: boolean };
@@ -1310,6 +1338,76 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      enable_premium_placement: {
+        Args: { p_listing_id: string; p_method?: string };
+        Returns: {
+          category: string;
+          condition: string;
+          created_at: string | null;
+          deposit: number | null;
+          description: string;
+          featured: boolean;
+          featured_until: string | null;
+          hidden_at: string | null;
+          hidden_by: string | null;
+          hidden_reason: string | null;
+          id: string;
+          images: string[];
+          pickup_location: string;
+          price: number;
+          rental_period: string | null;
+          replacement_value: number | null;
+          search: unknown;
+          seller_id: string;
+          status: string;
+          times_changed_hands: number;
+          title: string;
+          type: string;
+          updated_at: string;
+          view_count: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "listings";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      end_premium_placement: {
+        Args: { p_listing_id: string };
+        Returns: {
+          category: string;
+          condition: string;
+          created_at: string | null;
+          deposit: number | null;
+          description: string;
+          featured: boolean;
+          featured_until: string | null;
+          hidden_at: string | null;
+          hidden_by: string | null;
+          hidden_reason: string | null;
+          id: string;
+          images: string[];
+          pickup_location: string;
+          price: number;
+          rental_period: string | null;
+          replacement_value: number | null;
+          search: unknown;
+          seller_id: string;
+          status: string;
+          times_changed_hands: number;
+          title: string;
+          type: string;
+          updated_at: string;
+          view_count: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "listings";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       file_dispute: {
         Args: {
           p_claim_amount?: number;
@@ -1360,6 +1458,15 @@ export type Database = {
       };
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       is_dispute_party: { Args: { p_dispute_id: string }; Returns: boolean };
+      is_featured: {
+        Args: {
+          l: Omit<
+            Database["public"]["Tables"]["listings"]["Row"],
+            Database["public"]["Tables"]["listings"]["ComputedFields"]
+          >;
+        };
+        Returns: boolean;
+      };
       is_rental_party: { Args: { p_rental_id: string }; Returns: boolean };
       is_thread_participant: { Args: { p_thread_id: string }; Returns: boolean };
       is_transaction_party: { Args: { p_transaction_id: string }; Returns: boolean };
@@ -1452,6 +1559,15 @@ export type Database = {
         };
       };
       mark_thread_read: { Args: { p_thread_id: string }; Returns: undefined };
+      match_needs: {
+        Args: { p_need_id?: string };
+        Returns: {
+          featured: boolean;
+          listed_at: string;
+          listing_id: string;
+          need_id: string;
+        }[];
+      };
       pay_rental: {
         Args: { p_method: string; p_rental_id: string };
         Returns: {

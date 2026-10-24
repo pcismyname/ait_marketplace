@@ -42,10 +42,20 @@ export type NotificationRow = Tables<'notifications'>
 export type UserRow = Tables<'users'>
 
 /** Columns the app reads from listings (everything except the search vector). */
+/** Admin moderation columns (20261025020300_admin_moderation.sql); read by lib/api/moderation.ts only. */
+type ListingModerationColumn = 'hidden_at' | 'hidden_by' | 'hidden_reason'
+
 export const LISTING_COLUMNS =
   'id, seller_id, title, description, category, type, price, deposit, rental_period, condition, images, pickup_location, status, times_changed_hands, featured, featured_until, view_count, replacement_value, created_at, updated_at'
 
-export function mapListing(row: Omit<ListingRow, 'search'> & { search?: unknown }): Listing {
+export function mapListing(
+  row: Omit<ListingRow, 'search' | 'is_featured' | ListingModerationColumn> & {
+    search?: unknown
+    is_featured?: boolean | null
+  } & Partial<Pick<ListingRow, ListingModerationColumn>>,
+): Listing {
+  // Premium placement counts only until featured_until (public.is_featured).
+  const featuredActive = Boolean(row.featured) && (!row.featured_until || new Date(row.featured_until) > new Date())
   return {
     id: row.id,
     title: row.title,
@@ -62,7 +72,9 @@ export function mapListing(row: Omit<ListingRow, 'search'> & { search?: unknown 
     createdAt: row.created_at ?? new Date().toISOString(),
     status: row.status as ListingStatus,
     timesChangedHands: Number(row.times_changed_hands ?? 0),
-    featured: Boolean(row.featured),
+    featured: row.is_featured ?? featuredActive,
+    featuredUntil: opt(row.featured_until),
+    replacementValue: optNum(row.replacement_value),
     viewCount: optNum(row.view_count),
     history: [],
     reviews: [],

@@ -3,7 +3,7 @@
 // in author details and keeps the reviewed user's rating up to date.
 
 import type { Review } from '../types'
-import { db, unwrap } from './client'
+import { db, requireUserId, unwrap } from './client'
 
 export async function submitReview(input: {
   rating: number
@@ -44,4 +44,27 @@ export async function listReviewsFor(userId: string): Promise<Review[]> {
     comment: row.comment ?? '',
     date: row.date,
   }))
+}
+
+/**
+ * The signed-in user's own review of one deal, or null if they haven't
+ * reviewed it yet (used to hide "Rate the other party" once done).
+ */
+export async function getMyReviewForDeal(target: { rentalId?: string; transactionId?: string }): Promise<Review | null> {
+  const uid = await requireUserId()
+  let query = db().from('reviews').select('*').eq('author_id', uid)
+  if (target.rentalId) query = query.eq('rental_id', target.rentalId)
+  else if (target.transactionId) query = query.eq('transaction_id', target.transactionId)
+  else return null
+  const row = unwrap(await query.limit(1))[0]
+  if (!row) return null
+  return {
+    id: row.id,
+    authorName: row.author_name,
+    authorAvatar: row.author_avatar ?? '',
+    role: row.role as Review['role'],
+    rating: Number(row.rating),
+    comment: row.comment ?? '',
+    date: row.date,
+  }
 }

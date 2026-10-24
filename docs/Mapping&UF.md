@@ -47,6 +47,7 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
 | `/login` | Login (Supabase Auth) |
 | `/signup` | Signup — restricted to `@ait.asia` domain |
 | `/verify-email` | Magic link / OTP confirmation screen |
+| `/reset-password` | Forgot password: email a reset link, then set a new password |
 | `/onboarding` | First-time setup: dorm/pickup location, notification prefs |
 
 ### Browse & Discovery

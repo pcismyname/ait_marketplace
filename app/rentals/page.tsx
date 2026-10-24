@@ -1,303 +1,288 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
-import { toast } from 'sonner'
-import {
-  ShieldCheck,
-  HandCoins,
-  CircleCheck,
-  TriangleAlert,
-  Clock,
-  ArrowRight,
-  Send,
-  BadgeCheck,
-  Wallet,
-  Scale,
-  CalendarClock,
-  PackageX,
-  XCircle,
-} from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { HandCoins, Inbox, ShieldCheck, Wallet } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
-import type { Listing, Rental, RentalPhase } from '@/lib/types'
-import {
-  DISPUTE_WINDOW_HOURS,
-  MISSING_AFTER_DAYS,
-  OWNER_PAYOUT_DELAY_HOURS,
-  dailyLateFee,
-  daysLate,
-  returnStatus,
-  settleDeposit,
-} from '@/lib/fees'
+import { BRAND } from '@/lib/data'
+import { DISPUTE_WINDOW_HOURS, OWNER_PAYOUT_DELAY_HOURS } from '@/lib/fees'
 import { formatPrice } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import type { Rental, RentalPhase } from '@/lib/types'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { RentalCard } from '@/components/rentals/rental-card'
+import { DemoPaymentsNote } from '@/components/rentals/demo-payments-note'
+import { useNow } from '@/components/rentals/use-now'
+import { DEPOSIT_HELD_PHASES, OPEN_PHASES, nextDeadline, type RentalRole } from '@/components/rentals/rental-helpers'
 
-const PHASE_META: Record<RentalPhase, { label: string; color: string; icon: typeof Clock }> = {
-  requested:        { label: 'Requested',               color: 'text-muted-foreground', icon: Send },
-  approved:         { label: 'Approved · pay to confirm', color: 'text-primary',        icon: BadgeCheck },
-  declined:         { label: 'Declined',                color: 'text-muted-foreground', icon: XCircle },
-  cancelled:        { label: 'Cancelled',               color: 'text-muted-foreground', icon: XCircle },
-  paid:             { label: 'Paid · deposit held',     color: 'text-primary',          icon: Wallet },
-  active:           { label: 'Active',                  color: 'text-primary',          icon: Clock },
-  'return-pending': { label: 'Return pending',          color: 'text-amber-700',        icon: HandCoins },
-  released:         { label: 'Deposit released',        color: 'text-primary',          icon: CircleCheck },
-  disputed:         { label: 'Dispute open',            color: 'text-destructive',      icon: TriangleAlert },
-  resolved:         { label: 'Dispute resolved',        color: 'text-muted-foreground', icon: Scale },
-  overdue:          { label: 'Overdue',                 color: 'text-amber-700',        icon: CalendarClock },
-  missing:          { label: 'Missing',                 color: 'text-destructive',      icon: PackageX },
-}
+type View = 'renting' | 'lending'
 
-/** Phases in which PassItOn still holds the renter's deposit (BusinessRules.md §4, §7). */
-const DEPOSIT_HELD: ReadonlySet<RentalPhase> = new Set<RentalPhase>([
+/** Most urgent first: things waiting on someone, then running rentals. */
+const PHASE_ORDER: RentalPhase[] = [
+  'requested',
+  'approved',
   'paid',
-  'active',
-  'return-pending',
-  'disputed',
   'overdue',
-])
+  'return-pending',
+  'active',
+  'disputed',
+  'missing',
+  'resolved',
+  'released',
+  'declined',
+  'cancelled',
+]
 
-/**
- * The database persists overdue / missing (run_escrow_jobs), but the job runs
- * every few minutes, so the page also derives them from the due date.
- */
-function effectivePhase(rental: Rental, now: Date): RentalPhase {
-  if (rental.phase !== 'active') return rental.phase
-  const status = returnStatus(new Date(rental.dueDate), now)
-  return status === 'on-time' ? 'active' : status
-}
-
-/** Late fee accrued so far, taken from the deposit and capped at it (§4, §6). */
-function lateFeeSoFar(rental: Rental, listing: Listing, now: Date) {
-  const rentalFee = rental.quote?.rentalFee ?? listing.price
-  const perDay = dailyLateFee(rentalFee, listing.rentalPeriod)
-  const days = daysLate(new Date(rental.dueDate), now)
-  return { perDay, days, ...settleDeposit(rental.deposit, perDay * days) }
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+const byUrgency = (a: Rental, b: Rental) =>
+  PHASE_ORDER.indexOf(a.phase) - PHASE_ORDER.indexOf(b.phase) ||
+  new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()
 
 export default function RentalsPage() {
-  const {
-    rentals: allRentals, listings, currentUserId, getUser,
-    payRental, cancelRental, confirmHandover, markReturned,
-  } = useMarketplace()
-  // This page is the renter's view; owners manage bookings from their listings.
-  const rentals = allRentals.filter((r) => r.renterId === currentUserId)
-  const [busyId, setBusyId] = useState<string | null>(null)
-  // One clock per visit, so every card agrees on what "late" means.
-  const [now] = useState(() => new Date())
+  return (
+    <Suspense fallback={null}>
+      <RentalsView />
+    </Suspense>
+  )
+}
 
-  const totalHeld = rentals
-    .filter((r) => DEPOSIT_HELD.has(effectivePhase(r, now)))
-    .reduce((sum, r) => sum + r.deposit, 0)
+function RentalsView() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { rentals, listings, currentUserId, loading, refresh } = useMarketplace()
+  const now = useNow()
+
+  // Fresh state on every visit: refresh() runs run_escrow_jobs first (overdue,
+  // missing, payouts, auto-release), then reloads.
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  // Reload when the next deadline (payout_at, due_date, dispute_window_ends_at) passes.
+  useEffect(() => {
+    const next = nextDeadline(rentals, new Date())
+    if (next === null) return
+    const delay = next - Date.now() + 5_000
+    if (delay > 86_400_000) return
+    const id = setTimeout(() => void refresh(), Math.max(delay, 1_000))
+    return () => clearTimeout(id)
+  }, [rentals, refresh])
+
+  const renting = useMemo(
+    () => rentals.filter((r) => r.renterId === currentUserId).sort(byUrgency),
+    [rentals, currentUserId],
+  )
+  const lending = useMemo(
+    () => rentals.filter((r) => r.ownerId === currentUserId).sort(byUrgency),
+    [rentals, currentUserId],
+  )
+
+  const param = searchParams.get('view')
+  const view: View =
+    param === 'lending' || param === 'renting' ? param : renting.length === 0 && lending.length > 0 ? 'lending' : 'renting'
+  const setView = (next: View) => router.replace(`/rentals?view=${next}`, { scroll: false })
+
+  const depositsHeld = renting.filter((r) => DEPOSIT_HELD_PHASES.has(r.phase)).reduce((s, r) => s + r.deposit, 0)
+  const pendingPayouts = lending
+    .filter((r) => DEPOSIT_HELD_PHASES.has(r.phase) && !r.payoutReleasedAt)
+    .reduce((s, r) => s + r.rentalFee, 0)
+  const waitingRequests = lending.filter((r) => r.phase === 'requested').length
+  const toPay = renting.filter((r) => r.phase === 'approved').length
 
   return (
-    <div className="w-full px-4 py-16 lg:px-12 xl:px-20 min-h-screen">
-      {/* Page header */}
-      <div className="mb-16">
+    <div className="mx-auto w-full max-w-5xl px-4 py-12 md:px-6 md:py-16">
+      <div className="mb-10">
         <p className="label-tag mb-2">My account</p>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">My Rentals</h1>
         <p className="mt-2 text-[14px] text-muted-foreground">
-          Track rented items and deposits held in escrow
+          Bookings you made and items you lend out, from request to deposit release.
         </p>
       </div>
 
-      {/* Escrow summary strip */}
-      {totalHeld > 0 && (
-        <div className="mb-10 flex items-center gap-5 rounded-xl bg-primary-muted p-5">
-          <ShieldCheck className="h-6 w-6 text-primary shrink-0" />
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Total held in escrow</p>
-            <p className="text-2xl font-semibold text-foreground">{formatPrice(totalHeld)}</p>
-          </div>
-          <p className="ml-auto hidden max-w-sm text-[12px] text-muted-foreground sm:block text-right leading-relaxed">
-            Deposits are held by PassItOn, never by the owner. After the return, the owner confirms the
-            condition and the deposit is released; with no claim, it releases automatically
-            after {DISPUTE_WINDOW_HOURS} hours. The owner&apos;s rental fee is paid {OWNER_PAYOUT_DELAY_HOURS} hours
-            after handover if no dispute is filed.
-          </p>
-        </div>
-      )}
+      <Tabs value={view} onValueChange={(v) => setView(v as View)} className="gap-8">
+        <TabsList variant="line" className="h-auto gap-6 border-b border-border pb-0">
+          <TabsTrigger value="renting" className="px-0 pb-2 text-[13px]" data-testid="tab-renting">
+            Renting{renting.length > 0 && <span className="text-muted-foreground"> · {renting.length}</span>}
+            {toPay > 0 && <Badge>{toPay} to pay</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="lending" className="px-0 pb-2 text-[13px]" data-testid="tab-lending">
+            Lending{lending.length > 0 && <span className="text-muted-foreground"> · {lending.length}</span>}
+            {waitingRequests > 0 && <Badge>{waitingRequests} new</Badge>}
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Rental grid */}
-      {rentals.length > 0 ? (
-        <div className="grid grid-cols-1 gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {rentals.map((rental) => {
-            const listing = listings.find((l) => l.id === rental.listingId)
-            if (!listing) return null
-            const owner = getUser(listing.sellerId)
-            const phase = effectivePhase(rental, now)
-            const meta = PHASE_META[phase]
-            const Icon = meta.icon
-            const late = phase === 'overdue' ? lateFeeSoFar(rental, listing, now) : null
-
-            // Every action is an RPC that validates the transition (lib/api/rentals.ts).
-            const run = async (action: () => Promise<unknown>, success: string, description?: string) => {
-              setBusyId(rental.id)
-              try {
-                await action()
-                toast.success(success, description ? { description } : undefined)
-              } catch (error) {
-                toast.error('Could not update the rental', {
-                  description: error instanceof Error ? error.message : String(error),
-                })
-              } finally {
-                setBusyId(null)
-              }
+        <TabsContent value="renting" className="space-y-10">
+          {depositsHeld > 0 && (
+            <SummaryStrip
+              icon={ShieldCheck}
+              label="Your deposits held in escrow"
+              amount={depositsHeld}
+              note={`${BRAND} holds deposits, never the owner. After the return there is a ${DISPUTE_WINDOW_HOURS}-hour window; with no dispute the deposit (minus any late fee) is refunded to your wallet automatically, or at once when the owner confirms a good return.`}
+            />
+          )}
+          <RentalSections
+            rentals={renting}
+            role="renter"
+            loading={loading}
+            listings={listings}
+            now={now}
+            empty={
+              <EmptyState
+                title="No bookings yet"
+                body="Rent furniture, appliances or gear for the semester. You pay only after the owner approves."
+                href="/browse?type=rent"
+                cta="Browse rentals"
+              />
             }
-            const busy = busyId === rental.id
+          />
+        </TabsContent>
 
-            return (
-              <div key={rental.id} className="group flex flex-col">
-                {/* Image */}
-                <div className="relative aspect-[3/4] w-full overflow-hidden bg-surface-tinted">
-                  <Link href={`/listing/${listing.id}`} className="absolute inset-0">
-                    <Image
-                      src={listing.images[0] || '/placeholder.svg'}
-                      alt={listing.title}
-                      fill
-                      className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                    />
-                  </Link>
-                  {/* Phase badge */}
-                  <span className={cn(
-                    'absolute bottom-2 left-2 flex items-center gap-1 rounded-sm bg-background/85 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider backdrop-blur-sm',
-                    meta.color,
-                  )}>
-                    <Icon className="h-2.5 w-2.5" />
-                    {meta.label}
-                  </span>
-                </div>
+        <TabsContent value="lending" className="space-y-10">
+          {pendingPayouts > 0 && (
+            <SummaryStrip
+              icon={Wallet}
+              label="Rental fees on their way to you"
+              amount={pendingPayouts}
+              note={`Each rental fee is paid to your wallet ${OWNER_PAYOUT_DELAY_HOURS} hours after handover. Deposits stay with ${BRAND} until the item is back.`}
+            />
+          )}
+          <RentalSections
+            rentals={lending}
+            role="owner"
+            loading={loading}
+            listings={listings}
+            now={now}
+            empty={
+              <EmptyState
+                title="No booking requests yet"
+                body="List an item for rent and requests from other students show up here."
+                href="/sell"
+                cta="List an item"
+              />
+            }
+          />
+        </TabsContent>
+      </Tabs>
 
-                {/* Info */}
-                <div className="mt-2 flex flex-col min-w-0">
-                  <Link
-                    href={`/listing/${listing.id}`}
-                    className="truncate text-[13px] font-medium leading-snug hover:underline underline-offset-2 text-foreground"
-                  >
-                    {listing.title}
-                  </Link>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    From {owner.name} · {listing.rentalPeriod}
-                  </p>
-                  <p className="text-[13px] font-semibold text-foreground mt-0.5">
-                    Deposit: {formatPrice(rental.deposit)}
-                  </p>
-                  <p className={cn('text-[10px]', phase === 'overdue' || phase === 'missing' ? meta.color : 'text-muted-foreground')}>
-                    Due {formatDate(rental.dueDate)}
-                  </p>
+      <DemoPaymentsNote className="mt-12" />
+    </div>
+  )
+}
 
-                  {late && (
-                    <p className="mt-1 text-[11px] leading-snug text-amber-700">
-                      {late.days} {late.days === 1 ? 'day' : 'days'} late · {formatPrice(late.perDay)}/day.
-                      Late fee so far: {formatPrice(late.toOwner)} from the deposit.
-                    </p>
-                  )}
-                  {phase === 'missing' && (
-                    <p className="mt-1 text-[11px] leading-snug text-destructive">
-                      More than {MISSING_AFTER_DAYS} days late: counted as missing. The full deposit
-                      ({formatPrice(rental.deposit)}) goes to the owner.
-                    </p>
-                  )}
-                  {phase === 'return-pending' && (
-                    <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                      The owner checks the condition against the handover photos. With no claim, the
-                      deposit releases {DISPUTE_WINDOW_HOURS} hours after the return.
-                    </p>
-                  )}
+function RentalSections({
+  rentals,
+  role,
+  loading,
+  listings,
+  now,
+  empty,
+}: {
+  rentals: Rental[]
+  role: RentalRole
+  loading: boolean
+  listings: ReturnType<typeof useMarketplace>['listings']
+  now: Date
+  empty: React.ReactNode
+}) {
+  if (loading && rentals.length === 0) {
+    return <p className="py-16 text-center text-[13px] text-muted-foreground">Loading your rentals…</p>
+  }
+  if (rentals.length === 0) return <>{empty}</>
 
-                  {/* Actions */}
-                  <div className="mt-3 flex flex-col gap-2 border-t border-border pt-2.5">
-                    {phase === 'requested' && (
-                      <button
-                        disabled={busy}
-                        onClick={() => run(() => cancelRental(rental.id), 'Request cancelled')}
-                        className="w-fit text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        Cancel request
-                      </button>
-                    )}
-                    {phase === 'approved' && (
-                      <div className="flex gap-4">
-                        <button
-                          disabled={busy}
-                          onClick={() => run(
-                            () => payRental(rental.id, 'promptpay'),
-                            'Booking paid (simulated)',
-                            `${formatPrice(rental.deposit)} deposit is held by PassItOn until the item comes back.`,
-                          )}
-                          className="text-[11px] font-semibold uppercase tracking-wider text-primary hover:opacity-80 transition-opacity"
-                        >
-                          Pay {formatPrice(rental.quote?.totalDueNow ?? rental.deposit)}
-                        </button>
-                        <button
-                          disabled={busy}
-                          onClick={() => run(() => cancelRental(rental.id), 'Booking cancelled')}
-                          className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-                    {phase === 'paid' && (
-                      <button
-                        disabled={busy}
-                        onClick={() => run(() => confirmHandover(rental.id), 'Pickup confirmed', 'Your rental period starts now.')}
-                        className="w-fit text-[11px] font-semibold uppercase tracking-wider text-primary hover:opacity-80 transition-opacity"
-                      >
-                        Confirm pickup
-                      </button>
-                    )}
-                    {(phase === 'active' || phase === 'overdue') && (
-                      <button
-                        disabled={busy}
-                        onClick={() => run(
-                          () => markReturned(rental.id),
-                          'Marked as returned',
-                          late && late.toOwner > 0
-                            ? `Waiting for the owner to confirm. ${formatPrice(late.toOwner)} late fee comes out of the deposit.`
-                            : `Waiting for the owner to confirm. With no claim, the deposit releases after ${DISPUTE_WINDOW_HOURS} hours.`,
-                        )}
-                        className="w-fit text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        Mark returned
-                      </button>
-                    )}
-                    {(phase === 'released' || phase === 'resolved') && (
-                      <span className="flex items-center gap-1 text-[11px] font-semibold text-primary">
-                        <CircleCheck className="h-3 w-3" />
-                        {formatPrice(rental.depositToRenter ?? rental.deposit)} refunded
-                      </span>
-                    )}
-                    {(phase === 'disputed' || phase === 'overdue' || phase === 'missing') && (
-                      <Link href="/chat" className="flex items-center gap-1 text-[10px] text-primary hover:underline underline-offset-2">
-                        <ArrowRight className="h-3 w-3" />
-                        Message owner
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center py-24 text-center">
-          <HandCoins className="h-7 w-7 text-muted-foreground/30" strokeWidth={1.25} />
-          <p className="mt-5 text-[14px] font-medium">No active rentals</p>
-          <p className="mt-1 text-[12px] text-muted-foreground">Rent furniture, appliances or gear for the semester.</p>
-          <Link
-            href="/?type=rent"
-            className="mt-5 flex items-center gap-2 rounded-sm bg-primary px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-primary-foreground transition-opacity hover:opacity-90"
-          >
-            Browse rentals
-          </Link>
-        </div>
+  const requests = role === 'owner' ? rentals.filter((r) => r.phase === 'requested') : []
+  const open = rentals.filter((r) => OPEN_PHASES.has(r.phase) && !(role === 'owner' && r.phase === 'requested'))
+  const history = rentals.filter((r) => !OPEN_PHASES.has(r.phase))
+  const card = (r: Rental) => (
+    <RentalCard key={r.id} rental={r} role={role} listing={listings.find((l) => l.id === r.listingId)} now={now} />
+  )
+
+  return (
+    <>
+      {requests.length > 0 && (
+        <Section title="Requests waiting for you" icon={Inbox} testId="section-requests">
+          {requests.map(card)}
+        </Section>
       )}
+      {open.length > 0 && (
+        <Section title="In progress" icon={HandCoins} testId="section-open">
+          {open.map(card)}
+        </Section>
+      )}
+      {history.length > 0 && (
+        <Section title="History" testId="section-history">
+          {history.map(card)}
+        </Section>
+      )}
+    </>
+  )
+}
+
+function Section({
+  title,
+  icon: Icon,
+  testId,
+  children,
+}: {
+  title: string
+  icon?: typeof Inbox
+  testId: string
+  children: React.ReactNode
+}) {
+  return (
+    <section data-testid={testId}>
+      <h2 className="mb-4 flex items-center gap-2 text-[13px] font-semibold">
+        {Icon && <Icon className="h-4 w-4 text-primary" />}
+        {title}
+      </h2>
+      <div className="space-y-3">{children}</div>
+    </section>
+  )
+}
+
+function SummaryStrip({
+  icon: Icon,
+  label,
+  amount,
+  note,
+}: {
+  icon: typeof Inbox
+  label: string
+  amount: number
+  note: string
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-xl bg-primary-muted p-5 sm:flex-row sm:items-center sm:gap-5">
+      <div className="flex items-center gap-4">
+        <Icon className="h-6 w-6 shrink-0 text-primary" />
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">{label}</p>
+          <p className="font-display text-2xl font-bold text-foreground">{formatPrice(amount)}</p>
+        </div>
+      </div>
+      <p className="text-[12px] leading-relaxed text-muted-foreground sm:ml-auto sm:max-w-md sm:text-right">{note}</p>
+    </div>
+  )
+}
+
+function Badge({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="ml-1.5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+      {children}
+    </span>
+  )
+}
+
+function EmptyState({ title, body, href, cta }: { title: string; body: string; href: string; cta: string }) {
+  return (
+    <div className="flex flex-col items-center rounded-xl border border-dashed border-border py-20 text-center">
+      <HandCoins className="h-7 w-7 text-muted-foreground/40" strokeWidth={1.25} />
+      <p className="mt-5 text-[14px] font-medium">{title}</p>
+      <p className="mt-1 max-w-sm text-[12px] text-muted-foreground">{body}</p>
+      <Link
+        href={href}
+        className="mt-5 rounded-md bg-primary px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-primary-foreground transition-opacity hover:opacity-90"
+      >
+        {cta}
+      </Link>
     </div>
   )
 }

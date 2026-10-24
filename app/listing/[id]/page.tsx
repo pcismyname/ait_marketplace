@@ -1,13 +1,14 @@
 'use client'
 
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import {
-  ChevronRight, MapPin, MessageCircle, ShieldCheck,
+  ChevronRight, MapPin, ShieldCheck,
   BadgeCheck, HandCoins, Clock, Heart, ChevronDown,
-  ChevronUp, Store, Repeat, CreditCard, Package
+  ChevronUp, Store, Repeat, CreditCard, Package, Inbox, ArrowRight
 } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
 import { BRAND, getSellerReviews, categoryLabel, CONDITION_LABELS } from '@/lib/data'
@@ -29,6 +30,9 @@ import { Rating } from '@/components/rating'
 import { ContactSellerDialog } from '@/components/contact-seller-dialog'
 import { ProductCard } from '@/components/listing-card'
 import { ImagePlaceholder } from '@/components/image-placeholder'
+import { RequestBookingDialog } from '@/components/rentals/request-booking-dialog'
+import { OPEN_PHASES, PHASE_META, TONE_CLASS, rentalQuote } from '@/components/rentals/rental-helpers'
+import type { Listing } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 const ILLUSTRATION_EXT = ['.svg']
@@ -65,8 +69,7 @@ function Accordion({
 
 export default function ListingDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const router = useRouter()
-  const { listings, favoriteIds, toggleFavorite, getUser } = useMarketplace()
+  const { listings, favoriteIds, toggleFavorite, getUser, currentUserId } = useMarketplace()
 
   const listing = listings.find((l) => l.id === id)
   const [activeImg, setActiveImg] = useState(0)
@@ -87,7 +90,6 @@ export default function ListingDetailPage() {
   const isShop = seller.kind === 'shop'
   const reviews = getSellerReviews(listing.sellerId)
   const isRent = listing.type === 'rent'
-  const isRented = listing.status === 'rented'
   const isFav = favoriteIds.has(listing.id)
   const quote = isRent ? computeRentalQuote({ price: listing.price, deposit: listing.deposit }) : null
   const protectedSale = isRent ? null : computeSaleQuote(listing.price, 'protected')
@@ -298,17 +300,7 @@ export default function ListingDetailPage() {
           {/* CTAs */}
           <div className="mt-5 space-y-2">
             {isRent ? (
-              isRented ? (
-                <Button size="lg" className="w-full" disabled>
-                  <Clock className="h-4 w-4 mr-2" aria-hidden />
-                  Rented out
-                </Button>
-              ) : (
-                <Link href={`/listing/${listing.id}/checkout`} className={cn(buttonVariants({ size: "lg" }), "w-full")}>
-                  <HandCoins className="h-4 w-4 mr-2" aria-hidden />
-                  Request to rent · {formatPrice(quote?.totalDueNow ?? listing.price)}
-                </Link>
-              )
+              <RentCta listing={listing} />
             ) : (
               listing.status === 'sold' || listing.status === 'reserved' ? (
                 <Button size="lg" className="w-full" disabled>
@@ -322,14 +314,16 @@ export default function ListingDetailPage() {
                 </Link>
               )
             )}
-            <ContactSellerDialog
-              listing={listing}
-              trigger={
-                <Button size="lg" variant="outline" className="w-full">
-                  {isRent ? 'Ask the owner a question' : 'Make an offer'}
-                </Button>
-              }
-            />
+            {listing.sellerId !== currentUserId && (
+              <ContactSellerDialog
+                listing={listing}
+                trigger={
+                  <Button size="lg" variant="outline" className="w-full">
+                    {isRent ? 'Ask the owner a question' : 'Make an offer'}
+                  </Button>
+                }
+              />
+            )}
           </div>
 
           {/* Condition + location quick facts */}
@@ -436,6 +430,124 @@ export default function ListingDetailPage() {
           </div>
         </section>
       )}
+    </div>
+  )
+}
+
+/**
+ * Rental call to action (BusinessRules §4: request → owner approves → pay).
+ * Shows the viewer's own booking when there is one, the owner's request
+ * inbox to the owner, and "Request to book" otherwise.
+ */
+function RentCta({ listing }: { listing: Listing }) {
+  const { rentals, currentUserId, cancelRental } = useMarketplace()
+  const [busy, setBusy] = useState(false)
+
+  if (listing.sellerId === currentUserId) {
+    const forListing = rentals.filter((r) => r.listingId === listing.id)
+    const pending = forListing.filter((r) => r.phase === 'requested').length
+    const running = forListing.filter((r) => OPEN_PHASES.has(r.phase) && r.phase !== 'requested').length
+    return (
+      <div className="space-y-2" data-testid="owner-cta">
+        <Link
+          href={`/dashboard/listings/${listing.id}/requests`}
+          className={cn(buttonVariants({ size: 'lg' }), 'w-full')}
+        >
+          <Inbox className="h-4 w-4 mr-2" aria-hidden />
+          {pending > 0 ? `Booking requests · ${pending} waiting` : 'Booking requests'}
+        </Link>
+        <p className="text-center text-[11px] text-muted-foreground">
+          This is your listing{running > 0 ? ` · ${running} booking${running === 1 ? '' : 's'} in progress` : ''}.
+        </p>
+      </div>
+    )
+  }
+
+  const mine = rentals
+    .filter((r) => r.listingId === listing.id && r.renterId === currentUserId)
+    .sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime())
+  const open = mine.find((r) => OPEN_PHASES.has(r.phase))
+
+  if (open) {
+    const meta = PHASE_META[open.phase]
+    const total = rentalQuote(open).totalDueNow
+    const cancel = async () => {
+      setBusy(true)
+      try {
+        await cancelRental(open.id)
+        toast('Request cancelled', { description: 'Nothing was paid.' })
+      } catch (error) {
+        toast.error('Could not cancel the request', {
+          description: error instanceof Error ? error.message : String(error),
+        })
+      } finally {
+        setBusy(false)
+      }
+    }
+    return (
+      <div className="space-y-2 rounded-sm border border-border bg-surface p-3.5" data-testid="my-booking" data-phase={open.phase}>
+        <p className="text-[12px]">
+          Your booking: <strong className={TONE_CLASS[meta.tone]}>{meta.label}</strong>
+        </p>
+        {open.phase === 'requested' && (
+          <>
+            <p className="text-[12px] leading-relaxed text-muted-foreground">
+              Sent {relativeTime(open.requestedAt)}. The owner approves first; then you pay {formatPrice(total)} here.
+            </p>
+            <Button size="lg" variant="outline" className="w-full" onClick={cancel} disabled={busy}>
+              Cancel request
+            </Button>
+          </>
+        )}
+        {open.phase === 'approved' && (
+          <Link
+            href={`/listing/${listing.id}/checkout?rental=${open.id}`}
+            className={cn(buttonVariants({ size: 'lg' }), 'w-full')}
+          >
+            <HandCoins className="h-4 w-4 mr-2" aria-hidden />
+            Approved · pay {formatPrice(total)}
+          </Link>
+        )}
+        {open.phase !== 'requested' && open.phase !== 'approved' && (
+          <Link href="/rentals?view=renting" className={cn(buttonVariants({ size: 'lg', variant: 'outline' }), 'w-full')}>
+            Track it in My Rentals
+            <ArrowRight className="h-4 w-4 ml-2" aria-hidden />
+          </Link>
+        )}
+      </div>
+    )
+  }
+
+  const lastDeclined = mine[0]?.phase === 'declined' ? mine[0] : undefined
+  if (listing.status !== 'available') {
+    return (
+      <Button size="lg" className="w-full" disabled>
+        <Clock className="h-4 w-4 mr-2" aria-hidden />
+        {listing.status === 'rented'
+          ? 'Rented out'
+          : listing.status === 'reserved'
+            ? 'Reserved for another booking'
+            : 'Not available right now'}
+      </Button>
+    )
+  }
+  return (
+    <div className="space-y-2">
+      {lastDeclined && (
+        <p className="text-[11px] text-muted-foreground">
+          Your last request was declined{lastDeclined.declineReason ? `: “${lastDeclined.declineReason}”` : '.'}
+        </p>
+      )}
+      <RequestBookingDialog
+        listing={listing}
+        trigger={
+          <Button size="lg" className="w-full" data-testid="request-to-book">
+            <HandCoins className="h-4 w-4 mr-2" aria-hidden />
+            Request to book
+          </Button>
+        }
+      />
+      <p className="text-center text-[11px] text-muted-foreground">Free to request · you pay only after the owner approves</p>
     </div>
   )
 }

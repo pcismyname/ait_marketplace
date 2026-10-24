@@ -26,7 +26,7 @@ import type { SalePaymentMode } from './fees'
 import { createClient } from '@/utils/supabase/client'
 import type { TablesInsert, TablesUpdate } from './database.types'
 import * as api from './api'
-import { ApiError } from './api/client'
+import { ApiError, toApiError } from './api/client'
 import { LISTING_COLUMNS, mapListing, mapRental, mapTransaction, mapUser } from './api/mappers'
 import type {
   CategoryId,
@@ -55,6 +55,10 @@ interface NewListingInput {
   pickupLocation: string
   /** Paid premium placement. */
   featured?: boolean
+  /** When premium placement ends; null clears it. */
+  featuredUntil?: string | null
+  /** Owner's replacement-value estimate (BusinessRules §3); null clears it. */
+  replacementValue?: number | null
 }
 
 interface NewNeedInput {
@@ -85,11 +89,14 @@ interface MarketplaceContextValue {
   /** Reload everything from the database (also runs the escrow jobs). */
   refresh: () => Promise<void>
 
-  addListing: (input: NewListingInput) => Listing
-  updateListing: (listingId: string, input: Partial<NewListingInput>) => void
-  /** 'sold' on a sale listing goes through mark_sold (in-person sale record). */
-  updateListingStatus: (listingId: string, status: ListingStatus) => void
-  deleteListing: (listingId: string) => void
+  /** Optimistic; resolves once saved, or rolls back and throws ApiError. */
+  addListing: (input: NewListingInput) => Promise<Listing>
+  /** Optimistic; resolves once saved, or reloads the row and throws ApiError. */
+  updateListing: (listingId: string, input: Partial<NewListingInput>) => Promise<void>
+  /** 'sold' on a sale listing goes through mark_sold (in-person sale record). Throws ApiError. */
+  updateListingStatus: (listingId: string, status: ListingStatus, buyerId?: string) => Promise<void>
+  /** Throws ApiError (e.g. a listing with rental or sale history can't be deleted). */
+  deleteListing: (listingId: string) => Promise<void>
   addNeed: (input: NewNeedInput) => Need
 
   getThreadForListing: (listingId: string) => Thread | undefined
@@ -163,6 +170,8 @@ function toListingInsert(listing: Listing): TablesInsert<'listings'> {
     pickup_location: listing.pickupLocation,
     status: listing.status,
     featured: listing.featured ?? false,
+    featured_until: listing.featuredUntil ?? null,
+    replacement_value: listing.replacementValue ?? null,
     created_at: listing.createdAt,
   }
 }
@@ -180,6 +189,8 @@ function toListingUpdate(input: Partial<NewListingInput>): TablesUpdate<'listing
   if (input.images !== undefined) row.images = input.images
   if (input.pickupLocation !== undefined) row.pickup_location = input.pickupLocation
   if (input.featured !== undefined) row.featured = input.featured
+  if (input.featuredUntil !== undefined) row.featured_until = input.featuredUntil
+  if (input.replacementValue !== undefined) row.replacement_value = input.replacementValue
   return row
 }
 
@@ -376,12 +387,14 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
 
   // ─── Listings ──────────────────────────────────────────────────────────────
 
-  const addListing = useCallback((input: NewListingInput): Listing => {
+  const addListing = useCallback(async (input: NewListingInput): Promise<Listing> => {
     const uid = requireUser()
     const me = getUser(uid)
     const listing: Listing = {
       id: nextId(),
       ...input,
+      featuredUntil: input.featuredUntil ?? undefined,
+      replacementValue: input.replacementValue ?? undefined,
       sellerId: uid,
       createdAt: new Date().toISOString(),
       status: 'available',
@@ -390,64 +403,60 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       reviews: [],
     }
     setListings((prev) => [listing, ...prev])
-    void (async () => {
-      const { error } = await supabase.from('listings').insert(toListingInsert(listing))
-      if (error) {
-        setListings((prev) => prev.filter((l) => l.id !== listing.id))
-        notifyError('Could not save the listing', error)
-        return
-      }
-      await supabase.from('listing_history').insert({
-        listing_id: listing.id,
-        owner_name: me.name,
-        action: `Listed on ${BRAND}`,
-        date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-      })
-    })()
+    const { error } = await supabase.from('listings').insert(toListingInsert(listing))
+    if (error) {
+      setListings((prev) => prev.filter((l) => l.id !== listing.id))
+      throw toApiError(error)
+    }
+    await supabase.from('listing_history').insert({
+      listing_id: listing.id,
+      owner_name: me.name,
+      action: `Listed on ${BRAND}`,
+      date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+    })
     return listing
   }, [getUser, requireUser])
 
-  const updateListing = useCallback((listingId: string, input: Partial<NewListingInput>) => {
-    setListings((prev) => prev.map((l) => (l.id === listingId ? { ...l, ...input } : l)))
-    void supabase.from('listings').update(toListingUpdate(input)).eq('id', listingId).then(({ error }) => {
-      if (error) {
-        notifyError('Could not update the listing', error)
-        void reloadListing(listingId)
-      }
-    })
+  const updateListing = useCallback(async (listingId: string, input: Partial<NewListingInput>) => {
+    const { featuredUntil, replacementValue, ...rest } = input
+    setListings((prev) => prev.map((l) => (l.id === listingId
+      ? {
+          ...l,
+          ...rest,
+          ...(featuredUntil !== undefined ? { featuredUntil: featuredUntil ?? undefined } : {}),
+          ...(replacementValue !== undefined ? { replacementValue: replacementValue ?? undefined } : {}),
+        }
+      : l)))
+    const { error } = await supabase.from('listings').update(toListingUpdate(input)).eq('id', listingId)
+    await reloadListing(listingId)
+    if (error) throw toApiError(error)
   }, [reloadListing])
 
-  const updateListingStatus = useCallback((listingId: string, status: ListingStatus) => {
+  const updateListingStatus = useCallback(async (listingId: string, status: ListingStatus, buyerId?: string) => {
     const listing = listings.find((l) => l.id === listingId)
     setListings((prev) => prev.map((l) => (l.id === listingId ? { ...l, status } : l)))
-    const done = (error: unknown) => {
-      if (error) notifyError('Could not change the listing status', error)
-      void reloadListing(listingId)
+    try {
+      if (status === 'sold' && listing?.type === 'sale') {
+        const tx = await api.markSold(listingId, buyerId)
+        setTransactions((prev) => upsertById(prev, tx))
+        // mark_sold cancels the other pending purchases: refresh them too.
+        const { data } = await supabase.from('transactions').select('*').eq('listing_id', listingId)
+        if (data) setTransactions((prev) => data.map(mapTransaction).reduce(upsertById, prev))
+        return
+      }
+      const { error } = await supabase.from('listings').update({ status }).eq('id', listingId)
+      if (error) throw toApiError(error)
+    } finally {
+      await reloadListing(listingId)
     }
-    if (status === 'sold' && listing?.type === 'sale') {
-      api.markSold(listingId).then(
-        (tx) => {
-          setTransactions((prev) => upsertById(prev, tx))
-          done(null)
-        },
-        done,
-      )
-      return
-    }
-    void supabase.from('listings').update({ status }).eq('id', listingId).then(({ error }) => {
-      if (error) done(error)
-    })
   }, [listings, reloadListing])
 
-  const deleteListing = useCallback((listingId: string) => {
+  const deleteListing = useCallback(async (listingId: string) => {
+    const { data, error } = await supabase.from('listings').delete().eq('id', listingId).select('id')
+    if (error) throw toApiError(error)
+    if (!data || data.length === 0) throw new ApiError("You can't delete this listing.")
     setListings((prev) => prev.filter((l) => l.id !== listingId))
-    void supabase.from('listings').delete().eq('id', listingId).then(({ error }) => {
-      if (error) {
-        notifyError('Could not delete the listing', error)
-        void reloadListing(listingId)
-      }
-    })
-  }, [reloadListing])
+  }, [])
 
   // ─── Needs ─────────────────────────────────────────────────────────────────
 
