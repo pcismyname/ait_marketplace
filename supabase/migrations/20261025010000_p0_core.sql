@@ -2247,11 +2247,14 @@ create policy "Admins can delete any listing" on public.listings
 drop policy if exists "Authenticated users can read listing history" on public.listing_history;
 drop policy if exists "Authenticated users can create listing history" on public.listing_history;
 drop policy if exists "Authenticated users can update listing history" on public.listing_history;
+drop policy if exists "Listing history is publicly readable" on public.listing_history;
 create policy "Listing history is publicly readable" on public.listing_history
   for select using (true);
+drop policy if exists "Sellers add history to their listings" on public.listing_history;
 create policy "Sellers add history to their listings" on public.listing_history
   for insert to authenticated
   with check (exists (select 1 from public.listings l where l.id = listing_id and l.seller_id = (select auth.uid())::text));
+drop policy if exists "Sellers edit history of their listings" on public.listing_history;
 create policy "Sellers edit history of their listings" on public.listing_history
   for update to authenticated
   using (exists (select 1 from public.listings l where l.id = listing_id and l.seller_id = (select auth.uid())::text))
@@ -2261,6 +2264,7 @@ create policy "Sellers edit history of their listings" on public.listing_history
 drop policy if exists "Authenticated users can read reviews" on public.reviews;
 drop policy if exists "Authenticated users can create reviews" on public.reviews;
 drop policy if exists "Authenticated users can update reviews" on public.reviews;
+drop policy if exists "Reviews are publicly readable" on public.reviews;
 create policy "Reviews are publicly readable" on public.reviews for select using (true);
 
 -- needs: add delete-own.
@@ -2272,19 +2276,23 @@ create policy "Users can delete their own needs" on public.needs
 drop policy if exists "Authenticated users can read threads" on public.threads;
 drop policy if exists "Authenticated users can create threads" on public.threads;
 drop policy if exists "Authenticated users can update threads" on public.threads;
+drop policy if exists "Participants read their threads" on public.threads;
 create policy "Participants read their threads" on public.threads
   for select to authenticated using (public.is_thread_participant(id) or public.is_admin());
 
 drop policy if exists "Authenticated users can read participants" on public.thread_participants;
 drop policy if exists "Authenticated users can add participants" on public.thread_participants;
 drop policy if exists "Authenticated users can update participants" on public.thread_participants;
+drop policy if exists "Participants read their thread members" on public.thread_participants;
 create policy "Participants read their thread members" on public.thread_participants
   for select to authenticated using (public.is_thread_participant(thread_id) or public.is_admin());
 
 drop policy if exists "Authenticated users can read messages" on public.messages;
 drop policy if exists "Users can send messages" on public.messages;
+drop policy if exists "Participants read messages" on public.messages;
 create policy "Participants read messages" on public.messages
   for select to authenticated using (public.is_thread_participant(thread_id) or public.is_admin());
+drop policy if exists "Participants send messages" on public.messages;
 create policy "Participants send messages" on public.messages
   for insert to authenticated
   with check ((select auth.uid())::text = sender_id and public.is_thread_participant(thread_id));
@@ -2294,22 +2302,27 @@ create policy "Participants send messages" on public.messages
 drop policy if exists "Authenticated users can read rentals" on public.rentals;
 drop policy if exists "Users can create their own rentals" on public.rentals;
 drop policy if exists "Users can update their own rentals" on public.rentals;
+drop policy if exists "Parties read their rentals" on public.rentals;
 create policy "Parties read their rentals" on public.rentals
   for select to authenticated
   using ((select auth.uid())::text in (renter_id, owner_id) or public.is_admin());
 
+drop policy if exists "Parties read their purchases" on public.transactions;
 create policy "Parties read their purchases" on public.transactions
   for select to authenticated
   using ((select auth.uid())::text in (buyer_id, seller_id) or public.is_admin());
 
+drop policy if exists "Parties read their disputes" on public.disputes;
 create policy "Parties read their disputes" on public.disputes
   for select to authenticated
   using (public.is_admin()
          or (rental_id is not null and public.is_rental_party(rental_id))
          or (transaction_id is not null and public.is_transaction_party(transaction_id)));
 
+drop policy if exists "Parties read dispute comments" on public.dispute_comments;
 create policy "Parties read dispute comments" on public.dispute_comments
   for select to authenticated using (public.is_admin() or public.is_dispute_party(dispute_id));
+drop policy if exists "Parties comment on open disputes" on public.dispute_comments;
 create policy "Parties comment on open disputes" on public.dispute_comments
   for insert to authenticated
   with check (
@@ -2318,15 +2331,19 @@ create policy "Parties comment on open disputes" on public.dispute_comments
     and exists (select 1 from public.disputes d where d.id = dispute_id and d.status = 'open')
   );
 
+drop policy if exists "Users read their ledger" on public.wallet_ledger;
 create policy "Users read their ledger" on public.wallet_ledger
   for select to authenticated
   using (user_id = (select auth.uid())::text or public.is_admin());
 
+drop policy if exists "Users read their notifications" on public.notifications;
 create policy "Users read their notifications" on public.notifications
   for select to authenticated using (user_id = (select auth.uid())::text);
+drop policy if exists "Users mark their notifications read" on public.notifications;
 create policy "Users mark their notifications read" on public.notifications
   for update to authenticated
   using (user_id = (select auth.uid())::text) with check (user_id = (select auth.uid())::text);
+drop policy if exists "Users delete their notifications" on public.notifications;
 create policy "Users delete their notifications" on public.notifications
   for delete to authenticated using (user_id = (select auth.uid())::text);
 
