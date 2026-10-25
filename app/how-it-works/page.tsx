@@ -129,8 +129,9 @@ export default function HowItWorksPage() {
           </section>
 
           <div className="text-center pt-8">
-            <Link href="/signup" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 text-[13px] font-bold tracking-wider uppercase hover:opacity-90 transition-opacity">
-              Join PassItOn <ArrowRight className="h-4 w-4" />
+            {/* Only signed-in students reach this page (AuthGuard), so send them to browse, not /signup. */}
+            <Link href="/browse" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 text-[13px] font-bold tracking-wider uppercase hover:opacity-90 transition-opacity">
+              Start browsing <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </div>

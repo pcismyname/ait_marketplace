@@ -1,6 +1,11 @@
 'use client'
 
+// "Message the seller" from a listing. start_thread reuses the pair's thread
+// on this listing (one thread per listing per pair of users) or creates it,
+// then the chat opens on that thread.
+
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
@@ -16,7 +21,6 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useMarketplace } from '@/lib/store'
 import type { Listing } from '@/lib/types'
-import { getUser } from '@/lib/data'
 import { DISPUTE_WINDOW_HOURS } from '@/lib/fees'
 
 export function ContactSellerDialog({
@@ -28,10 +32,11 @@ export function ContactSellerDialog({
   trigger: React.ReactNode
   intent?: 'message' | 'rent'
 }) {
-  const { startThread } = useMarketplace()
+  const { startThread, getUser, getThreadForListing, currentUserId } = useMarketplace()
   const router = useRouter()
   const seller = getUser(listing.sellerId)
   const [open, setOpen] = useState(false)
+  const existing = getThreadForListing(listing.id)
 
   const suggestion =
     intent === 'rent'
@@ -42,12 +47,25 @@ export function ContactSellerDialog({
 
   const onSend = () => {
     if (!text.trim()) return
-    startThread(listing.id, listing.sellerId, text.trim())
-    setOpen(false)
-    toast.success('Message sent', {
-      description: `Your message to ${seller.name} is in your chat.`,
-    })
-    router.push('/chat')
+    if (!currentUserId) {
+      toast.error('Log in to send a message')
+      router.push(`/login?next=${encodeURIComponent(`/listing/${listing.id}`)}`)
+      return
+    }
+    try {
+      const thread = startThread(listing.id, listing.sellerId, text.trim())
+      setOpen(false)
+      toast.success('Message sent', { description: `Your message to ${seller.name} is in your chat.` })
+      // thread.id is the client's optimistic id. If start_thread reuses a
+      // thread we hadn't loaded, the server's id differs and the store
+      // reloads; listing + with let /chat find the real thread then.
+      const params = new URLSearchParams({ thread: thread.id, listing: listing.id, with: listing.sellerId })
+      router.push(`/chat?${params.toString()}`)
+    } catch (error) {
+      toast.error('Could not send the message', {
+        description: error instanceof Error ? error.message : String(error),
+      })
+    }
   }
 
   return (
@@ -64,10 +82,19 @@ export function ContactSellerDialog({
               : 'Ask a question, negotiate the price, or arrange a campus pickup.'}
           </DialogDescription>
         </DialogHeader>
+        {existing && (
+          <p className="text-[12px] text-muted-foreground">
+            You already have a conversation about this item. Your message is added to it.{' '}
+            <Link href={`/chat?thread=${encodeURIComponent(existing.id)}`} className="font-semibold text-primary hover:underline">
+              Open chat
+            </Link>
+          </p>
+        )}
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={4}
+          maxLength={2000}
           className="resize-none"
           aria-label="Message"
         />
@@ -75,7 +102,7 @@ export function ContactSellerDialog({
           <Button variant="ghost" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={onSend}>Send message</Button>
+          <Button onClick={onSend} disabled={!text.trim()}>Send message</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

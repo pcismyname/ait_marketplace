@@ -74,6 +74,13 @@ export function ProductCard({ listing }: { listing: Listing }) {
           </div>
         )}
 
+        {/* Premium placement (featured, until featured_until) */}
+        {listing.featured && listing.status === 'available' && (
+          <span className="pointer-events-none absolute left-2 top-2 rounded-sm bg-background/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 backdrop-blur-sm">
+            Featured
+          </span>
+        )}
+
         {/* Heart icon — top right */}
         <button
           onClick={(e) => { e.preventDefault(); toggleFavorite(listing.id) }}

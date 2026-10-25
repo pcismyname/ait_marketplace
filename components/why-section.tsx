@@ -43,8 +43,8 @@ const DIFFERENCES = [
     icon: Repeat,
     title: 'Items tracked across cohorts',
     body: 'The same desk can survive three theses. Every listing shows how many times it has stayed inside the AIT community. That is a visible circular economy.',
-    href: '/listing/l_desk',
-    cta: 'See an item history',
+    href: '/browse',
+    cta: 'Open any listing to see its history',
   },
   {
     icon: SlidersHorizontal,

@@ -40,7 +40,12 @@ export function SeasonalBanner({ className }: { className?: string }) {
             <p className="font-display text-[17px] font-bold italic text-surge-foreground">
               {headline}
             </p>
-            <span className="rounded-full border border-surge/25 bg-surge/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-surge-foreground">
+            <span
+              className="rounded-full border border-surge/25 bg-surge/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-surge-foreground"
+              title={status.event.verified
+                ? `${status.event.label}: AIT orientation, ${status.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}`
+                : `${status.event.label}: estimated date (end of semester)`}
+            >
               {countdown}
             </span>
           </div>

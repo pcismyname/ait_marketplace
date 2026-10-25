@@ -76,8 +76,9 @@ protected: protectionFee = 10 + round(price * 0.03)
 
 - **Periods:** per week, per month, per semester (`rentalDueDate` in `lib/fees.ts`: 7 / 30 / 120 days).
 - **Booking flow:** request → owner approves → renter pays `totalDueNow` → handover.
-- **Owner payout:** the rental fee goes to the owner **48 hours after handover** if no dispute is filed. The deposit stays held until the return.
-- **Return:** the owner confirms the condition with photos and compares them with the handover photos.
+- **Handover** (clarification added 2026-10-25, not a new money rule): the **renter** confirms the handover in the app at the pickup point, with at least one photo of the item's condition, once they have the item; the owner waits for that confirmation before letting the item go. This starts the rental period and the 48-hour payout clock. The owner can't confirm it alone, so an owner can't start the payout for an item they never handed over.
+- **Owner payout:** the rental fee goes to the owner **48 hours after handover** if no dispute is filed. The deposit stays held until the return. If a dispute is open at that time, the fee waits for the admin's decision; a decision made earlier doesn't bring the payout forward.
+- **Return:** the owner confirms the condition with photos and compares them with the handover photos. Every handover and return needs at least one photo (§9).
 - **Late return:** a daily late fee is taken from the deposit: `ceil(rentalFee / periodDays)` per day late.
 - **Missing:** more than **7 days** late counts as missing. The full deposit goes to the owner.
 
@@ -90,7 +91,14 @@ active → return-pending → disputed → resolved (admin splits the deposit)
 active → overdue → missing                    (7+ days late, deposit to owner)
 ```
 
-Current code has `RentalPhase = 'active' | 'return-pending' | 'released' | 'disputed'`; the other states are still to build.
+Two more states complete the booking step (a clarification of the flow above, not a money rule; no money has moved in either):
+
+```
+requested → declined                 (the owner says no)
+requested / approved → cancelled     (renter or owner drops it before payment)
+```
+
+All twelve states are persisted in `rentals.phase` and change only through the database functions in [Database.md](Database.md).
 
 ## 5. Sales
 
@@ -108,7 +116,10 @@ Current code has `RentalPhase = 'active' | 'return-pending' | 'released' | 'disp
 | Repairable damage | Repair cost to the owner, the rest refunded |
 | Lost or destroyed | Full deposit to the owner |
 | Sale item not as described | Full or partial refund to the buyer |
+| Sale item as described (claim rejected) | No refund; the seller is paid in full |
 
+- **Sales** (added 2026-10-25 to match the built admin options and `figures/buyer_userflow.png`, where "Item not as described? No" releases the payment to the seller; **team to confirm**): the admin can reject a buyer's claim, and the **buyer protection fee is not refunded**, even on a full refund. Like the rental escrow fee, it pays for holding the money and running the dispute, which happened.
+- Claims and repair or refund amounts are whole baht (§2).
 - The owner can never receive more than the deposit. The deposit is the limit of the renter's liability.
 
 ## 7. Who holds the money
@@ -141,17 +152,23 @@ Current code has `RentalPhase = 'active' | 'return-pending' | 'released' | 'disp
 
 ## Current code vs. these rules
 
-Updated 2026-10-24 for branch `fix/business-rules-alignment`.
+Updated 2026-10-25 for branch `feat/p0-core`. The server side is in `supabase/migrations/` (`20261025010000_p0_core.sql`, the four `20261025020…` feature migrations and `20261025030000_review_fixes.sql`); the contract is in [Database.md](Database.md). End-to-end evidence: [tests/e2e/RESULTS.md](../tests/e2e/RESULTS.md).
 
 | Rule | Code today | Change needed |
 |---|---|---|
-| Escrow fee `max(30, 3% of deposit)` | Done: `escrowHandlingFee` in `lib/fees.ts`, unit-tested | Compute it server-side too |
-| Buyer protection fee `10 + 3%`; sales in person or with protection | Done: `computeSaleQuote` in `lib/fees.ts`; sale checkout offers both options | Persist protected sales in the escrow states |
-| Deposit min ฿200 / max ฿3,000, suggested by category, 30–50% of value | Done: suggestions, limits and range helper in `lib/fees.ts`; sell and edit forms enforce them | Admin approval for items over ~฿6,000 (open): placeholder only |
-| Payment methods `promptpay` / `card` / `wallet`, simulated | Done: checkout shows all three with a "payments simulated" note | — |
-| Dispute window 48 h; owner payout 48 h after handover | Constants and helpers in `lib/fees.ts` (`DISPUTE_WINDOW_HOURS`, `ownerPayoutAt`) | Auto-release / payout job |
-| Rental states (§4) | `RentalPhase` has all ten states; rentals page derives overdue / missing in the UI | Persist the phases in the database; owner request/approve booking flow |
-| Late fee, missing after 7 days, owner capped at the deposit | Done: `dailyLateFee`, `returnStatus`, `settleDeposit`, `lateReturnSettlement`, unit-tested | Apply the settlement when a rental is closed |
+| Escrow fee `max(30, 3% of deposit)`; commission 10% | `lib/fees.ts` and server-side `quote_rental` (same JS rounding); parity tested (pgTAP + `npm run test:db`). `pay_rental` charges the server quote; checkout shows each line. | — |
+| Buyer protection fee `10 + 3%`; sales in person or with protection | `computeSaleQuote` + `quote_sale`; `transactions` with in-person (no escrow, no dispute, seller marks sold) and protected (held until handover + 48 h) states; status page `/transaction/[id]`, confirm receipt `/transaction/[id]/confirm` | — |
+| Premium placement ฿49 for 7 days, paid by the lister | `enable_premium_placement` records the simulated ฿49 charge and sets `featured_until` server-side; clients can't write `featured` directly; featured listings sort first | — |
+| Deposit min ฿200 / max ฿3,000, suggested by category, 30–50% of value | Sell and edit forms enforce it (replacement value saved); the database refuses rental listings outside ฿200–฿3,000, fractional amounts, and (when a replacement value is given) deposits outside 30–50% of it; `request_rental` refuses listings without a valid deposit | Admin approval for items over ~฿6,000 (open): placeholder only (form note + `listings.replacement_value`) |
+| Payment methods `promptpay` / `card` / `wallet`, simulated | Recorded on the booking, purchase or premium charge; `wallet` pays from the in-app balance (refunds and payouts land there) under a per-user lock, so concurrent payments and withdrawals can't overdraw it; "Demo mode — payments are simulated" note wherever money moves | — |
+| Booking flow request → approve → pay → handover | RPCs `request_rental`, `respond_rental`, `pay_rental`, `confirm_handover`; request dialog on the listing, owner requests page `/dashboard/listings/[id]/requests`, checkout only for an approved booking; only the renter confirms the handover, with a photo (enforced in SQL) | — |
+| Owner payout 48 h after handover; deposit held until return | `run_escrow_jobs` (pg_cron every 10 min, also run by the app on sign-in and every 5 min while open) pays at `payout_at` on every path, including a dispute resolved early; payout countdown on the rental card and deal page | — |
+| Dispute window 48 h, auto-release, early release on confirmation | `file_dispute` only inside the window (`/dispute/new`); job auto-releases; `confirm_return` / `confirm_sale_receipt` release at once; reminders 24 h and 2 h before; admin queue and resolution `/admin/disputes/[id]` with the §6 outcomes; claims and amounts must be whole baht (UI and SQL) | — |
+| Sale disputes: claim rejected; protection fee kept | `resolve_dispute(…, 'normal-wear')` on a purchase pays the seller in full; the protection fee stays with the platform on every outcome | Team to confirm the §6 addition |
+| Rental handovers and returns need condition photos (§4, §9) | Enforced in the UI and in SQL: `confirm_handover`, `mark_returned` and `confirm_return` refuse without at least one uploaded photo under `dispute-evidence/rental/<id>/` (for `confirm_return`, photos from either party count) | — |
+| Late fee `ceil(rentalFee / periodDays)` per day, missing after 7 days, owner capped at the deposit | Applied in SQL at the return (`mark_returned`) and by the job (`overdue`, `missing`); `resolve_dispute` caps the owner at the deposit; the UI shows "late fee so far" while overdue | — |
+| Who holds the money (simulated) | `wallet_ledger`: held / available / platform rows for every hold, payout, refund and fee; `/dashboard/wallet` shows held vs available and the history | — |
+| Refund for a paid booking or protected purchase cancelled before handover | Not possible: paid deals can't be cancelled | Needs a team decision (not in these rules yet) |
 
 ## Open questions
 

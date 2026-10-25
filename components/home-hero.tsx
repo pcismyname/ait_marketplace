@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Search, ArrowRight } from 'lucide-react'
+import { Search } from 'lucide-react'
 
 export function HomeHero({ listingCount }: { listingCount: number }) {
   const router = useRouter()

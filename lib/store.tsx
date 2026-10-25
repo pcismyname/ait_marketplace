@@ -1,36 +1,46 @@
 'use client'
 
+// App-wide marketplace state backed by Supabase.
+//
+// - Public data (listings, item history, reviews) loads for everyone.
+// - Private data (needs, chats, rentals, purchases, favorites, profiles)
+//   loads for the signed-in user only, filtered by RLS.
+// - There is no mock identity: logged-out users have currentUserId = null and
+//   every write that needs a user throws "Log in to continue".
+// - Rentals and sales change state only through the RPC wrappers in lib/api
+//   (docs/Database.md). Realtime keeps chats, rentals and purchases fresh.
+
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
-import {
-  BRAND,
-  CURRENT_USER_ID,
-  LISTINGS,
-  NEEDS,
-  RENTALS,
-  THREADS,
-  getUser,
-} from './data'
-import { computeRentalQuote, rentalDueDate } from './fees'
-import { formatPrice } from './format'
+import { toast } from 'sonner'
+import { BRAND, sampleUser } from './data'
+import type { SalePaymentMode } from './fees'
 import { createClient } from '@/utils/supabase/client'
+import type { TablesInsert, TablesUpdate } from './database.types'
+import * as api from './api'
+import { maybeRunEscrowJobs } from './escrow-runner'
+import { ApiError, toApiError } from './api/client'
+import { LISTING_COLUMNS, mapListing, mapRental, mapTransaction, mapUser } from './api/mappers'
 import type {
   CategoryId,
   Listing,
+  ListingStatus,
   ListingType,
   Condition,
   Need,
   PaymentMethod,
   Rental,
-  RentalPhase,
   Thread,
+  Transaction,
+  User,
 } from './types'
 
 interface NewListingInput {
@@ -46,6 +56,10 @@ interface NewListingInput {
   pickupLocation: string
   /** Paid premium placement. */
   featured?: boolean
+  /** When premium placement ends; null clears it. */
+  featuredUntil?: string | null
+  /** Owner's replacement-value estimate (BusinessRules §3); null clears it. */
+  replacementValue?: number | null
 }
 
 interface NewNeedInput {
@@ -56,30 +70,57 @@ interface NewNeedInput {
 }
 
 interface MarketplaceContextValue {
-  currentUserId: string
+  /** Signed-in user's id, or null when logged out. */
+  currentUserId: string | null
+  /** Signed-in user's profile (null while loading or logged out). */
+  currentUser: User | null
+  isAuthenticated: boolean
+  isAdmin: boolean
+  /** True until the first load after the auth state is known. */
+  loading: boolean
   listings: Listing[]
   needs: Need[]
   threads: Thread[]
+  /** Rentals where the user is the renter or the owner. */
   rentals: Rental[]
-  addListing: (input: NewListingInput) => Listing
+  /** Purchases and sales where the user is the buyer or the seller. */
+  transactions: Transaction[]
+  /** Profile by id, with a neutral placeholder for unknown ids. */
+  getUser: (id: string | null | undefined) => User
+  /** Reload everything from the database (also runs the escrow jobs). */
+  refresh: () => Promise<void>
+
+  /** Optimistic; resolves once saved, or rolls back and throws ApiError. */
+  addListing: (input: NewListingInput) => Promise<Listing>
+  /** Optimistic; resolves once saved, or reloads the row and throws ApiError. */
+  updateListing: (listingId: string, input: Partial<NewListingInput>) => Promise<void>
+  /** 'sold' on a sale listing goes through mark_sold (in-person sale record). Throws ApiError. */
+  updateListingStatus: (listingId: string, status: ListingStatus, buyerId?: string) => Promise<void>
+  /** Throws ApiError (e.g. a listing with rental or sale history can't be deleted). */
+  deleteListing: (listingId: string) => Promise<void>
   addNeed: (input: NewNeedInput) => Need
+
   getThreadForListing: (listingId: string) => Thread | undefined
-  startThread: (listingId: string, sellerId: string, firstMessage: string) => Thread
+  startThread: (listingId: string, otherUserId: string, firstMessage: string) => Thread
   sendMessage: (threadId: string, text: string) => void
+  /** Local-only message (used by the chat page's simulated reply). */
   receiveMessage: (threadId: string, senderId: string, text: string) => void
-  /**
-   * Book a rental: charges the quote (simulated), holds the deposit in escrow,
-   * marks the listing as rented and opens a chat with the owner for pickup.
-   * Returns undefined when the listing is not rentable any more.
-   */
-  startRental: (listingId: string, paymentMethod: PaymentMethod) => Rental | undefined
-  setRentalPhase: (rentalId: string, phase: RentalPhase) => void
-  deleteListing: (listingId: string) => void
-  updateListing: (listingId: string, input: Partial<NewListingInput>) => void
-  updateListingStatus: (listingId: string, status: import('./types').ListingStatus) => void
+
+  // Rentals (BusinessRules §4) — each resolves with the updated rental or throws ApiError.
+  requestRental: (listingId: string, message?: string) => Promise<Rental>
+  respondRental: (rentalId: string, approve: boolean, reason?: string) => Promise<Rental>
+  cancelRental: (rentalId: string, reason?: string) => Promise<Rental>
+  payRental: (rentalId: string, method: PaymentMethod) => Promise<Rental>
+  confirmHandover: (rentalId: string, photos?: string[]) => Promise<Rental>
+  markReturned: (rentalId: string, photos?: string[]) => Promise<Rental>
+  confirmReturn: (rentalId: string, photos?: string[]) => Promise<Rental>
+
+  // Sales (BusinessRules §5)
+  createSale: (listingId: string, mode: SalePaymentMode, method?: PaymentMethod) => Promise<Transaction>
+  markSold: (listingId: string, buyerId?: string) => Promise<Transaction>
+
   favoriteIds: Set<string>
   toggleFavorite: (listingId: string) => void
-  isAuthenticated: boolean
   login: (email: string, password: string) => Promise<string | null>
   logout: () => Promise<void>
 }
@@ -87,49 +128,57 @@ interface MarketplaceContextValue {
 const MarketplaceContext = createContext<MarketplaceContextValue | null>(null)
 const supabase = createClient()
 
-type DatabaseRow = Record<string, unknown>
+const PLACEHOLDER_USER: Omit<User, 'id'> = {
+  name: 'AIT member',
+  avatar: '',
+  program: '',
+  batch: '',
+  rating: 0,
+  reviewsCount: 0,
+  joined: '',
+  kind: 'student',
+}
 
-const asString = (value: unknown, fallback = '') =>
-  typeof value === 'string' ? value : fallback
+const nextId = () => crypto.randomUUID()
 
-function mapListingRow(row: DatabaseRow): Listing {
+function notifyError(action: string, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  console.error(`${action}:`, message)
+  toast.error(action, { description: message })
+}
+
+function upsertById<T extends { id: string }>(list: T[], item: T): T[] {
+  const index = list.findIndex((x) => x.id === item.id)
+  if (index === -1) return [item, ...list]
+  const next = list.slice()
+  next[index] = item
+  return next
+}
+
+function toListingInsert(listing: Listing): TablesInsert<'listings'> {
   return {
-    id: asString(row.id),
-    title: asString(row.title),
-    description: asString(row.description),
-    category: row.category as CategoryId,
-    type: row.type as ListingType,
-    price: Number(row.price ?? 0),
-    deposit: row.deposit == null ? undefined : Number(row.deposit),
-    rentalPeriod: row.rental_period == null ? undefined : asString(row.rental_period),
-    condition: row.condition as Condition,
-    images: Array.isArray(row.images) ? row.images.map(String) : ['/placeholder.svg'],
-    pickupLocation: asString(row.pickup_location),
-    sellerId: asString(row.seller_id, CURRENT_USER_ID),
-    createdAt: asString(row.created_at, new Date().toISOString()),
-    status: row.status as Listing['status'],
-    timesChangedHands: Number(row.times_changed_hands ?? 0),
-    featured: Boolean(row.featured),
-    history: Array.isArray(row.history) ? row.history as Listing['history'] : [],
-    reviews: Array.isArray(row.reviews) ? row.reviews as Listing['reviews'] : [],
+    id: listing.id,
+    seller_id: listing.sellerId,
+    title: listing.title,
+    description: listing.description,
+    category: listing.category,
+    type: listing.type,
+    price: listing.price,
+    deposit: listing.deposit ?? null,
+    rental_period: listing.rentalPeriod ?? null,
+    condition: listing.condition,
+    images: listing.images,
+    pickup_location: listing.pickupLocation,
+    status: listing.status,
+    featured: listing.featured ?? false,
+    featured_until: listing.featuredUntil ?? null,
+    replacement_value: listing.replacementValue ?? null,
+    created_at: listing.createdAt,
   }
 }
 
-function mapNeedRow(row: DatabaseRow): Need {
-  return {
-    id: asString(row.id),
-    userId: asString(row.user_id, CURRENT_USER_ID),
-    title: asString(row.title),
-    category: row.category as CategoryId,
-    note: asString(row.note),
-    arrivalDate: asString(row.arrival_date),
-    createdAt: asString(row.created_at, new Date().toISOString()),
-  }
-}
-
-function toListingRow(input: Partial<NewListingInput> & Partial<Listing>): DatabaseRow {
-  const row: DatabaseRow = {}
-  if (input.id !== undefined) row.id = input.id
+function toListingUpdate(input: Partial<NewListingInput>): TablesUpdate<'listings'> {
+  const row: TablesUpdate<'listings'> = {}
   if (input.title !== undefined) row.title = input.title
   if (input.description !== undefined) row.description = input.description
   if (input.category !== undefined) row.category = input.category
@@ -140,132 +189,193 @@ function toListingRow(input: Partial<NewListingInput> & Partial<Listing>): Datab
   if (input.condition !== undefined) row.condition = input.condition
   if (input.images !== undefined) row.images = input.images
   if (input.pickupLocation !== undefined) row.pickup_location = input.pickupLocation
-  if (input.sellerId !== undefined) row.seller_id = input.sellerId
-  if (input.createdAt !== undefined) row.created_at = input.createdAt
-  if (input.status !== undefined) row.status = input.status
-  if (input.timesChangedHands !== undefined) row.times_changed_hands = input.timesChangedHands
   if (input.featured !== undefined) row.featured = input.featured
+  if (input.featuredUntil !== undefined) row.featured_until = input.featuredUntil
+  if (input.replacementValue !== undefined) row.replacement_value = input.replacementValue
   return row
 }
 
-function toNeedRow(input: Need): DatabaseRow {
-  return {
-    id: input.id,
-    user_id: input.userId,
-    title: input.title,
-    category: input.category,
-    note: input.note,
-    arrival_date: input.arrivalDate,
-    created_at: input.createdAt,
-  }
-}
-
-const nextId = (_prefix: string) => crypto.randomUUID()
-
 export function MarketplaceProvider({ children }: { children: ReactNode }) {
-  const [listings, setListings] = useState<Listing[]>(LISTINGS)
-  const [needs, setNeeds] = useState<Need[]>(NEEDS)
-  const [threads, setThreads] = useState<Thread[]>(THREADS)
-  const [rentals, setRentals] = useState<Rental[]>(RENTALS)
+  const [listings, setListings] = useState<Listing[]>([])
+  const [needs, setNeeds] = useState<Need[]>([])
+  const [threads, setThreads] = useState<Thread[]>([])
+  const [rentals, setRentals] = useState<Rental[]>([])
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [profiles, setProfiles] = useState<Map<string, User>>(new Map())
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const userIdRef = useRef<string | null>(null)
   const isAuthenticated = currentUserId !== null
-  const userId = currentUserId ?? CURRENT_USER_ID
 
+  const requireUser = useCallback((): string => {
+    const uid = userIdRef.current
+    if (!uid) throw new ApiError('Log in to continue.', '28000')
+    return uid
+  }, [])
+
+  const reloadListing = useCallback(async (listingId: string) => {
+    const { data } = await supabase.from('listings').select(LISTING_COLUMNS).eq('id', listingId).maybeSingle()
+    setListings((prev) => {
+      const existing = prev.find((l) => l.id === listingId)
+      if (!data) return prev.filter((l) => l.id !== listingId)
+      const fresh = mapListing(data)
+      return upsertById(prev, existing ? { ...fresh, history: existing.history, reviews: existing.reviews } : fresh)
+    })
+  }, [])
+
+  const loadThreads = useCallback(async () => {
+    const [{ data: remoteThreads }, { data: remoteMessages }, { data: participants }] = await Promise.all([
+      supabase.from('threads').select('*').order('created_at', { ascending: false }),
+      supabase.from('messages').select('*').order('created_at', { ascending: true }),
+      supabase.from('thread_participants').select('*'),
+    ])
+    if (!remoteThreads || !remoteMessages || !participants) return
+    setThreads(remoteThreads.map((thread) => ({
+      id: thread.id,
+      listingId: thread.listing_id,
+      participantIds: participants.filter((p) => p.thread_id === thread.id).map((p) => p.user_id),
+      messages: remoteMessages
+        .filter((m) => m.thread_id === thread.id)
+        .map((m) => ({ id: m.id, senderId: m.sender_id, text: m.text, createdAt: m.created_at ?? '' })),
+    })))
+  }, [])
+
+  const loadAll = useCallback(async (uid: string | null) => {
+    if (uid) {
+      // Lazy escrow work (payouts, auto-release, overdue) so a demo never waits for pg_cron.
+      // Shared throttle (lib/escrow-runner.ts): skipped if the jobs ran in the last 20 s.
+      await maybeRunEscrowJobs()
+    }
+    const [listingsRes, historyRes, reviewsRes] = await Promise.all([
+      supabase.from('listings').select(LISTING_COLUMNS).order('created_at', { ascending: false }),
+      supabase.from('listing_history').select('*').order('created_at', { ascending: true }),
+      supabase.from('reviews').select('*').order('created_at', { ascending: true }),
+    ])
+    for (const res of [listingsRes, historyRes, reviewsRes]) {
+      if (res.error) console.error('Could not load marketplace data from Supabase:', res.error.message)
+    }
+    if (listingsRes.data) {
+      const history = historyRes.data ?? []
+      const reviews = reviewsRes.data ?? []
+      setListings(listingsRes.data.map((row) => ({
+        ...mapListing(row),
+        history: history
+          .filter((h) => h.listing_id === row.id)
+          .map((h) => ({ ownerName: h.owner_name, action: h.action, date: h.date })),
+        reviews: reviews
+          .filter((r) => r.listing_id === row.id)
+          .map((r) => ({
+            id: r.id,
+            authorName: r.author_name,
+            authorAvatar: r.author_avatar ?? '',
+            role: r.role as 'buyer' | 'seller' | 'renter',
+            rating: Number(r.rating ?? 0),
+            comment: r.comment ?? '',
+            date: r.date,
+          })),
+      })))
+    }
+
+    if (!uid) {
+      setNeeds([])
+      setThreads([])
+      setRentals([])
+      setTransactions([])
+      setFavoriteIds(new Set())
+      setProfiles(new Map())
+      return
+    }
+
+    const [usersRes, needsRes, rentalsRes, txRes, favoritesRes] = await Promise.all([
+      supabase.from('users').select('*'),
+      supabase.from('needs').select('*').order('created_at', { ascending: false }),
+      supabase.from('rentals').select('*').order('created_at', { ascending: false }),
+      supabase.from('transactions').select('*').order('created_at', { ascending: false }),
+      supabase.from('favorites').select('listing_id'),
+      loadThreads(),
+    ])
+    for (const res of [usersRes, needsRes, rentalsRes, txRes, favoritesRes]) {
+      if (res.error) console.error('Could not load marketplace data from Supabase:', res.error.message)
+    }
+    if (usersRes.data) setProfiles(new Map(usersRes.data.map((row) => [row.id, mapUser(row)])))
+    if (needsRes.data) {
+      setNeeds(needsRes.data.map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        title: row.title,
+        category: row.category as CategoryId,
+        note: row.note ?? '',
+        arrivalDate: row.arrival_date,
+        createdAt: row.created_at ?? new Date().toISOString(),
+      })))
+    }
+    if (rentalsRes.data) setRentals(rentalsRes.data.map(mapRental))
+    if (txRes.data) setTransactions(txRes.data.map(mapTransaction))
+    if (favoritesRes.data) setFavoriteIds(new Set(favoritesRes.data.map((f) => f.listing_id)))
+  }, [loadThreads])
+
+  // Auth: INITIAL_SESSION fires once on mount, then SIGNED_IN / SIGNED_OUT.
   useEffect(() => {
     let cancelled = false
-
-    async function loadDatabaseData() {
-      const [{ data: remoteListings, error: listingsError }, { data: remoteNeeds, error: needsError }, { data: remoteThreads, error: threadsError }, { data: remoteMessages, error: messagesError }, { data: participants, error: participantsError }, { data: remoteRentals, error: rentalsError }, { data: remoteFavorites, error: favoritesError }, { data: remoteHistory, error: historyError }, { data: remoteReviews, error: reviewsError }] =
-        await Promise.all([
-          supabase.from('listings').select('*').order('created_at', { ascending: false }),
-          supabase.from('needs').select('*').order('created_at', { ascending: false }),
-          supabase.from('threads').select('*'),
-          supabase.from('messages').select('*').order('created_at', { ascending: true }),
-          supabase.from('thread_participants').select('*'),
-          supabase.from('rentals').select('*').order('created_at', { ascending: false }),
-          supabase.from('favorites').select('listing_id'),
-          supabase.from('listing_history').select('*').order('created_at', { ascending: true }),
-          supabase.from('reviews').select('*').order('created_at', { ascending: true }),
-        ])
-
-      if (cancelled) return
-
-      for (const error of [listingsError, needsError, threadsError, messagesError, participantsError, rentalsError, favoritesError, historyError, reviewsError]) {
-        if (error) console.error('Could not load marketplace data from Supabase:', error.message)
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      const uid = session?.user.id ?? null
+      const changed = uid !== userIdRef.current
+      userIdRef.current = uid
+      setCurrentUserId(uid)
+      if (event === 'INITIAL_SESSION' || changed) {
+        // Don't await Supabase calls inside this callback (supabase-js deadlock); defer.
+        setTimeout(() => {
+          void loadAll(uid).finally(() => {
+            if (!cancelled) setLoading(false)
+          })
+        }, 0)
       }
-      if (remoteListings) setListings(remoteListings.map((row) => {
-        const listing = mapListingRow(row)
-        return {
-          ...listing,
-          history: (remoteHistory ?? [])
-            .filter((item) => item.listing_id === listing.id)
-            .map((item) => ({
-              ownerName: asString(item.owner_name),
-              action: asString(item.action),
-              date: asString(item.date),
-            })),
-          reviews: (remoteReviews ?? [])
-            .filter((item) => item.listing_id === listing.id)
-            .map((item) => ({
-              id: asString(item.id),
-              authorName: asString(item.author_name),
-              authorAvatar: asString(item.author_avatar),
-              role: item.role as 'buyer' | 'seller' | 'renter',
-              rating: Number(item.rating ?? 0),
-              comment: asString(item.comment),
-              date: asString(item.date),
-            })),
-        }
-      }))
-      if (remoteNeeds) setNeeds(remoteNeeds.map(mapNeedRow))
-      if (remoteFavorites) setFavoriteIds(new Set(remoteFavorites.map((favorite) => asString(favorite.listing_id))))
-      if (remoteRentals) setRentals(remoteRentals.map((row) => ({
-        id: asString(row.id),
-        listingId: asString(row.listing_id),
-        renterId: asString(row.renter_id),
-        deposit: Number(row.deposit ?? 0),
-        startDate: asString(row.start_date),
-        dueDate: asString(row.due_date),
-        phase: row.phase as RentalPhase,
-        quote: row.quote as Rental['quote'],
-        paymentMethod: row.payment_method as PaymentMethod | undefined,
-      })))
-      if (remoteThreads && remoteMessages && participants) {
-        setThreads(remoteThreads.map((thread) => ({
-          id: asString(thread.id),
-          listingId: asString(thread.listing_id),
-          participantIds: participants
-            .filter((participant) => participant.thread_id === thread.id)
-            .map((participant) => asString(participant.user_id)),
-          messages: remoteMessages
-            .filter((message) => message.thread_id === thread.id)
-            .map((message) => ({
-              id: asString(message.id),
-              senderId: asString(message.sender_id),
-              text: asString(message.text),
-              createdAt: asString(message.created_at),
-            })),
-        })))
-      }
-    }
-
-    let authSubscription: { unsubscribe: () => void } | undefined
-    void supabase.auth.getUser().then(({ data: { user } }) => {
-      if (cancelled) return
-      setCurrentUserId(user?.id ?? null)
-      void loadDatabaseData()
     })
-    const subscription = supabase.auth.onAuthStateChange((_event, session) => {
-      setCurrentUserId(session?.user.id ?? null)
-      if (session) void loadDatabaseData()
-    })
-    authSubscription = subscription.data.subscription
     return () => {
       cancelled = true
-      authSubscription?.unsubscribe()
+      data.subscription.unsubscribe()
     }
-  }, [])
+  }, [loadAll])
+
+  // Realtime: chat messages, rentals and purchases for the signed-in user.
+  useEffect(() => {
+    if (!currentUserId) return
+    const unsubscribers = [
+      api.subscribeToMessages((threadId, message) => {
+        let known = false
+        setThreads((prev) => prev.map((t) => {
+          if (t.id !== threadId) return t
+          known = true
+          if (t.messages.some((m) => m.id === message.id)) return t
+          return { ...t, messages: [...t.messages, message] }
+        }))
+        if (!known) void loadThreads()
+      }),
+      api.subscribeToRentals((rental) => {
+        setRentals((prev) => upsertById(prev, rental))
+        void reloadListing(rental.listingId)
+      }),
+      api.subscribeToTransactions((tx) => {
+        setTransactions((prev) => upsertById(prev, tx))
+        void reloadListing(tx.listingId)
+      }),
+    ]
+    return () => unsubscribers.forEach((unsubscribe) => unsubscribe())
+  }, [currentUserId, loadThreads, reloadListing])
+
+  const refresh = useCallback(() => loadAll(userIdRef.current), [loadAll])
+
+  const getUser = useCallback(
+    (id: string | null | undefined): User => {
+      if (!id) return { id: '', ...PLACEHOLDER_USER }
+      return profiles.get(id) ?? sampleUser(id) ?? { id, ...PLACEHOLDER_USER }
+    },
+    [profiles],
+  )
+
+  const currentUser = currentUserId ? profiles.get(currentUserId) ?? null : null
+  const isAdmin = Boolean(currentUser?.isAdmin)
 
   const login = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -277,12 +387,17 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
     if (error) console.error('Could not log out from Supabase:', error.message)
   }, [])
 
-  const addListing = useCallback((input: NewListingInput): Listing => {
-    const me = getUser(userId)
+  // ─── Listings ──────────────────────────────────────────────────────────────
+
+  const addListing = useCallback(async (input: NewListingInput): Promise<Listing> => {
+    const uid = requireUser()
+    const me = getUser(uid)
     const listing: Listing = {
-      id: nextId('l'),
+      id: nextId(),
       ...input,
-      sellerId: userId,
+      featuredUntil: input.featuredUntil ?? undefined,
+      replacementValue: input.replacementValue ?? undefined,
+      sellerId: uid,
       createdAt: new Date().toISOString(),
       status: 'available',
       timesChangedHands: 1,
@@ -290,253 +405,256 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       reviews: [],
     }
     setListings((prev) => [listing, ...prev])
-    void supabase.from('listings').insert(toListingRow(listing)).then(({ error }) => {
-      if (error) console.error('Could not save listing to Supabase:', error.message)
+    const { error } = await supabase.from('listings').insert(toListingInsert(listing))
+    if (error) {
+      setListings((prev) => prev.filter((l) => l.id !== listing.id))
+      throw toApiError(error)
+    }
+    await supabase.from('listing_history').insert({
+      listing_id: listing.id,
+      owner_name: me.name,
+      action: `Listed on ${BRAND}`,
+      date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
     })
     return listing
-  }, [userId])
+  }, [getUser, requireUser])
+
+  const updateListing = useCallback(async (listingId: string, input: Partial<NewListingInput>) => {
+    const { featuredUntil, replacementValue, ...rest } = input
+    setListings((prev) => prev.map((l) => (l.id === listingId
+      ? {
+          ...l,
+          ...rest,
+          ...(featuredUntil !== undefined ? { featuredUntil: featuredUntil ?? undefined } : {}),
+          ...(replacementValue !== undefined ? { replacementValue: replacementValue ?? undefined } : {}),
+        }
+      : l)))
+    const { error } = await supabase.from('listings').update(toListingUpdate(input)).eq('id', listingId)
+    await reloadListing(listingId)
+    if (error) throw toApiError(error)
+  }, [reloadListing])
+
+  const updateListingStatus = useCallback(async (listingId: string, status: ListingStatus, buyerId?: string) => {
+    const listing = listings.find((l) => l.id === listingId)
+    setListings((prev) => prev.map((l) => (l.id === listingId ? { ...l, status } : l)))
+    try {
+      if (status === 'sold' && listing?.type === 'sale') {
+        const tx = await api.markSold(listingId, buyerId)
+        setTransactions((prev) => upsertById(prev, tx))
+        // mark_sold cancels the other pending purchases: refresh them too.
+        const { data } = await supabase.from('transactions').select('*').eq('listing_id', listingId)
+        if (data) setTransactions((prev) => data.map(mapTransaction).reduce(upsertById, prev))
+        return
+      }
+      const { error } = await supabase.from('listings').update({ status }).eq('id', listingId)
+      if (error) throw toApiError(error)
+    } finally {
+      await reloadListing(listingId)
+    }
+  }, [listings, reloadListing])
+
+  const deleteListing = useCallback(async (listingId: string) => {
+    const { data, error } = await supabase.from('listings').delete().eq('id', listingId).select('id')
+    if (error) throw toApiError(error)
+    if (!data || data.length === 0) throw new ApiError("You can't delete this listing.")
+    setListings((prev) => prev.filter((l) => l.id !== listingId))
+  }, [])
+
+  // ─── Needs ─────────────────────────────────────────────────────────────────
 
   const addNeed = useCallback((input: NewNeedInput): Need => {
-    const need: Need = {
-      id: nextId('n'),
-      userId,
-      ...input,
-      createdAt: new Date().toISOString(),
-    }
+    const uid = requireUser()
+    const need: Need = { id: nextId(), userId: uid, ...input, createdAt: new Date().toISOString() }
     setNeeds((prev) => [need, ...prev])
-    void supabase.from('needs').insert(toNeedRow(need)).then(({ error }) => {
-      if (error) console.error('Could not save need to Supabase:', error.message)
+    void supabase.from('needs').insert({
+      id: need.id,
+      user_id: uid,
+      title: need.title,
+      category: need.category,
+      note: need.note,
+      arrival_date: need.arrivalDate,
+      created_at: need.createdAt,
+    }).then(({ error }) => {
+      if (error) {
+        setNeeds((prev) => prev.filter((n) => n.id !== need.id))
+        notifyError('Could not save your request', error)
+      }
     })
     return need
-  }, [userId])
+  }, [requireUser])
+
+  // ─── Chat ──────────────────────────────────────────────────────────────────
 
   const getThreadForListing = useCallback(
     (listingId: string) =>
-      threads.find(
-        (t) => t.listingId === listingId && t.participantIds.includes(userId),
-      ),
-    [threads, userId],
+      currentUserId
+        ? threads.find((t) => t.listingId === listingId && t.participantIds.includes(currentUserId))
+        : undefined,
+    [threads, currentUserId],
   )
 
   const startThread = useCallback(
-    (listingId: string, sellerId: string, firstMessage: string): Thread => {
+    (listingId: string, otherUserId: string, firstMessage: string): Thread => {
+      const uid = requireUser()
       const existing = threads.find(
-        (t) => t.listingId === listingId && t.participantIds.includes(userId),
+        (t) => t.listingId === listingId && t.participantIds.includes(uid) && t.participantIds.includes(otherUserId),
       )
-      if (existing) {
-        const msg = {
-          id: nextId('m'),
-          senderId: userId,
-          text: firstMessage,
-          createdAt: new Date().toISOString(),
-        }
-        setThreads((prev) =>
-          prev.map((t) =>
-            t.id === existing.id ? { ...t, messages: [...t.messages, msg] } : t,
-          ),
-        )
-        void supabase.from('messages').insert({ id: msg.id, thread_id: existing.id, sender_id: msg.senderId, text: msg.text }).then()
-        return existing
-      }
-      const thread: Thread = {
-        id: nextId('t'),
-        listingId,
-        participantIds: [userId, sellerId],
-        messages: [],
-      }
-      const msg = {
-        id: nextId('m'),
-        senderId: userId,
-        text: firstMessage,
-        createdAt: new Date().toISOString(),
-      }
-      thread.messages.push(msg)
-      setThreads((prev) => [thread, ...prev])
-      
-      void supabase.from('threads').insert({ id: thread.id, listing_id: listingId }).then(() => {
-        void supabase.from('thread_participants').insert([
-          { thread_id: thread.id, user_id: userId },
-          { thread_id: thread.id, user_id: sellerId }
-        ]).then()
-        void supabase.from('messages').insert({ id: msg.id, thread_id: thread.id, sender_id: msg.senderId, text: msg.text }).then()
-      })
-      
+      const msg = { id: nextId(), senderId: uid, text: firstMessage, createdAt: new Date().toISOString() }
+      const thread: Thread = existing
+        ? { ...existing, messages: [...existing.messages, msg] }
+        : { id: nextId(), listingId, participantIds: [uid, otherUserId], messages: [msg] }
+      setThreads((prev) => (existing ? prev.map((t) => (t.id === thread.id ? thread : t)) : [thread, ...prev]))
+      api.startThread(listingId, otherUserId, firstMessage, { threadId: thread.id, messageId: msg.id }).then(
+        ({ threadId }) => {
+          // The server reused a thread we didn't have locally: reload.
+          if (threadId !== thread.id) void loadThreads()
+        },
+        (error) => {
+          notifyError('Could not send the message', error)
+          void loadThreads()
+        },
+      )
       return thread
     },
-    [threads, userId],
+    [threads, requireUser, loadThreads],
   )
 
   const sendMessage = useCallback((threadId: string, text: string) => {
-    const msg = {
-      id: nextId('m'),
-      senderId: userId,
-      text,
-      createdAt: new Date().toISOString(),
-    }
+    const uid = requireUser()
+    const msg = { id: nextId(), senderId: uid, text, createdAt: new Date().toISOString() }
     setThreads((prev) =>
       prev.map((t) => (t.id === threadId ? { ...t, messages: [...t.messages, msg] } : t)),
     )
-    void supabase.from('messages').insert({ id: msg.id, thread_id: threadId, sender_id: userId, text }).then(({ error }) => {
-      if (error) console.error('Could not save message to Supabase:', error.message)
-    })
-  }, [userId])
+    api.sendMessage(threadId, text, msg.id).catch((error) => notifyError('Could not send the message', error))
+  }, [requireUser])
 
-  const receiveMessage = useCallback(
-    (threadId: string, senderId: string, text: string) => {
-      const msg = {
-        id: nextId('m'),
-        senderId,
-        text,
-        createdAt: new Date().toISOString(),
-      }
-      setThreads((prev) =>
-        prev.map((t) => (t.id === threadId ? { ...t, messages: [...t.messages, msg] } : t)),
-      )
-    },
-    [],
-  )
-
-  const startRental = useCallback(
-    (listingId: string, paymentMethod: PaymentMethod): Rental | undefined => {
-      const listing = listings.find((l) => l.id === listingId)
-      if (!listing || listing.type !== 'rent' || listing.status !== 'available') {
-        return undefined
-      }
-      const quote = computeRentalQuote({ price: listing.price, deposit: listing.deposit })
-      const start = new Date()
-      const rental: Rental = {
-        id: nextId('r'),
-        listingId,
-        renterId: userId,
-        deposit: quote.deposit,
-        startDate: start.toISOString(),
-        dueDate: rentalDueDate(start, listing.rentalPeriod).toISOString(),
-        phase: 'active',
-        quote,
-        paymentMethod,
-      }
-      setRentals((prev) => [rental, ...prev])
-      setListings((prev) =>
-        prev.map((l) => (l.id === listingId ? { ...l, status: 'rented' } : l)),
-      )
-      
-      void supabase.from('rentals').insert({
-        id: rental.id,
-        listing_id: rental.listingId,
-        renter_id: rental.renterId,
-        deposit: rental.deposit,
-        start_date: rental.startDate,
-        due_date: rental.dueDate,
-        phase: rental.phase,
-        payment_method: rental.paymentMethod,
-        quote: rental.quote
-      }).then()
-      void supabase.from('listings').update({ status: 'rented' }).eq('id', listingId).then()
-      const owner = getUser(listing.sellerId)
-      startThread(
-        listingId,
-        listing.sellerId,
-        `Hi ${owner.name}, I just booked "${listing.title}". The ${formatPrice(
-          quote.deposit,
-        )} deposit is now in escrow. When can I pick it up at ${listing.pickupLocation}?`,
-      )
-      return rental
-    },
-    [listings, startThread, userId],
-  )
-
-  const setRentalPhase = useCallback((rentalId: string, phase: RentalPhase) => {
-    setRentals((prev) => prev.map((r) => (r.id === rentalId ? { ...r, phase } : r)))
-    void supabase.from('rentals').update({ phase }).eq('id', rentalId).then()
+  const receiveMessage = useCallback((threadId: string, senderId: string, text: string) => {
+    const msg = { id: nextId(), senderId, text, createdAt: new Date().toISOString() }
+    setThreads((prev) =>
+      prev.map((t) => (t.id === threadId ? { ...t, messages: [...t.messages, msg] } : t)),
+    )
   }, [])
 
-  const deleteListing = useCallback((listingId: string) => {
-    setListings((prev) => prev.filter((l) => l.id !== listingId))
-    void supabase.from('listings').delete().eq('id', listingId).then(({ error }) => {
-      if (error) console.error('Could not delete listing from Supabase:', error.message)
-    })
-  }, [])
+  // ─── Rentals & sales (RPCs) ────────────────────────────────────────────────
 
-  const updateListing = useCallback((listingId: string, input: Partial<NewListingInput>) => {
-    setListings((prev) => prev.map((l) => (l.id === listingId ? { ...l, ...input } : l)))
-    void supabase.from('listings').update(toListingRow(input)).eq('id', listingId).then(({ error }) => {
-      if (error) console.error('Could not update listing in Supabase:', error.message)
-    })
-  }, [])
+  const applyRental = useCallback(async (promise: Promise<Rental>): Promise<Rental> => {
+    const rental = await promise
+    setRentals((prev) => upsertById(prev, rental))
+    void reloadListing(rental.listingId)
+    return rental
+  }, [reloadListing])
 
-  const updateListingStatus = useCallback(
-    (listingId: string, status: import('./types').ListingStatus) => {
-      setListings((prev) =>
-        prev.map((l) => (l.id === listingId ? { ...l, status } : l)),
-      )
-      void supabase.from('listings').update({ status }).eq('id', listingId).then(({ error }) => {
-        if (error) console.error('Could not update listing status in Supabase:', error.message)
-      })
-    },
-    [],
+  const applyTransaction = useCallback(async (promise: Promise<Transaction>): Promise<Transaction> => {
+    const tx = await promise
+    setTransactions((prev) => upsertById(prev, tx))
+    void reloadListing(tx.listingId)
+    return tx
+  }, [reloadListing])
+
+  const requestRental = useCallback(
+    (listingId: string, message?: string) => applyRental(api.requestRental(listingId, message)),
+    [applyRental],
   )
+  const respondRental = useCallback(
+    (rentalId: string, approve: boolean, reason?: string) => applyRental(api.respondRental(rentalId, approve, reason)),
+    [applyRental],
+  )
+  const cancelRental = useCallback(
+    (rentalId: string, reason?: string) => applyRental(api.cancelRental(rentalId, reason)),
+    [applyRental],
+  )
+  const payRental = useCallback(
+    (rentalId: string, method: PaymentMethod) => applyRental(api.payRental(rentalId, method)),
+    [applyRental],
+  )
+  const confirmHandover = useCallback(
+    (rentalId: string, photos?: string[]) => applyRental(api.confirmHandover(rentalId, photos)),
+    [applyRental],
+  )
+  const markReturned = useCallback(
+    (rentalId: string, photos?: string[]) => applyRental(api.markReturned(rentalId, photos)),
+    [applyRental],
+  )
+  const confirmReturn = useCallback(
+    (rentalId: string, photos?: string[]) => applyRental(api.confirmReturn(rentalId, photos)),
+    [applyRental],
+  )
+  const createSale = useCallback(
+    (listingId: string, mode: SalePaymentMode, method?: PaymentMethod) =>
+      applyTransaction(api.createSale(listingId, mode, method)),
+    [applyTransaction],
+  )
+  const markSold = useCallback(
+    (listingId: string, buyerId?: string) => applyTransaction(api.markSold(listingId, buyerId)),
+    [applyTransaction],
+  )
+
+  // ─── Favorites ─────────────────────────────────────────────────────────────
 
   const toggleFavorite = useCallback((listingId: string) => {
+    const uid = userIdRef.current
+    if (!uid) {
+      toast.error('Log in to save favorites')
+      return
+    }
     setFavoriteIds((prev) => {
       const next = new Set(prev)
       const removing = next.has(listingId)
-      removing ? next.delete(listingId) : next.add(listingId)
+      if (removing) next.delete(listingId)
+      else next.add(listingId)
       void (removing
-        ? supabase.from('favorites').delete().eq('user_id', userId).eq('listing_id', listingId)
-        : supabase.from('favorites').insert({ user_id: userId, listing_id: listingId })
+        ? supabase.from('favorites').delete().eq('user_id', uid).eq('listing_id', listingId)
+        : supabase.from('favorites').insert({ user_id: uid, listing_id: listingId })
       ).then(({ error }) => {
         if (error) console.error('Could not update favorite in Supabase:', error.message)
       })
       return next
     })
-  }, [userId])
+  }, [])
 
   const value = useMemo<MarketplaceContextValue>(
     () => ({
-      currentUserId: userId,
+      currentUserId,
+      currentUser,
+      isAuthenticated,
+      isAdmin,
+      loading,
       listings,
       needs,
       threads,
       rentals,
+      transactions,
+      getUser,
+      refresh,
       addListing,
+      updateListing,
+      updateListingStatus,
+      deleteListing,
       addNeed,
       getThreadForListing,
       startThread,
       sendMessage,
       receiveMessage,
-      startRental,
-      setRentalPhase,
-      deleteListing,
-      updateListing,
-      updateListingStatus,
+      requestRental,
+      respondRental,
+      cancelRental,
+      payRental,
+      confirmHandover,
+      markReturned,
+      confirmReturn,
+      createSale,
+      markSold,
       favoriteIds,
       toggleFavorite,
-      isAuthenticated,
       login,
       logout,
     }),
     [
-      listings,
-      needs,
-      threads,
-      rentals,
-      addListing,
-      addNeed,
-      getThreadForListing,
-      startThread,
-      sendMessage,
-      receiveMessage,
-      startRental,
-      setRentalPhase,
-      deleteListing,
-      updateListing,
-      updateListingStatus,
-      favoriteIds,
-      toggleFavorite,
-      isAuthenticated,
-      login,
-      logout,
-      userId,
+      currentUserId, currentUser, isAuthenticated, isAdmin, loading, listings, needs, threads, rentals,
+      transactions, getUser, refresh, addListing, updateListing, updateListingStatus, deleteListing, addNeed,
+      getThreadForListing, startThread, sendMessage, receiveMessage, requestRental, respondRental, cancelRental,
+      payRental, confirmHandover, markReturned, confirmReturn, createSale, markSold, favoriteIds, toggleFavorite,
+      login, logout,
     ],
   )
 

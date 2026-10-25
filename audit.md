@@ -1,133 +1,67 @@
-# AIT Circular Marketplace — Implementation Audit
+# Pass It On — Implementation Audit
 
-## Tech Stack (as designed)
-| Layer | Planned | Current State |
+**Updated:** 25 October 2026, branch `feat/p0-core` (not yet merged or pushed to production).
+Rules: [docs/BusinessRules.md](docs/BusinessRules.md). Database contract: [docs/Database.md](docs/Database.md).
+Task list: [action_items.md](action_items.md). Evidence: [tests/e2e/RESULTS.md](tests/e2e/RESULTS.md).
+
+## Tech stack
+
+| Layer | Planned | Current state |
 |---|---|---|
-| Framework | Next.js App Router | ✅ Next.js App Router |
-| Database & Auth | Supabase | ❌ Not connected — all data is **mock/in-memory** |
-| Styling | (not specified) | ✅ Tailwind CSS + shadcn/ui |
-| Payments | Omise / 2C2P | ❌ Not connected — checkout is **simulated** |
-| Deployment | Vercel | Not evaluated |
+| Framework | Next.js App Router | ✅ Next.js 16 App Router, React 19; session refresh in `proxy.ts` (Next 16's name for middleware) |
+| Database & auth | Supabase | ✅ Postgres with RLS on every table, Auth (`@ait.asia` enforced by a database trigger), Storage, Realtime, pg_cron |
+| Business logic | — | ✅ State machines and money in Postgres functions (`supabase/migrations/`), typed wrappers in `lib/api/`, fees mirrored in `lib/fees.ts` (parity-tested) |
+| Styling | — | ✅ Tailwind CSS 4 + shadcn/ui on Base UI ([docs/Design.md](docs/Design.md)) |
+| Payments | Gateway in a real launch only | ✅ **Simulated by scope decision** (BusinessRules §7): methods PromptPay / card / wallet are recorded; holds, payouts and refunds are rows in `wallet_ledger`. No gateway, no test mode. |
+| Deployment | Vercel | ✅ Live from `master` (pre-P0 schema). The P0 migrations still need `db push` (docs/Database.md §9). |
 
----
+## Routes
 
-## Routes Implemented vs. Planned
+Route names follow the real app (decision 25 Oct): `/browse` (not `/marketplace`), `/sell` (not `/sell/new`), `/chat` (not `/messages`), `/my-listings` for the listing dashboard, `/rentals` for both rental sides.
 
-### ✅ Implemented (6 pages + components)
-
-| Route (Planned) | Actual File | Notes |
+| Route | Status | Notes |
 |---|---|---|
-| `/` | `app/page.tsx` | Landing: hero, seasonal banner, category grid, featured + recent listings, why section |
-| `/browse` | `app/browse/page.tsx` | Full grid with search, category filter, type (sale/rent) filter, sort |
-| `/listing/[id]` | `app/listing/[id]/page.tsx` | Listing detail: photos, price+commission, condition, seller, reviews, item history, chat CTA, rent checkout dialog |
-| `/sell` | `app/sell/page.tsx` | Multi-step create listing: type → category → photos → price/deposit → condition → pickup → premium placement |
-| `/chat` | `app/chat/page.tsx` | Messaging inbox + thread view, canned replies, simulated seller auto-reply |
-| `/needs` | `app/needs/page.tsx` | Pre-arrival need registration form + auto-match display against available listings |
-| `/rentals` | `app/rentals/page.tsx` | Rental dashboard (renter POV): active/return-pending/released/disputed phases, phase transitions |
+| `/` | ✅ | Hero, seasonal banner, categories, featured and recent listings from the database |
+| `/browse` (`/search` redirects) | ✅ | Full-text search, URL filters (type, category, condition, pickup, price, sort, seller, favourites), featured first, load more |
+| `/listing/[id]` | ✅ | Photos, item history, seller rating; Request to book / Buy now; owner sees request count |
+| `/listing/[id]/checkout` | ✅ | Sale: in person or with protection; rent: pays an approved booking only |
+| `/sell` | ✅ | Photo upload (validated), deposit rules, replacement value, premium placement (฿49 charged, simulated) |
+| `/my-listings` (`/dashboard/listings` redirects) | ✅ | Status tabs; edit, pause, delete, mark sold, requests, view deal; "Hidden by admin" badge |
+| `/dashboard/listings/[id]/edit` | ✅ | Saves through the guards; explains deal / history locks |
+| `/dashboard/listings/[id]/requests` | ✅ | Approve / decline with reason; renter profile and rating |
+| `/rentals` | ✅ | Renting and Lending tabs; every phase with actions, countdowns, late fee so far, photos, rating |
+| `/transaction/[id]` | ✅ | Rentals and sales for both parties: timeline, amounts, countdowns, actions, message, rate |
+| `/transaction/[id]/confirm` | ✅ | Confirm receipt (sale) or return condition with photos and settlement preview (rental) |
+| `/dispute/new`, `/dispute/[id]` | ✅ | File within 48 h with evidence and claim; status, decision, comments (realtime) |
+| `/dashboard/orders` | ✅ | Purchases / Sales / Renting / Lending, with "Rate" on closed deals |
+| `/dashboard/wallet` | ✅ | Held vs available, protected purchases in escrow, ledger history, simulated withdrawal |
+| `/notifications` | ✅ | Realtime, mark read, filters; bell with unread count in the header |
+| `/chat` | ✅ | Realtime, one thread per listing per pair, unread counts, no auto-reply |
+| `/needs` | ✅ | Needed-by date and type; server-side matching; notification on a new match |
+| `/profile/[userId]` | ✅ | Verified AIT badge, rating from reviews, listings |
+| `/signup`, `/login`, `/verify-email`, `/reset-password`, `/onboarding` | ✅ | Real auth; guard waits for the session; safe `next` redirects |
+| `/dashboard/settings` | ✅ (basic) | Profile summary (edit via onboarding), change password; notification preferences not built (P2) |
+| `/how-it-works` | ✅ | Fee explanation |
+| `/admin/dashboard`, `/admin/disputes`, `/admin/disputes/[id]`, `/admin/listings`, `/admin/users` | ✅ | Admin-only layout; counters; dispute resolution with §6 outcomes; hide / restore / remove listings; read-only users; demo time travel |
+| `/matches`, `/dashboard/profile`, `/dashboard/reviews` | ⏸ P2 | Matches show on `/needs`; profile editing is `/onboarding` |
+| Terms / Privacy pages, footer | ❌ P1 | Not started |
 
-### ❌ Not Implemented (from Mapping&UF.md)
+## Business rules coverage
 
-**Auth**
-- `/login`, `/signup`, `/verify-email`, `/onboarding` — no auth at all, current user is hardcoded (`CURRENT_USER_ID = 'u_me'`)
+See the "Current code vs. these rules" table at the end of [docs/BusinessRules.md](docs/BusinessRules.md). Every decided rule is implemented server-side; the open ones (admin approval for items over ~฿6,000, refunds for a paid deal cancelled before handover) are placeholders only.
 
-**Browse & Discovery**
-- `/marketplace` (the mapping uses `/marketplace`, app uses `/browse` — minor naming mismatch)
-- `/marketplace/[category]` — category sub-routes not implemented (handled via query params on `/browse`)
-- `/search?q=` — search is embedded in `/browse`, no dedicated `/search` route
+## Verification (25 Oct 2026)
 
-**Selling / Listing Management**
-- `/sell/new` — exists as `/sell` (name mismatch)
-- `/dashboard/listings` — no dashboard, no listing management UI
-- `/dashboard/listings/[id]/edit` — not implemented
-- `/dashboard/listings/[id]/requests` — not implemented (incoming buy/rent requests)
+| Check | Result |
+|---|---|
+| `npm test` (fee unit tests) | 18 / 18 pass |
+| `npm run test:db` (server vs client fee parity) | 5 / 5 pass |
+| `npx supabase test db` (pgTAP) | 304 / 304 pass, on an empty database and after `npm run seed:demo` |
+| `npx tsc --noEmit` | clean |
+| ESLint | 0 errors, 0 warnings (master: 27 errors) |
+| `next build` (production env) | passes |
+| `npm run test:e2e` | seller, buyer, owner + renter (dispute, auto-release), late / missing, link crawl (4 roles), 390 / 1280 px quality pass — all pass ([RESULTS.md](tests/e2e/RESULTS.md)) |
 
-**Pre-Arrival**
-- `/matches` — not implemented (needs/matches exist on `/needs` but no dedicated matches page)
+## Known gaps
 
-**Transactions**
-- `/listing/[id]/checkout` — checkout is a **dialog** on the listing page, not a full route
-- `/transaction/[id]` — not implemented (transaction status/escrow page)
-- `/transaction/[id]/confirm` — not implemented
-- `/dispute/[id]` — not implemented
-- `/dashboard/orders` — not implemented
-- `/dashboard/rentals` — exists as `/rentals` (name mismatch, seller POV missing)
-
-**Messaging**
-- `/messages` / `/messages/[conversationId]` — exists as `/chat` (route name mismatch)
-
-**Profile & Account**
-- `/profile/[userId]` — not implemented (public profile page)
-- `/dashboard/profile` — not implemented
-- `/dashboard/settings` — not implemented
-- `/dashboard/wallet` — not implemented
-- `/dashboard/reviews` — not implemented
-
-**Notifications**
-- `/notifications` — not implemented
-
-**Admin**
-- `/admin/dashboard`, `/admin/disputes`, `/admin/users`, `/admin/listings` — none implemented
-
----
-
-## What's Working (Functional Logic)
-
-| Feature | Status | Notes |
-|---|---|---|
-| Mock data layer | ✅ | `lib/data.ts` — seeded users, listings, needs, rentals, threads |
-| Type system | ✅ | `lib/types.ts` — full domain model |
-| Global state (React Context) | ✅ | `lib/store.tsx` — addListing, addNeed, startRental, setRentalPhase, thread/messaging actions |
-| Fee calculation | ✅ | `lib/fees.ts` — 10% commission, deposit logic, rental quote |
-| Seasonal detection | ✅ | `lib/seasons.ts` — semester-aware surge alerts |
-| Create listing flow | ✅ | Multi-step form, photo upload (local preview), premium placement toggle |
-| Browse + filter + sort | ✅ | Category, sale/rent type, keyword search, sort by price/recent |
-| Listing detail page | ✅ | Photos, price+commission breakdown, condition, seller info, item history, reviews |
-| Rent checkout dialog | ✅ | Quote preview (deposit + commission), payment method, confirmation |
-| Rental phase management | ✅ | Active → return-pending → released / disputed transitions |
-| Chat / messaging | ✅ | Thread list, message send, simulated canned auto-reply |
-| Pre-arrival needs | ✅ | Register need, auto-match to available listings |
-| Seasonal banner | ✅ | Shows move-out/new-arrival alerts near semester dates |
-
----
-
-## Key Gaps / What Needs to Be Done Next
-
-### Priority 1 — Auth (Blocker for everything else)
-- Supabase Auth integration with `@ait.asia` domain gate
-- Login / Signup / Email verification pages
-- Onboarding flow (dorm/pickup location selection)
-- Replace hardcoded `CURRENT_USER_ID` with real session user
-
-### Priority 2 — Dashboard & Account
-- `/dashboard/listings` — manage own listings (active, sold, rented, drafts)
-- `/dashboard/listings/[id]/edit` — edit listing form
-- `/dashboard/listings/[id]/requests` — incoming buy/rent requests
-- `/dashboard/orders` — purchase history
-- `/dashboard/rentals` — full rental view (both sides: renter + owner)
-- `/dashboard/wallet` — escrow balance, payouts
-- `/dashboard/settings` — notification prefs, payment methods
-
-### Priority 3 — Transaction Flow
-- `/listing/[id]/checkout` — full page checkout (not just a dialog)
-- `/transaction/[id]` — escrow status, dispute window countdown, pickup instructions
-- `/transaction/[id]/confirm` — confirm receipt / return condition
-- `/dispute/[id]` — dispute filing + tracking
-
-### Priority 4 — Public Profile
-- `/profile/[userId]` — public profile with rating, verification badge, listing history
-
-### Priority 5 — Backend Integration
-- Connect Supabase: replace mock `lib/data.ts` with real DB queries
-- Replace photo upload (currently local `URL.createObjectURL`) with Supabase Storage
-- Real-time chat via Supabase Realtime (currently simulated)
-- Payment gateway (Omise / 2C2P) for actual checkout
-
-### Priority 6 — Notifications & Admin
-- `/notifications` page
-- `/admin/*` dashboard, disputes, users, listings moderation
-
-### Minor / Polish
-- Route name alignment: `/sell` → `/sell/new`, `/browse` → `/marketplace`, `/chat` → `/messages`
-- `/how-it-works` marketing page (currently absent)
-- `/search?q=` dedicated search results route
-- Seller POV on rentals dashboard (currently only renter view)
+Tracked in [action_items.md §2.12](action_items.md): production migration and live re-test, two team decisions for BusinessRules (sale "as described" outcome and protection-fee refund; refunds for paid deals cancelled before handover), return photos enforced only in the UI, listing delete cascades chat threads, orphaned uploads when an RPC is refused, every signed-in user can read user emails, Lighthouse run.

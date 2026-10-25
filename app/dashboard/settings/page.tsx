@@ -1,156 +1,144 @@
 'use client'
 
+// Account settings. Profile fields are edited on /onboarding (the same form
+// new students fill in, which saves to public.users). The password form calls
+// Supabase Auth directly. Notifications are in-app only (email is P2), so
+// there are no preferences to store yet.
+
 import { useState } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { useMarketplace } from '@/lib/store'
-import { getUser } from '@/lib/data'
-import { Button } from '@/components/ui/button'
+import { createClient } from '@/utils/supabase/client'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+
+const INPUT =
+  'h-10 w-full rounded-md border border-input bg-card px-3 text-[13px] outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10'
 
 export default function SettingsPage() {
-  const { currentUserId } = useMarketplace()
+  const { currentUserId, getUser } = useMarketplace()
   const me = getUser(currentUserId)
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [saving, setSaving] = useState(false)
+  const mismatch = confirm.length > 0 && password !== confirm
 
-  const [name, setName] = useState(me?.name || '')
-  const [program, setProgram] = useState(me?.program || '')
-  const [batch, setBatch] = useState(me?.batch || '')
-
-  const onSave = (e: React.FormEvent) => {
+  const onPassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    // In a real app, this would update the backend
-    toast.success('Settings saved successfully.')
+    if (password.length < 8 || password !== confirm) return
+    setSaving(true)
+    const { error } = await createClient().auth.updateUser({ password })
+    setSaving(false)
+    if (error) {
+      toast.error('Could not change the password', { description: error.message })
+      return
+    }
+    toast.success('Password changed', { description: 'Use the new password next time you log in.' })
+    setPassword('')
+    setConfirm('')
   }
 
   return (
     <div className="space-y-10">
       <div className="mb-12">
-        <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">Settings</h1>
+        <h1 className="font-display text-4xl font-bold tracking-tight md:text-5xl">Settings</h1>
         <p className="mt-4 text-[14px] text-muted-foreground">Manage your account and preferences.</p>
       </div>
 
       <div className="grid gap-10 md:grid-cols-2">
-        {/* Profile Settings */}
         <section className="space-y-6">
           <div className="space-y-1">
-            <h2 className="text-xl font-semibold tracking-tight">Public Profile</h2>
-            <p className="text-[13px] text-muted-foreground">This information will be visible to other students.</p>
+            <h2 className="text-xl font-semibold tracking-tight">Public profile</h2>
+            <p className="text-[13px] text-muted-foreground">This information is visible to other students.</p>
           </div>
-
-          <form onSubmit={onSave} className="space-y-4">
-            <div className="space-y-1.5">
-              <label htmlFor="name" className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Display Name
-              </label>
-              <input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-card px-3 text-[13px] outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label htmlFor="program" className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Program
-                </label>
-                <input
-                  id="program"
-                  value={program}
-                  onChange={(e) => setProgram(e.target.value)}
-                  placeholder="e.g. CS, SET"
-                  className="h-10 w-full rounded-md border border-input bg-card px-3 text-[13px] outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label htmlFor="batch" className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Batch
-                </label>
-                <input
-                  id="batch"
-                  value={batch}
-                  onChange={(e) => setBatch(e.target.value)}
-                  placeholder="e.g. Fall '24"
-                  className="h-10 w-full rounded-md border border-input bg-card px-3 text-[13px] outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
-                />
-              </div>
-            </div>
-
-            <Button type="submit" className="w-full">
-              Save Changes
-            </Button>
-          </form>
+          <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-4 gap-y-2 border border-border bg-card p-5 text-[13px]">
+            <dt className="text-muted-foreground">Name</dt>
+            <dd className="truncate font-medium">{me.name}</dd>
+            <dt className="text-muted-foreground">Email</dt>
+            <dd className="truncate">{me.email || '—'}</dd>
+            <dt className="text-muted-foreground">Program</dt>
+            <dd className="truncate">{me.program || '—'}</dd>
+            <dt className="text-muted-foreground">Intake</dt>
+            <dd className="truncate">{me.batch || '—'}</dd>
+          </dl>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/onboarding" className={buttonVariants()}>
+              Edit profile
+            </Link>
+            {currentUserId && (
+              <Link href={`/profile/${currentUserId}`} className={buttonVariants({ variant: 'outline' })}>
+                View public profile
+              </Link>
+            )}
+          </div>
         </section>
 
-        {/* Notifications */}
         <section className="space-y-6">
           <div className="space-y-1">
             <h2 className="text-xl font-semibold tracking-tight">Notifications</h2>
-            <p className="text-[13px] text-muted-foreground">Choose what updates you want to receive.</p>
+            <p className="text-[13px] text-muted-foreground">
+              You get in-app notifications for messages, booking requests and approvals, payouts, deadlines, disputes
+              and pre-arrival matches. Email notifications aren&apos;t available yet.
+            </p>
           </div>
-
-          <div className="space-y-4 border border-border bg-card p-5">
-            {[
-              { id: 'msg', title: 'New Messages', desc: 'When someone messages you about a listing' },
-              { id: 'req', title: 'Rental Requests', desc: 'When someone wants to rent your item' },
-              { id: 'match', title: 'Need Matches', desc: 'When a listing matches your pre-arrival need' },
-            ].map((pref) => (
-              <div key={pref.id} className="flex items-start justify-between gap-4">
-                <div className="space-y-0.5">
-                  <label htmlFor={pref.id} className="text-[13px] font-medium leading-none">
-                    {pref.title}
-                  </label>
-                  <p className="text-[12px] text-muted-foreground">{pref.desc}</p>
-                </div>
-                <input
-                  type="checkbox"
-                  id={pref.id}
-                  defaultChecked
-                  className="mt-1 h-4 w-4 shrink-0 rounded-sm border-primary text-primary focus:ring-primary"
-                />
-              </div>
-            ))}
-          </div>
+          <Link href="/notifications" className={cn(buttonVariants({ variant: 'outline' }))}>
+            Open notifications
+          </Link>
         </section>
 
-        {/* Security Settings */}
         <section className="space-y-6 md:col-span-2">
           <div className="space-y-1">
             <h2 className="text-xl font-semibold tracking-tight">Security</h2>
-            <p className="text-[13px] text-muted-foreground">Update your password to keep your account secure.</p>
+            <p className="text-[13px] text-muted-foreground">
+              Change your password. Forgot it? Use{' '}
+              <Link href="/reset-password" className="font-medium text-primary hover:underline">
+                reset password
+              </Link>{' '}
+              instead.
+            </p>
           </div>
 
-          <form onSubmit={(e) => {
-            e.preventDefault()
-            toast.success('Password updated successfully.')
-            // Reset form fields
-            const form = e.target as HTMLFormElement
-            form.reset()
-          }} className="space-y-4 max-w-md">
-            <div className="space-y-1.5">
-              <label htmlFor="currentPassword" className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Current Password
-              </label>
-              <input
-                id="currentPassword"
-                type="password"
-                required
-                className="h-10 w-full rounded-md border border-input bg-card px-3 text-[13px] outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
-              />
-            </div>
+          <form onSubmit={onPassword} className="max-w-md space-y-4">
             <div className="space-y-1.5">
               <label htmlFor="newPassword" className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
-                New Password
+                New password
               </label>
               <input
                 id="newPassword"
                 type="password"
+                autoComplete="new-password"
                 required
                 minLength={8}
-                className="h-10 w-full rounded-md border border-input bg-card px-3 text-[13px] outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={INPUT}
               />
             </div>
-            <Button type="submit">
-              Update Password
+            <div className="space-y-1.5">
+              <label htmlFor="confirmPassword" className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Repeat new password
+              </label>
+              <input
+                id="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                aria-invalid={mismatch}
+                aria-describedby={mismatch ? 'password-mismatch' : undefined}
+                className={INPUT}
+              />
+              {mismatch && (
+                <p id="password-mismatch" role="alert" className="text-[11px] text-destructive">
+                  The passwords don&apos;t match.
+                </p>
+              )}
+            </div>
+            <Button type="submit" disabled={saving || password.length < 8 || password !== confirm}>
+              {saving ? 'Saving…' : 'Change password'}
             </Button>
           </form>
         </section>
