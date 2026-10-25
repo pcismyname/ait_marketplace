@@ -61,7 +61,7 @@ export function DealSummary({
           <Row label="Renter" value={getUser(rental.renterId).name} />
           <Row label="Owner" value={getUser(rental.ownerId).name} />
           <Row label="Rental fee" value={formatPrice(rental.rentalFee)} />
-          <Row label="Deposit held in escrow" value={formatPrice(rental.deposit)} strong />
+          <Row label={rental.releasedAt ? 'Deposit (was held in escrow)' : 'Deposit held in escrow'} value={formatPrice(rental.deposit)} strong />
           {rental.lateFee > 0 && (
             <Row label={`Late fee (${rental.lateDays} day${rental.lateDays === 1 ? '' : 's'}, from the deposit)`} value={formatPrice(rental.lateFee)} />
           )}
@@ -81,7 +81,7 @@ export function DealSummary({
         <dl className="divide-y divide-border">
           <Row label="Buyer" value={getUser(transaction.buyerId).name} />
           <Row label="Seller" value={getUser(transaction.sellerId).name} />
-          <Row label="Price held in escrow" value={formatPrice(transaction.price)} strong />
+          <Row label={transaction.releasedAt ? 'Price (was held in escrow)' : 'Price held in escrow'} value={formatPrice(transaction.price)} strong />
           <Row label="Buyer protection fee" value={formatPrice(transaction.protectionFee)} />
           <Row label="Handed over" value={formatDateTime(transaction.handoverAt)} />
           <Row label="Dispute window closes" value={formatDateTime(transaction.disputeWindowEndsAt)} />

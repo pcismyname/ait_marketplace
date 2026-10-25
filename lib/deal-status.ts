@@ -6,6 +6,7 @@
 // stored columns (rentals.*, transactions.*), never recomputed here.
 
 import type { Deal } from './api/deals'
+import { BRAND } from './data'
 import type { RentalPhase, SaleStatus } from './types'
 
 export type DealRole = 'renter' | 'owner' | 'buyer' | 'seller' | 'viewer'
@@ -179,14 +180,14 @@ export function rentalTimeline(deal: Extract<Deal, { kind: 'rental' }>): Timelin
     detail: r.approvedAt ? undefined : 'Waiting for the owner to approve or decline.',
   }))
   steps.push(step({
-    key: 'paid', title: 'Paid · deposit held by Pass It On', at: r.paidAt, atKind: 'happened',
+    key: 'paid', title: `Paid · deposit held by ${BRAND}`, at: r.paidAt, atKind: 'happened',
     state: r.paidAt ? 'done' : r.approvedAt ? 'current' : 'upcoming',
     detail: r.paidAt ? 'The owner never holds the deposit.' : 'The renter pays the fee, platform fees and the deposit.',
   }))
   steps.push(step({
     key: 'handover', title: 'Handed over · rental starts', at: r.handoverAt, atKind: 'happened',
     state: r.handoverAt ? 'done' : r.paidAt ? 'current' : 'upcoming',
-    detail: r.handoverAt ? `Due back ${formatDateTime(r.dueDate)}.` : 'Meet at the pickup point; either side confirms.',
+    detail: r.handoverAt ? `Due back ${formatDateTime(r.dueDate)}.` : 'Meet at the pickup point; the renter confirms with photos.',
   }))
   steps.push(step({
     key: 'payout', title: 'Rental fee paid to the owner',
@@ -267,13 +268,13 @@ export function saleTimeline(deal: Extract<Deal, { kind: 'sale' }>): TimelineSte
   const disputed = t.status === 'disputed' || t.status === 'resolved'
   return [
     step({
-      key: 'paid', title: 'Paid · held by Pass It On', at: t.paidAt ?? t.createdAt, atKind: 'happened', state: 'done',
+      key: 'paid', title: `Paid · held by ${BRAND}`, at: t.paidAt ?? t.createdAt, atKind: 'happened', state: 'done',
       detail: 'The seller is paid only after the handover window.',
     }),
     step({
       key: 'handover', title: 'Handed over · window opens', at: t.handoverAt, atKind: 'happened',
       state: t.handoverAt ? 'done' : t.status === 'paid' ? 'current' : t.releasedAt ? 'done' : 'upcoming',
-      detail: t.handoverAt || t.releasedAt ? undefined : 'Meet at the pickup point; either side confirms.',
+      detail: t.handoverAt || t.releasedAt ? undefined : 'Meet at the pickup point; the renter confirms with photos.',
     }),
     step({
       key: 'window', title: disputed ? 'Dispute filed' : '48-hour dispute window',

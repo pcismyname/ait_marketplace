@@ -1,6 +1,6 @@
 # End-to-end results
 
-Run 2026-10-24 23:04 UTC against http://localhost:3000 (local Supabase, demo accounts from `npm run seed:demo`), headless Microsoft Edge via playwright-core.
+Run 2026-10-25 00:03 UTC against http://localhost:3000 (local Supabase, demo accounts from `npm run seed:demo`), headless Microsoft Edge via playwright-core.
 Re-run with `npm run test:e2e` (setup notes at the top of [lib.mjs](lib.mjs)). Screenshots go to `tests/e2e/output/` (git-ignored).
 
 | Flow | Result | Steps |
@@ -36,7 +36,7 @@ Re-run with `npm run test:e2e` (setup notes at the top of [lib.mjs](lib.mjs)). S
 | 1 | in person: listing page → "Buy now" → checkout shows no fee | pass | pending, total ฿300, no escrow |
 | 2 | in person: the seller marks it sold from the deal page | pass | completed, listing sold, no ledger rows |
 | 3 | protected: checkout shows ฿500 + ฿25 fee = ฿525 | pass | paid ฿525 by card, listing reserved |
-| 4 | protected: the seller confirms the handover (48 h window opens) | pass | window closes 2026-10-26T22:59:27.932627+00:00 |
+| 4 | protected: the seller confirms the handover (48 h window opens) | pass | window closes 2026-10-26T23:58:37.625906+00:00 |
 | 5 | protected: the buyer sees the countdown and confirms receipt → released | pass | released, listing sold |
 | 6 | protected: the seller is paid the full ฿500 (fee stays with the platform) | pass | seller available +฿500 |
 | 7 | protected: the rating dialog opens and saves a review | pass |  |
@@ -57,9 +57,9 @@ Re-run with `npm run test:e2e` (setup notes at the top of [lib.mjs](lib.mjs)). S
 | 9 | owner confirms a good return with a photo → deposit refunded in full | pass | released; renter +฿300; listing available |
 | 10 | renter rates the owner from the My Rentals card | pass |  |
 | 11 | the deal page shows the full timeline and amounts | pass |  |
-| 12 | owner files a dispute with a ฿150 repair claim and a photo | pass | dispute 9b5c6015… |
+| 12 | owner files a dispute with a ฿150 repair claim and a photo | pass | dispute 0e23087b… |
 | 13 | the renter sees the open dispute | pass |  |
-| 14 | admin resolves as repairable damage: ฿150 to the owner, ฿350 refunded | pass | owner +฿350 (claim + rental fee), renter +฿350 |
+| 14 | admin resolves as repairable damage: ฿150 to the owner, ฿350 refunded | pass | owner +฿150 (claim; rental fee still held until 48 h after handover), renter +฿350 |
 | 15 | both parties see the decision | pass |  |
 | 16 | returned and unconfirmed: the deposit stays held during the 48 h window | pass |  |
 | 17 | admin fast-forwards 49 h → auto-release of the deposit and the owner payout | pass | Escrow jobs: 1 rental deposit released. · renter +฿400 |
@@ -80,10 +80,10 @@ Re-run with `npm run test:e2e` (setup notes at the top of [lib.mjs](lib.mjs)). S
 
 | # | Step | Result | Notes |
 |---|---|---|---|
-| 1 | buyer: crawled 30 internal links | pass | 19 route shapes |
-| 2 | owner: crawled 39 internal links | pass | 23 route shapes |
-| 3 | seller: crawled 33 internal links | pass | 21 route shapes |
-| 4 | admin: crawled 31 internal links | pass | 23 route shapes |
+| 1 | buyer: crawled 29 internal links | pass | 18 route shapes |
+| 2 | owner: crawled 37 internal links | pass | 22 route shapes |
+| 3 | seller: crawled 32 internal links | pass | 20 route shapes |
+| 4 | admin: crawled 30 internal links | pass | 22 route shapes |
 
 ## quality — pass
 

@@ -5,7 +5,7 @@
 //   respondRental      owner    requested               → approved | declined
 //   cancelRental       either   requested | approved    → cancelled
 //   payRental          renter   approved                → paid   (deposit + fee held)
-//   confirmHandover    either   paid                    → active (due date + payout clock start)
+//   confirmHandover    renter   paid                    → active (photo required; due date + payout clock start)
 //   markReturned       either   active | overdue        → return-pending (48 h window) | missing
 //   confirmReturn      owner    return-pending | active | overdue → released (early release)
 //   run_escrow_jobs    anyone   → overdue, missing, auto-release, owner payout, reminders

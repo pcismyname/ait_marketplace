@@ -37,6 +37,14 @@ create function pg_temp.bal(p_user text, p_bucket text) returns numeric
 language sql stable as $$ select coalesce(sum(amount), 0) from public.wallet_ledger where user_id = p_user and bucket = p_bucket $$;
 create function pg_temp.status(p_tx text) returns text
 language sql stable as $$ select status from public.transactions where id = p_tx $$;
+-- A condition photo uploaded by the signed-in party (storage RLS applies).
+create function pg_temp.photo(p_rental text) returns text[]
+language plpgsql as $$
+declare v text := 'rental/' || p_rental || '/' || auth.uid()::text || '/' || gen_random_uuid()::text || '.png';
+begin
+  insert into storage.objects (bucket_id, name, owner_id) values ('dispute-evidence', v, auth.uid()::text);
+  return array[v];
+end $$;
 -- Run a rental up to return-pending (as each party), returning its id.
 create function pg_temp.returned_rental(p_listing text, p_renter text, p_owner text, p_days_late integer default 0) returns text
 language plpgsql as $$
@@ -48,11 +56,11 @@ begin
   perform public.respond_rental(v, true);
   perform pg_temp.login(p_renter);
   perform public.pay_rental(v, 'promptpay');
-  perform public.confirm_handover(v);
+  perform public.confirm_handover(v, pg_temp.photo(v));
   perform pg_temp.logout();
   update public.rentals set due_date = now() - make_interval(days => p_days_late) where id = v;
   perform pg_temp.login(p_renter);
-  perform public.mark_returned(v);
+  perform public.mark_returned(v, pg_temp.photo(v));
   perform pg_temp.logout();
   return v;
 end $$;

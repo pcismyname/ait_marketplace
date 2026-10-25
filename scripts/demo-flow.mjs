@@ -56,6 +56,16 @@ async function rpc(user, fn, args = {}) {
   return data
 }
 
+// A condition photo (handover / return need one), uploaded as that user.
+const PNG_1PX = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNoaGgAAAMEAYFL09IQAAAAAElFTkSuQmCC', 'base64')
+async function photo(user, rentalId) {
+  const name = `rental/${rentalId}/${user.id}/${randomUUID()}.png`
+  const { error } = await user.client.storage.from('dispute-evidence').upload(name, PNG_1PX, { contentType: 'image/png' })
+  if (error) throw new Error(`photo upload: ${error.message}`)
+  return [name]
+}
+
 async function wallet(user) {
   const [row] = await rpc(user, 'get_wallet_summary')
   return row
@@ -108,7 +118,7 @@ try {
   assert.equal(renterAfterPay.deposits_held, 800)
   step(6, `renter paid ฿${rental.total_paid} by PromptPay (simulated) → ${rental.phase}; ฿${renterAfterPay.deposits_held} deposit held`)
 
-  rental = await rpc(renter, 'confirm_handover', { p_rental_id: rental.id })
+  rental = await rpc(renter, 'confirm_handover', { p_rental_id: rental.id, p_photos: await photo(renter, rental.id) })
   assert.equal(rental.phase, 'active')
   step(7, `handover confirmed → ${rental.phase}, due ${rental.due_date.slice(0, 10)}`)
 
@@ -122,7 +132,7 @@ try {
   assert.equal(ownerAfterPayout.available, 250)
   step(8, `48 h after handover the job paid the owner ฿${ownerAfterPayout.available} (jobs: ${JSON.stringify(jobs)})`)
 
-  rental = await rpc(renter, 'mark_returned', { p_rental_id: rental.id })
+  rental = await rpc(renter, 'mark_returned', { p_rental_id: rental.id, p_photos: await photo(renter, rental.id) })
   assert.equal(rental.phase, 'return-pending')
   step(9, `renter returned it → ${rental.phase}, window until ${rental.dispute_window_ends_at.slice(0, 16)}`)
 

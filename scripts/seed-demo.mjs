@@ -15,8 +15,9 @@
 // code or in a NEXT_PUBLIC_ variable.
 
 import { createClient } from '@supabase/supabase-js'
-import { randomBytes } from 'node:crypto'
-import { existsSync, writeFileSync } from 'node:fs'
+import { randomBytes, randomUUID } from 'node:crypto'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import zlib from 'node:zlib'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -208,6 +209,40 @@ async function rpc(client, fn, args = {}) {
 }
 const L = (key) => listingIds.get(key)
 
+// Condition photos (handover / return need at least one, BusinessRules §4, §9),
+// uploaded as that party to dispute-evidence/rental/<id>/<uid>/.
+function solidPng(width, height, [r, g, b]) {
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4)
+    len.writeUInt32BE(data.length)
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data])
+    const crc = Buffer.alloc(4)
+    crc.writeUInt32BE(zlib.crc32(body) >>> 0)
+    return Buffer.concat([len, body, crc])
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(width, 0)
+  ihdr.writeUInt32BE(height, 4)
+  ihdr[8] = 8 // bit depth
+  ihdr[9] = 2 // RGB
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(width * 3).map((_, i) => [r, g, b][i % 3])])
+  const raw = Buffer.concat(Array.from({ length: height }, () => row))
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', zlib.deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ])
+}
+async function conditionPhoto(role, rentalId, image) {
+  const file = image ? readFileSync(path.join(root, 'public', 'images', image)) : solidPng(64, 48, [160, 160, 160])
+  const type = image ? 'image/webp' : 'image/png'
+  const name = `rental/${rentalId}/${accounts[role].id}/${randomUUID()}.${image ? 'webp' : 'png'}`
+  const { error } = await as[role].storage.from('dispute-evidence').upload(name, file, { contentType: type })
+  if (error) throw new Error(`upload condition photo: ${error.message}`)
+  return [name]
+}
+
 // Fridge: a request waiting for the owner.
 await rpc(as.renter, 'request_rental', { p_listing_id: L('l_fridge'), p_message: 'Could I pick it up on Friday afternoon?' })
 await rpc(as.renter, 'start_thread', { p_listing_id: L('l_fridge'), p_other_user_id: accounts.owner.id, p_text: 'Hi! I just requested your mini fridge. Is Friday OK?' })
@@ -220,22 +255,22 @@ await rpc(as.owner, 'respond_rental', { p_rental_id: cookware.id, p_approve: tru
 let badminton = await rpc(as.renter, 'request_rental', { p_listing_id: L('l_badminton') })
 await rpc(as.owner, 'respond_rental', { p_rental_id: badminton.id, p_approve: true })
 await rpc(as.renter, 'pay_rental', { p_rental_id: badminton.id, p_method: 'promptpay' })
-await rpc(as.owner, 'confirm_handover', { p_rental_id: badminton.id })
+await rpc(as.renter, 'confirm_handover', { p_rental_id: badminton.id, p_photos: await conditionPhoto('renter', badminton.id, 'badminton.webp') })
 await rpc(as.admin, 'admin_time_travel', { p_id: badminton.id, p_hours: 24 * 6 })
-await rpc(as.renter, 'mark_returned', { p_rental_id: badminton.id })
+await rpc(as.renter, 'mark_returned', { p_rental_id: badminton.id, p_photos: await conditionPhoto('renter', badminton.id, 'badminton.webp') })
 await rpc(as.owner, 'confirm_return', { p_rental_id: badminton.id })
 badminton = await rpc(as.renter, 'request_rental', { p_listing_id: L('l_badminton') })
 await rpc(as.owner, 'respond_rental', { p_rental_id: badminton.id, p_approve: true })
 await rpc(as.renter, 'pay_rental', { p_rental_id: badminton.id, p_method: 'card' })
-await rpc(as.owner, 'confirm_handover', { p_rental_id: badminton.id })
+await rpc(as.renter, 'confirm_handover', { p_rental_id: badminton.id, p_photos: await conditionPhoto('renter', badminton.id, 'badminton.webp') })
 await rpc(as.admin, 'admin_time_travel', { p_id: badminton.id, p_hours: 24 * 32 }) // 30-day rental, 2 days late
 
 // Kettle: returned, owner reports damage → open dispute for the admin queue.
 const kettle = await rpc(as.renter, 'request_rental', { p_listing_id: L('l_kettle') })
 await rpc(as.owner, 'respond_rental', { p_rental_id: kettle.id, p_approve: true })
 await rpc(as.renter, 'pay_rental', { p_rental_id: kettle.id, p_method: 'card' })
-await rpc(as.renter, 'confirm_handover', { p_rental_id: kettle.id })
-await rpc(as.renter, 'mark_returned', { p_rental_id: kettle.id })
+await rpc(as.renter, 'confirm_handover', { p_rental_id: kettle.id, p_photos: await conditionPhoto('renter', kettle.id) })
+await rpc(as.renter, 'mark_returned', { p_rental_id: kettle.id, p_photos: await conditionPhoto('renter', kettle.id) })
 await rpc(as.owner, 'file_dispute', {
   p_rental_id: kettle.id, p_reason: 'Damage', p_description: 'The lid hinge is cracked; it was fine at handover.', p_claim_amount: 150,
 })

@@ -151,8 +151,8 @@ export default function DisputePage() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-6">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0 space-y-6">
           {/* Status */}
           <section className="rounded-xl border border-border bg-surface p-5">
             <h2 className="mb-4 text-[15px] font-semibold">Status</h2>

@@ -54,6 +54,15 @@ select public.mark_thread_read(pg_temp.id('th'));
 select is((select count(*)::int from public.notifications where kind = 'message' and read_at is null), 0, 'reading the thread clears it');
 select isnt((select last_read_at from public.thread_participants where thread_id = pg_temp.id('th') and user_id = pg_temp.id('a')), null, 'last_read_at is recorded');
 
+-- A condition photo uploaded by the signed-in party (storage RLS applies).
+create function pg_temp.photo(p_rental text) returns text[]
+language plpgsql as $$
+declare v text := 'rental/' || p_rental || '/' || auth.uid()::text || '/' || gen_random_uuid()::text || '.png';
+begin
+  insert into storage.objects (bucket_id, name, owner_id) values ('dispute-evidence', v, auth.uid()::text);
+  return array[v];
+end $$;
+
 -- A full rental, then reviews.
 select pg_temp.login(pg_temp.id('b'));
 select pg_temp.set_id('r', r.id) from public.request_rental('l-fridge') r;
@@ -61,7 +70,7 @@ select pg_temp.login(pg_temp.id('a'));
 select public.respond_rental(pg_temp.id('r'), true);
 select pg_temp.login(pg_temp.id('b'));
 select public.pay_rental(pg_temp.id('r'), 'promptpay');
-select public.confirm_handover(pg_temp.id('r'));
+select public.confirm_handover(pg_temp.id('r'), pg_temp.photo(pg_temp.id('r')));
 
 -- Admin time travel moves the deal 49 h back, so the payout is due.
 select throws_ok(format($$ select public.admin_time_travel(%L, 49) $$, pg_temp.id('r')), 'P0001', null, 'only admins time-travel');
@@ -74,7 +83,7 @@ select is((select held from public.get_wallet_summary()), 0::numeric, 'nothing h
 select is((select w.amount from public.wallet_withdraw(100) w), -100::numeric, 'withdrawal is recorded');
 select is((select available from public.get_wallet_summary()), 150::numeric, '฿150 left');
 select throws_ok($$ select public.wallet_withdraw(1000) $$, 'P0001', null, 'cannot withdraw more than the balance');
-select public.confirm_return(pg_temp.id('r'));
+select public.confirm_return(pg_temp.id('r'), pg_temp.photo(pg_temp.id('r')));
 
 select pg_temp.login(pg_temp.id('b'));
 select is((select deposits_held from public.get_wallet_summary()), 0::numeric, 'renter has no deposit held after release');

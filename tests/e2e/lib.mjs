@@ -143,6 +143,17 @@ export async function selectOne(role, table, id) {
   return data
 }
 
+/** Upload a condition photo as `role` for a rental (handover / return need one). Returns [path]. */
+export async function conditionPhotoAs(role, rentalId) {
+  const { client, userId } = await apiAs(role)
+  const name = `rental/${rentalId}/${userId}/${crypto.randomUUID()}.png`
+  const { error } = await client.storage
+    .from('dispute-evidence')
+    .upload(name, readFileSync(photoFile()), { contentType: 'image/png' })
+  if (error) throw new Error(`condition photo: ${error.message}`)
+  return [name]
+}
+
 /** Insert a fresh listing owned by `role` (the listing guard still applies). */
 export async function createListing(role, fields) {
   const { client, userId } = await apiAs(role)

@@ -3,7 +3,7 @@
 **Owns:** the Supabase schema, the rental and sale state machines as built, every RPC, Row Level Security, storage paths, and how to run, test and deploy the database.
 **Follows:** [BusinessRules.md](BusinessRules.md) for every money rule. If this file and BusinessRules.md disagree, BusinessRules.md wins: fix the SQL.
 
-Schema: [`supabase/migrations/`](../supabase/migrations/) (`20261025000000_remote_baseline.sql` is the live schema before P0; `20261025010000_p0_core.sql` adds everything below). Client wrappers: [`lib/api/`](../lib/api/). Tests: [`supabase/tests/`](../supabase/tests/) and [`lib/fees.db.test.ts`](../lib/fees.db.test.ts).
+Schema: [`supabase/migrations/`](../supabase/migrations/) (`20261025000000_remote_baseline.sql` is the live schema before P0; `20261025010000_p0_core.sql` adds everything below, the `20261025020…` files add features, and `20261025030000_review_fixes.sql` applies the final-review fixes listed in section 4.1). Client wrappers: [`lib/api/`](../lib/api/). Tests: [`supabase/tests/`](../supabase/tests/) and [`lib/fees.db.test.ts`](../lib/fees.db.test.ts).
 
 **All money is simulated** (BusinessRules §7). Payments, escrow holds, payouts and refunds are rows in `wallet_ledger` plus state changes. There is no gateway and no test mode.
 
@@ -25,11 +25,11 @@ Schema: [`supabase/migrations/`](../supabase/migrations/) (`20261025000000_remot
 |---|---|---|---|
 | `users` | Profile per auth user (auto-created at signup). `is_admin`, `pickup_location`, `role_intents`, `arrival_date`, `departure_date`, `onboarded_at` added. | Signed-in users | Owner of the row. `is_admin`, `rating`, `reviews_count` are ignored from clients (trigger). The `email` always mirrors the auth email. |
 | `listings` | Items for sale or rent. Adds `replacement_value`, `featured_until`, `updated_at`, and `search` (a generated tsvector). | Everyone, logged out too | Seller (insert, update, delete); admins (update, delete). Guarded, see below. |
-| `listing_history` | Item history ("Bought in person", …) | Everyone | Seller of the listing. The RPCs append to it. |
+| `listing_history` | Item history ("Bought in person", …) | Everyone | The RPCs append to it. A seller may insert only the first row of their own new listing (`Listed on …`, under their own name); nobody edits or deletes rows from the client. |
 | `reviews` | Adds `subject_id` (the reviewed user), `rental_id`, `transaction_id`; role can be `owner` | Everyone | `submit_review` only |
 | `needs` | Pre-arrival requests. `needed_by` (date) and `listing_type` (`any` / `sale` / `rent`) added by `20261025020500_needs_matching.sql`; a trigger fills `needed_by` from legacy free-text `arrival_date` (`'August 2026'` → 2026-08-01). | Signed-in users | Own rows (insert, update, delete) |
 | `favorites` | Saved listings | Own rows | Own rows |
-| `threads` · `thread_participants` · `messages` | Chat. `threads.created_by`, `thread_participants.last_read_at` added. | Participants and admins (admins need the chat history for disputes) | `start_thread` creates threads and participants. Participants insert messages. |
+| `threads` · `thread_participants` · `messages` | Chat. `threads.created_by`, `thread_participants.last_read_at` added. | Participants and admins (admins need the chat history for disputes) | `start_thread` creates threads and participants. Participants insert messages. Messages can't be edited (they are dispute evidence). |
 | `rentals` | Rental bookings (section 3.1) | Renter, owner, admins | RPCs only |
 | `transactions` | Sales, in person and protected (section 3.2) | Buyer, seller, admins | RPCs only |
 | `disputes` | One open dispute per rental or sale | The parties and admins | `file_dispute`, `resolve_dispute` |
@@ -44,6 +44,8 @@ Schema: [`supabase/migrations/`](../supabase/migrations/) (`20261025000000_remot
 - A new listing starts as `available` or `paused`.
 - `rented` is set only by `pay_rental`. While a booking (`approved` … `overdue`) or a protected sale (`paid`, `handed-over`, `disputed`) is in progress, the status can't be changed by hand.
 - A listing with rental or sale history can't be deleted; pause it instead.
+- `times_changed_hands` and `view_count` are server-kept (`listings_client_fields_guard`): a client insert starts at 1 and 0, and a client update that changes either is refused.
+- When `replacement_value` is set on a rental, the deposit must be 30–50% of it, clamped to ฿200–฿3,000 (same numbers as `depositRangeForValue` in `lib/fees.ts`; checked on insert and whenever type, deposit or value change).
 
 ### Premium placement, type lock, whole baht (`listings_premium_type_guard` trigger, clients only)
 
@@ -107,7 +109,8 @@ Money rules applied:
 
 - **Late fee** = `ceil(rental_fee / period_days)` per day late (part days count), taken from the deposit and capped at it. It is fixed at the return.
 - **Missing** = more than 7 days late. The full deposit goes to the owner and the listing is paused.
-- **Owner payout**: the rental fee is released 48 h after handover, unless the rental is `disputed` at that moment (then it's paid when the dispute is resolved). The deposit is untouched until the return.
+- **Owner payout**: the rental fee is released 48 h after handover, unless the rental is `disputed` at that moment (then it's paid when the dispute is resolved). A dispute resolved before `payout_at` doesn't bring the payout forward: the job pays `resolved` rentals at `payout_at`. The deposit is untouched until the return.
+- **Handover**: only the renter confirms it (`confirm_handover`), with at least one photo; `mark_returned` and `confirm_return` also need one (photos already on the rental count for `confirm_return`). Photo paths must be uploaded objects under `dispute-evidence/rental/<id>/`.
 - **Release** (owner confirms, or the window closes with no dispute): the owner gets `late_fee`, and the renter gets `deposit − late_fee`. The listing goes back to `available`.
 - **Dispute resolution**: the owner gets `min(deposit, late_fee + claim)`. The claim is ฿0 for normal wear, the repair cost for repairable damage (must be ≤ deposit, or the RPC refuses), and the full deposit for lost or destroyed.
 
@@ -116,7 +119,7 @@ Money rules applied:
 ```
 in person:  create_sale(in-person) ──► pending ── mark_sold (seller) ──► completed
                                           └── cancel_sale (either) ──► cancelled
-            mark_sold without a pending purchase records a completed sale (buyer optional).
+            mark_sold(listing, buyer) needs that buyer's pending purchase; without a buyer it records a completed sale with no buyer.
 
 protected:  create_sale(protected, method) ──► paid ── confirm_sale_handover (either) ──► handed-over
                                                  │                                          │ 48 h, no dispute (job)
@@ -127,8 +130,8 @@ protected:  create_sale(protected, method) ──► paid ── confirm_sale_ha
                                                                          disputed ── resolve_dispute ──► resolved
 ```
 
-- In-person sales never touch the ledger and have no disputes. An in-person intent doesn't reserve the listing. `mark_sold` completes the chosen buyer's pending purchase and cancels the others (each gets a notification).
-- Protected: on payment the price is held for the seller, the protection fee goes to the platform, and the listing becomes `reserved`. On release the seller gets the price and the listing becomes `sold` (`times_changed_hands + 1`, plus a history row).
+- In-person sales never touch the ledger and have no disputes. An in-person intent doesn't reserve the listing. `mark_sold` completes the chosen buyer's pending purchase and cancels the others (each gets a notification). A buyer id without a pending purchase is refused, so a seller can't record a sale to (and then review) a student who never asked to buy.
+- Protected: on payment the price is held for the seller, the protection fee goes to the platform, and the listing becomes `reserved`. On release the seller gets the price and the listing becomes `sold` (`times_changed_hands + 1`, plus a history row); other buyers' pending in-person purchases are cancelled and those buyers notified.
 - Resolution for sales: `not-as-described` refunds `amount` (default: the full price, capped at the price) to the buyer's wallet, and the seller gets the rest. A full refund pauses the listing instead of marking it sold. `normal-wear` rejects the claim, and the seller is paid in full. The protection fee is not refunded.
 
 ### 3.3 Pre-arrival matching (`20261025020500_needs_matching.sql`)
@@ -151,19 +154,19 @@ Each RPC checks `auth.uid()`, locks the row, validates the from-state and raises
 | `respond_rental(p_rental_id, p_approve, p_reason?)` | owner | `requested` → `approved` / `declined` | Approve: listing `reserved` (only one approved booking per item). Renter notified |
 | `cancel_rental(p_rental_id, p_reason?)` | either | `requested` / `approved` → `cancelled` | Listing back to `available` if it was reserved; other party notified |
 | `pay_rental(p_rental_id, p_method)` | renter | `approved` → `paid` | Ledger: payment −total; deposit held (renter); rental fee held (owner); commission and escrow fee to the platform. Listing `rented`; other `requested` bookings declined. `wallet` needs enough available balance. |
-| `confirm_handover(p_rental_id, p_photos?)` | either | `paid` → `active` | Due date and payout time start; other party notified |
-| `mark_returned(p_rental_id, p_photos?)` | either | `active` / `overdue` → `return-pending` (or `missing` if more than 7 days late) | Late fee fixed; 48 h window opens; other party notified |
-| `confirm_return(p_rental_id, p_photos?)` | owner | `return-pending` (or `active` / `overdue`, which records the return first) → `released` | Deposit settled (owner: late fee; renter: the rest); listing `available`; payout if due |
+| `confirm_handover(p_rental_id, p_photos)` | renter | `paid` → `active` | Needs ≥ 1 photo. Due date and payout time start; owner notified |
+| `mark_returned(p_rental_id, p_photos)` | either | `active` / `overdue` → `return-pending` (or `missing` if more than 7 days late) | Needs ≥ 1 photo. Late fee fixed; 48 h window opens; other party notified |
+| `confirm_return(p_rental_id, p_photos?)` | owner | `return-pending` (or `active` / `overdue`, which records the return first) → `released` | Needs ≥ 1 return photo (either party's). Deposit settled (owner: late fee; renter: the rest); listing `available`; payout if due |
 | `create_sale(p_listing_id, p_mode, p_method?)` → transactions | buyer (not the seller) | listing `available` → `pending` (in person) / `paid` (protected) | Protected: ledger payment, price held, fee to the platform, listing `reserved`. Seller notified |
 | `confirm_sale_handover(p_transaction_id, p_photos?)` | either | `paid` → `handed-over` | 48 h window; buyer notified |
 | `confirm_sale_receipt(p_transaction_id)` | buyer | `paid` / `handed-over` → `released` | Seller paid now; listing `sold` |
-| `mark_sold(p_listing_id, p_buyer_id?)` | seller | sale listing, no protected sale open → `completed` | Listing `sold`; other pending purchases cancelled |
+| `mark_sold(p_listing_id, p_buyer_id?)` | seller | sale listing, no protected sale open → `completed` | `p_buyer_id` must have a pending in-person purchase. Listing `sold`; other pending purchases cancelled |
 | `cancel_sale(p_transaction_id)` | either | `pending` → `cancelled` | Other party notified. Protected purchases can't be cancelled. |
-| `file_dispute(p_reason, p_description?, p_rental_id?, p_transaction_id?, p_evidence?, p_claim_amount?)` → disputes | rental: either party; sale: buyer | rental `return-pending` / sale `handed-over`, before `dispute_window_ends_at` → `disputed` | Evidence paths must be under `rental/<id>/` or `sale/<id>/`; claim ≤ deposit / price. Other party and all admins notified |
-| `resolve_dispute(p_dispute_id, p_finding, p_amount?, p_note?)` → disputes | admin | dispute `open` → `resolved`; deal → `resolved` | Settlement per §3 above; ledger rows carry `dispute_id`; both parties notified |
+| `file_dispute(p_reason, p_description?, p_rental_id?, p_transaction_id?, p_evidence?, p_claim_amount?)` → disputes | rental: either party; sale: buyer | rental `return-pending` / sale `handed-over`, before `dispute_window_ends_at` → `disputed` | Evidence paths must be under `rental/<id>/` or `sale/<id>/`; claim is whole baht, ≥ 0 and ≤ deposit / price. Other party and all admins notified |
+| `resolve_dispute(p_dispute_id, p_finding, p_amount?, p_note?)` → disputes | admin | dispute `open` → `resolved`; deal → `resolved` | Amount is whole baht. Settlement per §3 above; ledger rows carry `dispute_id`; both parties notified |
 | `run_escrow_jobs()` → jsonb counts | any signed-in user, pg_cron | — | Idempotent. Overdue, missing, rental auto-release, owner payouts, sale auto-release, reminders 24 h and 2 h before a window closes (each sent once) |
 | `get_wallet_summary()` → `{held, available, pending_payouts, deposits_held}[]` | self | — | — |
-| `wallet_withdraw(p_amount)` → wallet_ledger | self | — | Simulated withdrawal (−available) |
+| `wallet_withdraw(p_amount)` → wallet_ledger | self | — | Simulated withdrawal (−available). Takes the per-user wallet lock, like every `wallet` payment (`private.take_payment`), so a payment and a withdrawal can't both spend the same balance |
 | `mark_notifications_read(p_ids?)` → int | self | — | `null` marks all |
 | `start_thread(p_listing_id, p_other_user_id, p_text, p_thread_id?, p_message_id?)` → `{thread_id, message_id, created}` | signed-in user | — | Reuses the pair's thread on that listing, or creates thread + participants + message atomically |
 | `mark_thread_read(p_thread_id)` | participant | — | Sets `last_read_at`; clears that thread's message notification |
@@ -175,6 +178,10 @@ Each RPC checks `auth.uid()`, locks the row, validates the from-state and raises
 | `admin_stats()` → jsonb | admin | — (read) | `/admin/dashboard` counters: users, admins, listings, activeListings, hiddenListings, open/resolvedDisputes, rentalsInProgress, salesInEscrow, `heldEscrow` (Σ ledger `held`), `platformRevenue` (Σ ledger `platform`). Wrapper `getAdminStats` |
 | `match_needs(p_need_id?)` → `{need_id, listing_id, featured, listed_at}[]` | signed-in user | — (read) | Pre-arrival matching (section 3.3). No argument: the caller's own needs; with an id: that need. Featured listings first, then newest. |
 | `is_admin()`, `is_thread_participant(id)`, `is_rental_party(id)`, `is_transaction_party(id)`, `is_dispute_party(id)`, `can_read_evidence(path)`, `can_write_evidence(path)`, `listing_has_open_deal(id)`, `listing_has_history(id)` | RLS predicates (callable, return booleans about the caller) | — | — |
+
+### 4.1 Final-review fixes (`20261025030000_review_fixes.sql`)
+
+Wallet payments take `pg_advisory_xact_lock(hashtext('wallet:' || uid))` before reading the balance; the owner's rental fee is paid at `payout_at` even after a quick dispute decision; dispute amounts are whole baht; handover and return photos are required in SQL and only the renter confirms a handover; `mark_sold` needs the buyer's pending purchase; `release_sale` cancels the other in-person intents; the "Users can update their messages" policy and the `update` grant on `messages` are gone; listing counters are server-kept and the deposit is checked against the replacement value; item history is RPC-written. Tested in `supabase/tests/20261025030000_review_fixes.test.sql`.
 
 Internal helpers live in the `private` schema, which the API can't see: `js_round` (JavaScript `Math.round`), `period_days`, `late_settlement`, `ledger`, `notify`, `settle_rental`, `release_sale`, …
 
@@ -287,9 +294,13 @@ Add `supabase/migrations/<timestamp>_<name>.sql`, run `npm run db:reset && npm r
 
 ### Production push (manual, after review)
 
+**Order matters: migrations first, then the Vercel deploy right after.** The new app code needs the new schema (with the old schema the store's first listings query fails on `listings.featured_until`, and the RPCs, tables and buckets are missing), and the live `master` code writes `rentals` directly, which `20261025010000_p0_core.sql` forbids. So push the migrations and deploy `feat/p0-core` in one sitting, with no gap; until the deploy finishes, the old app can't create bookings. The migrations don't fail on existing rows (the new check constraints are supersets of the baseline ones; `owner_id` and `period_days` are backfilled before `SET NOT NULL`).
+
 1. `npx -y supabase@2.122.0 link --project-ref cnpjndeuohdrrdmohios` (already linked).
-2. `npx -y supabase@2.122.0 db push --dry-run`, which should list, in this order: `20261025010000_p0_core.sql`, `20261025020300_admin_moderation.sql`, `20261025020400_listing_featured_rank.sql`, `20261025020401_premium_placement.sql`, `20261025020500_needs_matching.sql`. (Production has none of them yet, so the order is fine and `--include-all` is not needed there. A local database that applied `…020500` before `…020401` existed needs `migration up --local --include-all`, or just `db reset`.)
+2. `npx -y supabase@2.122.0 db push --dry-run`, which should list, in this order: `20261025010000_p0_core.sql`, `20261025020300_admin_moderation.sql`, `20261025020400_listing_featured_rank.sql`, `20261025020401_premium_placement.sql`, `20261025020500_needs_matching.sql`, `20261025030000_review_fixes.sql`. (Production has none of them yet, so the order is fine and `--include-all` is not needed there. A local database that applied `…020500` before `…020401` existed needs `migration up --local --include-all`, or just `db reset`.)
 3. `npx -y supabase@2.122.0 db push`.
+3b. Deploy `feat/p0-core` to Vercel straight away (merge to `master`, or promote the preview), then do the dashboard steps below.
+3c. Dashboard → Authentication → Providers → Email → **Confirm email: ON**. The `@ait.asia` rule only checks the domain; the confirmation mail is what proves the student owns the mailbox. (Locally `supabase/config.toml` keeps `enable_confirmations = false` so demo and test sign-ups work without Mailpit; the seed creates confirmed accounts.)
 4. Dashboard → Authentication → Hooks → *Before User Created* → Postgres function `private.hook_before_user_created` (friendly message; the trigger enforces the rule without it).
 4b. Dashboard → Authentication → URL Configuration → Redirect URLs: add `https://<site>/onboarding` (sign-up and `/verify-email` resend send the confirmation link back to `/onboarding`, where the browser client finishes the PKCE sign-in). Locally `supabase/config.toml` only allows `http://127.0.0.1:3000`, so confirmation links fall back to that site URL; the address is still confirmed and the student logs in from `/login`. Also add `https://<site>/reset-password?step=new` (the "Forgot password?" mail from `/reset-password` comes back there to set the new password). Locally that link falls back to `http://127.0.0.1:3000/`, where the reset form does not open; add `http://localhost:3000/**` to `additional_redirect_urls` (needs a Supabase restart) to test the whole flow locally.
 5. Dashboard → Database → Extensions: check `pg_cron` is on and the job `pass-it-on-escrow-jobs` exists (`select * from cron.job`). If not, enable pg_cron and run the scheduling block at the end of the migration.
@@ -302,4 +313,5 @@ Add `supabase/migrations/<timestamp>_<name>.sql`, run `npm run db:reset && npm r
 
 - Admin approval for rentals worth more than ฿6,000: the `listings.replacement_value` column exists; there is no flow yet.
 - A paid booking or protected purchase can't be cancelled before handover. The refund rule for a no-show isn't in BusinessRules.md yet; it needs a team decision. Until then an admin has to step in.
+- Every signed-in user can read every profile row, including `email`, `arrival_date`, `departure_date` and `pickup_location` (baseline policy "Authenticated users can read profiles"). Fixing it needs column-level grants plus self/admin RPCs for the private fields, and the app reads `users.*` in seven places (store, profiles, onboarding, admin): deferred, see action_items.md §2.12.
 - Premium placement is no longer open: it is charged (simulated ฿49 for 7 days) by `enable_premium_placement`, see section 4.

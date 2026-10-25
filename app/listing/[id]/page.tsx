@@ -276,8 +276,8 @@ export default function ListingDetailPage() {
               <p className="text-[12px] leading-relaxed text-surge-foreground">
                 Total at booking: <strong>{formatPrice(quote.totalDueNow)}</strong> — rental fee{' '}
                 {formatPrice(quote.rentalFee)}, {Math.round(RENTAL_COMMISSION_RATE * 100)}% commission{' '}
-                {formatPrice(quote.commission)}, escrow fee {formatPrice(quote.handlingFee)} (max{' '}
-                {formatPrice(ESCROW_FEE_MIN)} or {Math.round(ESCROW_FEE_RATE * 100)}% of deposit) and the{' '}
+                {formatPrice(quote.commission)}, escrow fee {formatPrice(quote.handlingFee)} (the greater of{' '}
+                {formatPrice(ESCROW_FEE_MIN)} or {Math.round(ESCROW_FEE_RATE * 100)}% of the deposit) and the{' '}
                 {formatPrice(quote.deposit)} refundable deposit, held by {BRAND} until the return.
               </p>
             </div>

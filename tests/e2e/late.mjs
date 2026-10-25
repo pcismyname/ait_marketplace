@@ -10,6 +10,7 @@
 
 import {
   addPhotos,
+  conditionPhotoAs,
   createListing,
   expectToast,
   isMain,
@@ -36,7 +37,7 @@ async function activeRental(title) {
   const r = await rpc('renter', 'request_rental', { p_listing_id: listing.id })
   await rpc('owner', 'respond_rental', { p_rental_id: r.id, p_approve: true })
   await rpc('renter', 'pay_rental', { p_rental_id: r.id, p_method: 'card' })
-  await rpc('owner', 'confirm_handover', { p_rental_id: r.id })
+  await rpc('renter', 'confirm_handover', { p_rental_id: r.id, p_photos: await conditionPhotoAs('renter', r.id) })
   return { listing, id: r.id }
 }
 

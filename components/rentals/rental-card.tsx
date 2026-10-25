@@ -311,13 +311,20 @@ export function RentalCard({
             {paymentMethodLabel(rental.paymentMethod)} {formatDateTime(rental.paidAt)}. The{' '}
             {formatPrice(rental.deposit)} deposit is held by {BRAND}.
           </Line>
-          <Line icon={CalendarClock}>
-            Meet{pickup ? ` at ${pickup}` : ''} and confirm the handover with photos. The {rental.periodDays}-day rental
-            starts then, and the owner is paid {OWNER_PAYOUT_DELAY_HOURS} hours later.
-          </Line>
+          {role === 'renter' ? (
+            <Line icon={CalendarClock}>
+              Meet{pickup ? ` at ${pickup}` : ''} and, once you have the item, confirm the handover with photos. The{' '}
+              {rental.periodDays}-day rental starts then, and the owner is paid {OWNER_PAYOUT_DELAY_HOURS} hours later.
+            </Line>
+          ) : (
+            <Line icon={CalendarClock}>
+              Meet{pickup ? ` at ${pickup}` : ''}. {firstName} confirms the handover with photos in the app before taking
+              the item; the {rental.periodDays}-day rental starts then, and you are paid {OWNER_PAYOUT_DELAY_HOURS} hours later.
+            </Line>
+          )}
         </>
       )
-      actions = handoverDialog
+      actions = role === 'renter' ? handoverDialog : null
       break
 
     case 'active':

@@ -10,6 +10,7 @@
 import {
   addPhotos,
   apiAs,
+  conditionPhotoAs,
   createListing,
   expectText,
   expectToast,
@@ -40,8 +41,8 @@ async function returnedRental(listingId) {
   const r = await rpc('renter', 'request_rental', { p_listing_id: listingId })
   await rpc('owner', 'respond_rental', { p_rental_id: r.id, p_approve: true })
   await rpc('renter', 'pay_rental', { p_rental_id: r.id, p_method: 'promptpay' })
-  await rpc('owner', 'confirm_handover', { p_rental_id: r.id })
-  await rpc('renter', 'mark_returned', { p_rental_id: r.id })
+  await rpc('renter', 'confirm_handover', { p_rental_id: r.id, p_photos: await conditionPhotoAs('renter', r.id) })
+  await rpc('renter', 'mark_returned', { p_rental_id: r.id, p_photos: await conditionPhotoAs('renter', r.id) })
   return r.id
 }
 
@@ -239,10 +240,11 @@ export async function main(flow, browser) {
     }
     const ownerGain = (await walletBalance('owner', 'available')) - ownerBeforeB
     const renterGain = (await walletBalance('renter', 'available')) - renterBeforeB
-    // The owner also receives the ฿200 rental fee, which was held while disputed.
-    if (renterGain !== dDeposit - claim || ownerGain < claim) throw new Error(`wallets owner +${ownerGain}, renter +${renterGain}`)
+    // The ฿200 rental fee is still held: it pays out 48 h after handover (§4), not at the resolution.
+    if (renterGain !== dDeposit - claim || ownerGain !== claim) throw new Error(`wallets owner +${ownerGain}, renter +${renterGain}`)
+    if (r.payout_released_at) throw new Error('rental fee paid out before 48 h after handover')
     await shot(admin, 'admin-dispute-resolved')
-    return `owner +${baht(ownerGain)} (claim + rental fee), renter +${baht(renterGain)}`
+    return `owner +${baht(ownerGain)} (claim; rental fee still held until 48 h after handover), renter +${baht(renterGain)}`
   })
 
   await flow.step('both parties see the decision', async () => {

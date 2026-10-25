@@ -3,7 +3,7 @@
 -- and window reminders. Time is moved by editing timestamps as postgres.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(66);
+select plan(68);
 
 -- ── helpers (same block in every test file) ────────────────────────────────
 create function pg_temp.new_user(p_email text, p_name text default null) returns text
@@ -39,6 +39,14 @@ create function pg_temp.bal(p_user text, p_bucket text) returns numeric
 language sql stable as $$ select coalesce(sum(amount), 0) from public.wallet_ledger where user_id = p_user and bucket = p_bucket $$;
 create function pg_temp.phase(p_rental text) returns text
 language sql stable as $$ select phase from public.rentals where id = p_rental $$;
+-- A condition photo uploaded by the signed-in party (storage RLS applies).
+create function pg_temp.photo(p_rental text) returns text[]
+language plpgsql as $$
+declare v text := 'rental/' || p_rental || '/' || auth.uid()::text || '/' || gen_random_uuid()::text || '.png';
+begin
+  insert into storage.objects (bucket_id, name, owner_id) values ('dispute-evidence', v, auth.uid()::text);
+  return array[v];
+end $$;
 -- ───────────────────────────────────────────────────────────────────────────
 
 select pg_temp.set_id('owner', pg_temp.new_user('owner@ait.asia', 'Olivia Owner'));
@@ -95,10 +103,16 @@ select is(pg_temp.bal(pg_temp.id('owner'), 'held'), 250::numeric, 'the ฿250 re
 select is((select sum(amount) from public.wallet_ledger where bucket = 'platform' and rental_id = pg_temp.id('r1')), 55::numeric, 'platform keeps ฿25 + ฿30');
 
 select pg_temp.login(pg_temp.id('owner'));
-select is(r.phase, 'active', 'handover makes the rental active') from public.confirm_handover(pg_temp.id('r1')) r;
+select throws_ok(format($$ select public.confirm_handover(%L, pg_temp.photo(%L)) $$, pg_temp.id('r1'), pg_temp.id('r1')), 'P0001',
+  'The renter confirms the handover once they have the item, at the pickup point.', 'the owner cannot start the rental alone');
+select pg_temp.login(pg_temp.id('renter'));
+select throws_ok(format($$ select public.confirm_handover(%L) $$, pg_temp.id('r1')), 'P0001',
+  'Add at least one photo of the item''s condition at handover.', 'handover needs a condition photo');
+select is(r.phase, 'active', 'the renter confirms the handover: active') from public.confirm_handover(pg_temp.id('r1'), pg_temp.photo(pg_temp.id('r1'))) r;
 select is((select due_date - handover_at from public.rentals where id = pg_temp.id('r1')), interval '120 days', 'due date = handover + period');
 select is((select payout_at - handover_at from public.rentals where id = pg_temp.id('r1')), interval '48 hours', 'payout = handover + 48 h');
-select throws_ok(format($$ select public.confirm_handover(%L) $$, pg_temp.id('r1')), 'P0001', null, 'handover is confirmed once');
+select throws_ok(format($$ select public.confirm_handover(%L, pg_temp.photo(%L)) $$, pg_temp.id('r1'), pg_temp.id('r1')), 'P0001', null, 'handover is confirmed once');
+select pg_temp.login(pg_temp.id('owner'));
 select throws_ok(format($$ select public.file_dispute('Damage', '', %L) $$, pg_temp.id('r1')), 'P0001', null, 'no rental dispute before the return');
 select pg_temp.logout();
 
@@ -116,7 +130,7 @@ select is((select count(*)::int from public.wallet_ledger where rental_id = pg_t
 select is(pg_temp.bal(pg_temp.id('renter'), 'held'), 800::numeric, 'the deposit stays held until the return');
 
 select pg_temp.login(pg_temp.id('renter'));
-select is(r.phase, 'return-pending', 'renter marks it returned') from public.mark_returned(pg_temp.id('r1')) r;
+select is(r.phase, 'return-pending', 'renter marks it returned') from public.mark_returned(pg_temp.id('r1'), pg_temp.photo(pg_temp.id('r1'))) r;
 select is((select late_fee from public.rentals where id = pg_temp.id('r1')), 0::numeric, 'on time: no late fee');
 select is((select dispute_window_ends_at - returned_at from public.rentals where id = pg_temp.id('r1')), interval '48 hours', 'a 48 h window opens at the return');
 select throws_ok(format($$ select public.confirm_return(%L) $$, pg_temp.id('r1')), 'P0001', null, 'only the owner confirms the condition');
@@ -142,7 +156,7 @@ select is(pg_temp.bal(pg_temp.id('renter'), 'available'), 360::numeric, '฿800 
 
 -- ═══ Missing: more than 7 days late → full deposit to the owner
 select pg_temp.login(pg_temp.id('renter'));
-select public.confirm_handover(pg_temp.id('r3'));
+select public.confirm_handover(pg_temp.id('r3'), pg_temp.photo(pg_temp.id('r3')));
 select pg_temp.logout();
 update public.rentals set due_date = now() - interval '8 days', handover_at = now() - interval '15 days',
   payout_at = now() - interval '13 days' where id = pg_temp.id('r3');
@@ -159,7 +173,7 @@ select pg_temp.login(pg_temp.id('owner'));
 select public.respond_rental(pg_temp.id('r2'), true);
 select pg_temp.login(pg_temp.id('renter'));
 select public.pay_rental(pg_temp.id('r2'), 'card');
-select public.confirm_handover(pg_temp.id('r2'));
+select public.confirm_handover(pg_temp.id('r2'), pg_temp.photo(pg_temp.id('r2')));
 select pg_temp.logout();
 update public.rentals set due_date = now() - interval '3 days' where id = pg_temp.id('r2');
 select public.run_escrow_jobs();
@@ -168,7 +182,7 @@ select is(pg_temp.phase(pg_temp.id('r2')), 'overdue', 'past the due date: overdu
 select is((select count(*)::int from public.notifications where kind = 'rental_overdue' and dedupe_key = 'overdue:' || pg_temp.id('r2')), 2, 'both parties are told once');
 
 select pg_temp.login(pg_temp.id('renter'));
-select is(r.late_fee, 30::numeric, 'late fee = 3 days × ceil(300 / 30)') from public.mark_returned(pg_temp.id('r2')) r;
+select is(r.late_fee, 30::numeric, 'late fee = 3 days × ceil(300 / 30)') from public.mark_returned(pg_temp.id('r2'), pg_temp.photo(pg_temp.id('r2'))) r;
 select pg_temp.logout();
 
 -- Reminders 24 h and 2 h before the window closes, never twice.

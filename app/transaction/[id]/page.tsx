@@ -492,19 +492,24 @@ function ActionsPanel({
         )
         break
       case 'paid':
-        items.push(
-          <PhotoAction
-            key="handover"
-            title="Confirm the handover"
-            description={`Take photos of the item's condition at pickup. The due date and the owner's ${OWNER_PAYOUT_DELAY_HOURS}-hour payout clock start now.`}
-            button="Confirm handover"
-            requirePhotos
-            busy={busy}
-            onSubmit={(photos) =>
-              run(async () => confirmHandover(id, await uploadPhotos(kind, photos)), 'Handover confirmed')
-            }
-          />,
-        )
+        // The renter (who receives the item) confirms the handover (BusinessRules §4).
+        if (role === 'renter') {
+          items.push(
+            <PhotoAction
+              key="handover"
+              title="Confirm the handover"
+              description={`Once you have the item, take photos of its condition. The due date and the owner's ${OWNER_PAYOUT_DELAY_HOURS}-hour payout clock start now.`}
+              button="Confirm handover"
+              requirePhotos
+              busy={busy}
+              onSubmit={(photos) =>
+                run(async () => confirmHandover(id, await uploadPhotos(kind, photos)), 'Handover confirmed')
+              }
+            />,
+          )
+        } else {
+          note(`Meet at the pickup point. The renter confirms the handover with photos in the app before taking the item; you are paid ${OWNER_PAYOUT_DELAY_HOURS} hours after it.`)
+        }
         break
       case 'active':
       case 'overdue':
@@ -643,7 +648,7 @@ function PhotoAction({
   busy: boolean
   onSubmit: (photos: PickedPhoto[]) => Promise<void>
   variant?: 'default' | 'outline'
-  /** Rental returns need condition photos (BusinessRules §4, §9). */
+  /** Rental handovers and returns need condition photos (BusinessRules §4, §9). */
   requirePhotos?: boolean
 }) {
   const [open, setOpen] = useState(false)
@@ -663,7 +668,7 @@ function PhotoAction({
       <PhotoPicker photos={photos} onChange={setPhotos} disabled={busy} label="Condition photo" />
       {missingPhotos && (
         <p className="text-[11px] text-muted-foreground" data-testid="photos-required">
-          Rental returns need at least one photo of the item&apos;s condition.
+          Add at least one photo of the item&apos;s condition.
         </p>
       )}
       <div className="flex gap-2">
@@ -789,7 +794,7 @@ function AmountsCard({ deal, role, now }: { deal: Deal; role: DealRole; now: num
               <Row label="Deposit held until settled" value={formatPrice(r.deposit)} muted />
             </>
           ) : (
-            <Row label={r.paidAt ? 'Deposit held by Pass It On' : 'Deposit (held after payment)'} value={formatPrice(r.deposit)} muted />
+            <Row label={r.paidAt ? `Deposit held by ${BRAND}` : 'Deposit (held after payment)'} value={formatPrice(r.deposit)} muted />
           )}
         </dl>
       </section>
