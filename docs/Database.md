@@ -294,6 +294,8 @@ Add `supabase/migrations/<timestamp>_<name>.sql`, run `npm run db:reset && npm r
 
 ### Production push (manual, after review)
 
+> **Done on 25 Oct 2026** for the seven P0 migrations (through `20261025040000_legacy_escrow_backfill.sql`), followed straight away by the PR #4 deploy. Use the same steps for any future migration: push first, then deploy the code that needs it.
+
 **Order matters: migrations first, then the Vercel deploy right after.** The new app code needs the new schema (with the old schema the store's first listings query fails on `listings.featured_until`, and the RPCs, tables and buckets are missing), and the live `master` code writes `rentals` directly, which `20261025010000_p0_core.sql` forbids. So push the migrations and deploy `feat/p0-core` in one sitting, with no gap; until the deploy finishes, the old app can't create bookings. The migrations don't fail on existing rows (the new check constraints are supersets of the baseline ones; `owner_id` and `period_days` are backfilled before `SET NOT NULL`).
 
 1. `npx -y supabase@2.122.0 link --project-ref cnpjndeuohdrrdmohios` (already linked).
