@@ -18,6 +18,7 @@ import {
   PREMIUM_PLACEMENT_DAYS,
   PREMIUM_PLACEMENT_FEE,
   RENTAL_COMMISSION_RATE,
+  SALE_COMMISSION_RATE,
 } from '@/lib/fees'
 import { formatPrice } from '@/lib/format'
 
@@ -102,8 +103,8 @@ export function WhySection() {
           <PriceRow
             icon={Tag}
             title="Peer-to-peer sales"
-            price="Free"
-            note={`No listing fee. Pay in person for free, or the buyer can add protection for ${formatPrice(BUYER_PROTECTION_BASE_FEE)} + ${pct(BUYER_PROTECTION_RATE)}%.`}
+            price="Free in person"
+            note={`No listing fee. Pay in person for free, or pay with protection: the buyer adds ${formatPrice(BUYER_PROTECTION_BASE_FEE)} + ${pct(BUYER_PROTECTION_RATE)}% and the seller pays a ${pct(SALE_COMMISSION_RATE)}% commission.`}
           />
           <PriceRow
             icon={HandCoins}

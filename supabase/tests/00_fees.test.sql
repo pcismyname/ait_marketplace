@@ -3,7 +3,7 @@
 -- from computeRentalQuote / computeSaleQuote; npm run test:db re-checks a grid.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(32);
+select plan(36);
 
 -- Worked examples from BusinessRules.md
 select is((public.quote_rental(250, 800) ->> 'totalDueNow')::numeric, 1105::numeric, 'mini fridge: 250 + 25 + 30 + 800 = ฿1,105');
@@ -12,11 +12,15 @@ select is(public.quote_rental(250, 800),
   'rental quote has the same shape as RentalQuote in lib/fees.ts');
 select is((public.quote_sale(1000, 'protected') ->> 'total')::numeric, 1040::numeric, 'protected sale ฿1,000 → ฿1,040');
 select is(public.quote_sale(1000, 'protected'),
-  '{"mode":"protected","price":1000,"protectionFee":40,"total":1040,"escrow":true}'::jsonb,
+  '{"mode":"protected","price":1000,"protectionFee":40,"total":1040,"sellerCommission":100,"sellerPayout":900,"escrow":true}'::jsonb,
   'sale quote has the same shape as SaleQuote in lib/fees.ts');
 select is(public.quote_sale(1200, 'in-person'),
-  '{"mode":"in-person","price":1200,"protectionFee":0,"total":1200,"escrow":false}'::jsonb,
+  '{"mode":"in-person","price":1200,"protectionFee":0,"total":1200,"sellerCommission":0,"sellerPayout":1200,"escrow":false}'::jsonb,
   'in-person sale is free and unprotected');
+select is((public.quote_sale(400, 'protected') ->> 'sellerPayout')::numeric, 360::numeric, 'desk lamp ฿400: seller receives ฿360');
+select is((public.quote_sale(85, 'protected') ->> 'sellerCommission')::numeric, 9::numeric, '85 → commission 9 (8.5 rounds up)');
+select is((public.quote_sale(99.5, 'protected') ->> 'sellerCommission')::numeric, 10::numeric, '99.5 → commission 10');
+select is((public.quote_sale(0, 'protected') ->> 'sellerCommission')::numeric, 0::numeric, 'a free item has no commission');
 
 -- Escrow fee max(30, 3% of deposit)
 select is((public.quote_rental(100, 0) ->> 'handlingFee')::numeric, 30::numeric, 'escrow fee minimum ฿30 (no deposit)');

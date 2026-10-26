@@ -816,6 +816,7 @@ export type Database = {
           refund_to_buyer: number;
           released_at: string | null;
           seller_amount: number | null;
+          seller_commission: number;
           seller_id: string;
           status: string;
           total: number;
@@ -842,6 +843,7 @@ export type Database = {
           refund_to_buyer?: number;
           released_at?: string | null;
           seller_amount?: number | null;
+          seller_commission?: number;
           seller_id: string;
           status: string;
           total: number;
@@ -867,6 +869,7 @@ export type Database = {
           refund_to_buyer?: number;
           released_at?: string | null;
           seller_amount?: number | null;
+          seller_commission?: number;
           seller_id?: string;
           status?: string;
           total?: number;
@@ -1122,6 +1125,7 @@ export type Database = {
           refund_to_buyer: number;
           released_at: string | null;
           seller_amount: number | null;
+          seller_commission: number;
           seller_id: string;
           status: string;
           total: number;
@@ -1258,6 +1262,7 @@ export type Database = {
           refund_to_buyer: number;
           released_at: string | null;
           seller_amount: number | null;
+          seller_commission: number;
           seller_id: string;
           status: string;
           total: number;
@@ -1292,6 +1297,7 @@ export type Database = {
           refund_to_buyer: number;
           released_at: string | null;
           seller_amount: number | null;
+          seller_commission: number;
           seller_id: string;
           status: string;
           total: number;
@@ -1326,6 +1332,7 @@ export type Database = {
           refund_to_buyer: number;
           released_at: string | null;
           seller_amount: number | null;
+          seller_commission: number;
           seller_id: string;
           status: string;
           total: number;
@@ -1546,6 +1553,7 @@ export type Database = {
           refund_to_buyer: number;
           released_at: string | null;
           seller_amount: number | null;
+          seller_commission: number;
           seller_id: string;
           status: string;
           total: number;

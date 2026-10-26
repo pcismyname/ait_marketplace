@@ -35,6 +35,7 @@ hold, payout and refund is a row in an in-app ledger. The app says
 | Escrow handling fee | Renter | `max(฿30, 3% of the deposit)` |
 | Deposit | Renter | Refundable; 30–50% of replacement value, ฿200–฿3,000 |
 | Buyer protection (optional, sales) | Buyer | ฿10 + 3% of the price |
+| Sale commission (protected sales only) | Seller | 10% of the price, taken from the payout |
 | Sale paid in person | — | Free, no protection |
 | Premium placement | Lister | ฿49 for 7 days |
 
@@ -42,6 +43,8 @@ Example: mini fridge ฿250/month with an ฿800 deposit → 250 + 25 + 30 + 800
 The owner is paid the rental fee 48 hours after handover; the deposit comes back after
 the return, minus `ceil(fee / period days)` per day late; more than 7 days late counts
 as missing (full deposit to the owner).
+Sale example: desk lamp ฿400 paid with protection → the buyer pays **฿422**; 48 hours
+after handover the seller receives 400 − 40 = **฿360**.
 
 ## What's built
 

@@ -9,6 +9,7 @@ import {
   MISSING_AFTER_DAYS,
   OWNER_PAYOUT_DELAY_HOURS,
   RENTAL_COMMISSION_RATE,
+  SALE_COMMISSION_RATE,
 } from '@/lib/fees'
 
 const pct = (rate: number) => `${Math.round(rate * 100)}%`
@@ -68,7 +69,8 @@ export default function HowItWorksPage() {
                 <p className="font-semibold mb-2">Pay with protection</p>
                 <p className="text-muted-foreground">
                   ฿{BUYER_PROTECTION_BASE_FEE} + {pct(BUYER_PROTECTION_RATE)} of the price. The money is held until
-                  the handover plus {DISPUTE_WINDOW_HOURS} hours, and you can open a dispute in that window.
+                  the handover plus {DISPUTE_WINDOW_HOURS} hours, and you can open a dispute in that window. The
+                  seller pays a {pct(SALE_COMMISSION_RATE)} commission out of their payout.
                 </p>
               </div>
             </div>
@@ -87,8 +89,8 @@ export default function HowItWorksPage() {
               </li>
               <li className="flex gap-3">
                 <span className="font-semibold text-foreground">4.</span>
-                The money goes to the seller {DISPUTE_WINDOW_HOURS} hours after the handover, unless the buyer
-                opens a dispute. Confirming receipt early releases it straight away.
+                The money goes to the seller, minus a {pct(SALE_COMMISSION_RATE)} sale commission,{' '}
+                {DISPUTE_WINDOW_HOURS} hours after the handover, unless the buyer opens a dispute. Confirming receipt early releases it straight away.
               </li>
             </ul>
           </section>

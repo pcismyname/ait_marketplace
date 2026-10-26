@@ -160,8 +160,9 @@ try {
   tx = await rpc(renter, 'confirm_sale_receipt', { p_transaction_id: tx.id })
   assert.equal(tx.status, 'released')
   const ownerFinal = await wallet(owner)
-  assert.equal(ownerFinal.available, 750)
-  step(13, `buyer confirmed receipt → ${tx.status}; owner wallet ฿${ownerFinal.available}`)
+  assert.equal(tx.seller_commission, 50) // 10% sale commission (BusinessRules §2)
+  assert.equal(ownerFinal.available, 700) // 250 rental fee + 450 sale payout
+  step(13, `buyer confirmed receipt → ${tx.status}; ฿${tx.seller_commission} commission; owner wallet ฿${ownerFinal.available}`)
 
   console.log('\n✓ rental and protected-sale flows work end to end')
 } finally {

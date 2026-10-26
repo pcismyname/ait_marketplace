@@ -10,7 +10,7 @@ import { BRAND, CATEGORIES, PICKUP_LOCATIONS, CONDITION_LABELS, categoryLabel } 
 import {
   DEPOSIT_MAX, DEPOSIT_MIN, DEPOSIT_VALUE_MAX_RATE, DEPOSIT_VALUE_MIN_RATE,
   ESCROW_FEE_MIN, ESCROW_FEE_RATE, HIGH_VALUE_RENTAL_THRESHOLD,
-  PREMIUM_PLACEMENT_DAYS, PREMIUM_PLACEMENT_FEE, RENTAL_COMMISSION_RATE,
+  PREMIUM_PLACEMENT_DAYS, PREMIUM_PLACEMENT_FEE, RENTAL_COMMISSION_RATE, SALE_COMMISSION_RATE, computeSaleQuote,
   suggestedDeposit,
 } from '@/lib/fees'
 import { formatPrice } from '@/lib/format'
@@ -253,7 +253,7 @@ export default function EditListingPage() {
           <p className="label-tag mb-3">Listing type</p>
           <div className="flex gap-6 border-b border-border pb-4">
             {[
-              { value: 'sale' as ListingType, title: 'For sale', sub: 'No platform fee.' },
+              { value: 'sale' as ListingType, title: 'For sale', sub: 'Free in person.' },
               { value: 'rent' as ListingType, title: 'For rent', sub: 'Deposit in escrow.' },
             ].map(({ value, title: t, sub }) => (
               <button
@@ -487,6 +487,17 @@ export default function EditListingPage() {
                 renter pays your price plus a {pct(RENTAL_COMMISSION_RATE)}% commission and an escrow fee of{' '}
                 {formatPrice(ESCROW_FEE_MIN)} or {pct(ESCROW_FEE_RATE)}% of the deposit, whichever is higher
                 {escrowFee !== null && <> ({formatPrice(escrowFee)} for this deposit)</>}. You receive the full rental price.
+              </p>
+            )}
+
+            {type === 'sale' && (
+              <p className="text-[11px] text-muted-foreground leading-relaxed md:col-span-2">
+                Sales paid in person are free. On a sale paid with protection, {BRAND} keeps a{' '}
+                {pct(SALE_COMMISSION_RATE)}% commission from your payout
+                {Number(price) > 0 && (
+                  <> (you receive {formatPrice(computeSaleQuote(Number(price), 'protected').sellerPayout)} of{' '}
+                  {formatPrice(Number(price))})</>
+                )}.
               </p>
             )}
           </div>

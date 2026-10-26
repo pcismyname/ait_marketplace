@@ -486,9 +486,10 @@
 ## 20. Fees & Calculations
 
 - [ ] Rental fee = daily rate × period days (shown in checkout and ledger)
-- [ ] Platform commission 12% deducted from rental fee and shown
+- [ ] Rental commission 10% of the rental fee, paid by the renter at booking, shown in checkout
 - [ ] Escrow fee = max(flat rate, % of deposit) shown
-- [ ] Buyer protection fee for protected sales = % + minimum (shown in checkout)
+- [ ] Buyer protection fee for protected sales = ฿10 + 3% of the price (shown in checkout)
+- [ ] Sale commission on protected sales = 10% of what the seller keeps, taken from the payout (seller sees the net amount; none on in-person sales or a full refund)
 - [ ] Late fee = daily rate × late days, capped at deposit amount
 - [ ] Deposit settlement on dispute resolution: amounts to owner + renter add up correctly
 - [ ] Wallet ledger entries match displayed fee breakdowns

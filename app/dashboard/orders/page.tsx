@@ -52,13 +52,15 @@ export default function OrdersPage() {
       title: titleOf(t.listingId),
       counterpart: side === 'buyer' ? `from ${getUser(t.sellerId).name}` : t.buyerId ? `to ${getUser(t.buyerId).name}` : 'buyer not recorded',
       date: t.createdAt,
-      amount: t.status === 'cancelled' ? null : side === 'buyer' ? t.total : t.sellerAmount ?? t.price,
+      amount: t.status === 'cancelled' ? null : side === 'buyer' ? t.total : t.sellerAmount ?? t.price - t.sellerCommission,
       amountNote:
         t.status === 'cancelled'
           ? 'Cancelled · no charge'
           : t.mode === 'protected'
           ? side === 'buyer'
             ? `Protected · incl. ${formatPrice(t.protectionFee)} fee`
+            : t.sellerCommission > 0
+            ? `Protected · after ${formatPrice(t.sellerCommission)} commission`
             : 'Protected · paid out after the window'
           : 'Paid in person · no protection',
       status: dealStatus({ kind: 'sale', transaction: t }),

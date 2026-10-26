@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Gavel } from 'lucide-react'
 import { resolveDispute } from '@/lib/api'
+import { SALE_COMMISSION_RATE } from '@/lib/fees'
 import { formatPrice } from '@/lib/format'
 import type { Dispute, DisputeFinding, Rental, Transaction } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -122,7 +123,11 @@ export function ResolvePanel({
       <p className="mb-4 text-[12px] text-muted-foreground">
         {rental
           ? `Deposit held: ${formatPrice(held)}${lateFee > 0 ? ` (late fee ${formatPrice(lateFee)} goes to the owner on top of any claim)` : ''}. The owner never receives more than the deposit.`
-          : `Price held: ${formatPrice(held)}. The buyer protection fee (${formatPrice(transaction?.protectionFee ?? 0)}) is not refunded.`}
+          : `Price held: ${formatPrice(held)}. The buyer protection fee (${formatPrice(transaction?.protectionFee ?? 0)}) is not refunded.${
+              (transaction?.sellerCommission ?? 0) > 0
+                ? ` The seller pays a ${Math.round(SALE_COMMISSION_RATE * 100)}% commission on what they keep (none on a full refund).`
+                : ''
+            }`}
       </p>
 
       <div className="grid gap-2">

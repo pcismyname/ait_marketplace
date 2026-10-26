@@ -4,8 +4,8 @@ Diagrams for the report. Every label follows [docs/BusinessRules.md](../docs/Bus
 
 | Figure | Source | Shows |
 |---|---|---|
-| `seller_userflow.png` | `src/seller_userflow.mmd` | Free listing, optional premium placement (฿49 / 7 days), sale paid in person or with protection, 48-hour window from handover, dispute outcome |
-| `buyer_userflow.png` | `src/buyer_userflow.mmd` | Pay in person (free, no escrow) or with protection (price + ฿10 + 3%), 48-hour window from handover, auto-release, dispute |
+| `seller_userflow.png` | `src/seller_userflow.mmd` | Free listing, optional premium placement (฿49 / 7 days), sale paid in person or with protection, 48-hour window from handover, protected payout = price minus the 10% sale commission (2026-10-26), dispute outcome |
+| `buyer_userflow.png` | `src/buyer_userflow.mmd` | Pay in person (free, no escrow) or with protection (price + ฿10 + 3%), 48-hour window from handover, auto-release to the seller minus the 10% sale commission, dispute |
 | `owner_userflow.png` | `src/owner_userflow.mmd` | Suggested deposit (฿200–3,000), request → approve → pay, full rental fee 48 h after handover, return photos, late fee / missing, dispute outcomes |
 | `renter_userflow.png` | `src/renter_userflow.mmd` | Rental fee + 10% + escrow fee `max(฿30, 3%)` + deposit, late fee / missing, 48-hour window from return, dispute outcomes |
 | `usecase_diagram.svg` / `.png` | `usecase_diagram.svg` (hand-written SVG) | What each kind of user can do; payments are simulated in-app (no gateway) |

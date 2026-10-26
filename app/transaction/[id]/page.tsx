@@ -55,6 +55,7 @@ import {
   DISPUTE_WINDOW_HOURS,
   OWNER_PAYOUT_DELAY_HOURS,
   RENTAL_COMMISSION_RATE,
+  SALE_COMMISSION_RATE,
 } from '@/lib/fees'
 import { formatPrice } from '@/lib/format'
 import {
@@ -827,13 +828,34 @@ function AmountsCard({ deal, role, now }: { deal: Deal; role: DealRole; now: num
       <dl className="space-y-1.5 text-[13px]">
         {settled ? (
           <>
-            <Row label="Released to the seller" value={formatPrice(t.sellerAmount ?? t.price)} />
+            <Row label="Released to the seller" value={formatPrice(t.sellerAmount ?? t.price - t.sellerCommission)} />
+            {t.sellerCommission > 0 && (
+              <Row label={`Sale commission (${Math.round(SALE_COMMISSION_RATE * 100)}%)`} value={formatPrice(t.sellerCommission)} />
+            )}
             {t.refundToBuyer > 0 && <Row label="Refunded to the buyer" value={formatPrice(t.refundToBuyer)} />}
           </>
         ) : (
-          <Row label="Held for the seller" value={formatPrice(t.price)} muted />
+          <>
+            <Row label="Held for the seller" value={formatPrice(t.price)} muted />
+            {t.sellerCommission > 0 && (
+              <>
+                <Row
+                  label={`Sale commission (${Math.round(SALE_COMMISSION_RATE * 100)}%)`}
+                  value={`− ${formatPrice(t.sellerCommission)}`}
+                  muted
+                />
+                <Row label="Seller receives on release" value={formatPrice(t.price - t.sellerCommission)} />
+              </>
+            )}
+          </>
         )}
       </dl>
+      {t.sellerCommission > 0 && (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          {BRAND} keeps {Math.round(SALE_COMMISSION_RATE * 100)}% of what the seller is paid on protected sales. A
+          refund lowers the commission with it.
+        </p>
+      )}
     </section>
   )
 }
