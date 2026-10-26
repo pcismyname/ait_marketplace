@@ -76,7 +76,7 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
 ### Transactions
 | Route | Purpose |
 |---|---|
-| `/listing/[id]/checkout` | **Rental:** total = rental fee + 10% commission + escrow fee + deposit. **Sale:** buyer chooses *Pay in person* (free, no escrow) or *Pay with protection* (price + ฿10 + 3%, held in escrow) |
+| `/listing/[id]/checkout` | **Rental:** total = rental fee + 10% commission + escrow fee + deposit. **Sale:** buyer chooses *Pay in person* (free, no escrow) or *Pay with protection* (price + ฿10 + 3%, held in escrow; the seller's payout is the price minus a 10% sale commission) |
 | `/transaction/[id]` | Transaction status page (escrow held, dispute window countdown, pickup/return instructions) |
 | `/transaction/[id]/confirm` | Buyer/renter confirms receipt; owner confirms return condition with photos |
 | `/dispute/[id]` | Dispute filing/tracking flow |
@@ -140,7 +140,7 @@ A closed, calendar-aware, trust-mediated marketplace exclusive to AIT students, 
 **Transactions & Payments**
 - **Rentals always go through the platform.** Renter pays rental fee + 10% commission + escrow fee (`max(฿30, 3% of deposit)`) + refundable deposit.
 - **Sales: the buyer chooses.** *Pay in person*: free, paid directly to the seller, no escrow or dispute support. *Pay with protection*: price + ฿10 + 3%, held in escrow.
-- The seller/owner always receives their full listing price; platform fees are paid by the buyer/renter on top.
+- The owner always receives the full rental fee, and a seller paid in person keeps the full price; the rental fees are paid by the renter on top. On a protected sale the seller receives the price minus a 10% sale commission (added 2026-10-26).
 - Payment methods: PromptPay QR (default, cheapest), cards (for incoming international students without a Thai bank account) and the in-app wallet (refunded deposits land here first)
 - Gateway fees are absorbed by the platform; deposits are always refunded in full
 - Optional premium placement: ฿49 for 7 days
@@ -207,12 +207,12 @@ flowchart TD
     N --> O[Item handed over to buyer]
     O --> P["48-hour dispute window opens at handover"]
     P --> Q{Buyer files dispute within window?}
-    Q -- "No dispute - window closes after 48 h" --> R["Funds auto-released: seller gets full listing price"]
+    Q -- "No dispute - window closes after 48 h" --> R["Funds auto-released: seller gets listing price minus 10% sale commission"]
     Q -- "Buyer confirms early" --> R
     Q -- "Yes, dispute filed" --> T["Admin reviews dispute (chat history, photos)"]
     T --> U{Item not as described?}
     U -- No --> R
-    U -- Yes --> V[Full or partial refund to buyer]
+    U -- Yes --> V["Full or partial refund to buyer; seller gets the rest minus 10% commission"]
 
     R --> S[Seller rates buyer]
     V --> S
@@ -226,7 +226,7 @@ flowchart TD
 flowchart TD
     A[Buyer logs in] --> B[Browse/Search marketplace]
     B --> C[Filter by category, price, location]
-    C --> D["View listing detail page (listing price shown, no commission on sales)"]
+    C --> D["View listing detail page (listing price shown; buyer pays no commission)"]
     D --> E{Interested?}
     E -- No --> B
     E -- Yes --> F[Send chat message to seller]
@@ -245,7 +245,7 @@ flowchart TD
     O --> P["48-hour dispute window opens at handover"]
     P --> Q{Item matches listing description?}
     Q -- Yes --> S["Buyer confirms receipt (releases at once) - or takes no action and the window closes"]
-    S --> T["Escrow releases payment to seller (full listing price)"]
+    S --> T["Escrow releases payment to seller (listing price minus 10% sale commission)"]
     Q -- No --> U[Buyer files dispute with evidence within 48 hours]
     U --> V["Admin reviews dispute (chat history, photos)"]
     V --> W{Item not as described?}
@@ -352,4 +352,5 @@ Full formulas and amounts are in [BusinessRules.md](BusinessRules.md#2-fees).
 - **Rental commission** — 10% of the rental fee, paid by the renter at booking. Primary revenue stream.
 - **Escrow handling fee** — `max(฿30, 3% of deposit)` per rental, paid by the renter, for holding the deposit and running disputes. It scales so gateway fees on large deposits are covered.
 - **Buyer protection fee** — ฿10 + 3% on sales where the buyer chooses *Pay with protection*. Sales paid in person stay free.
+- **Sale commission** — 10% of the sale price, paid by the seller on protected sales only, taken from the payout when escrow releases (added 2026-10-26). Example: ฿1,000 sale with protection → buyer pays ฿1,040, seller receives ฿900.
 - **Premium placement** — ฿49 for 7 days at the top of search and matching, for frequent listers.

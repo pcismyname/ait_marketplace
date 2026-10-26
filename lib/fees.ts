@@ -2,7 +2,9 @@
 // If this file and BusinessRules.md disagree, BusinessRules.md wins.
 //
 // - Listing is always free. Sales paid in person are free and unprotected.
-// - Sales paid "with protection" add a buyer protection fee (฿10 + 3%).
+// - Sales paid "with protection" add a buyer protection fee (฿10 + 3%),
+//   paid by the buyer, and a 10% sale commission, taken from the seller's
+//   payout.
 // - Rentals add a 10% commission and an escrow fee of max(฿30, 3% of the
 //   deposit), both paid by the renter at booking. The deposit is held by the
 //   platform (never the owner) and refunded after the return.
@@ -28,6 +30,9 @@ export const BUYER_PROTECTION_BASE_FEE = 10
 /** Share of the sale price added to the buyer protection fee. */
 export const BUYER_PROTECTION_RATE = 0.03
 
+/** Share of a protected sale's price taken from the seller's payout. */
+export const SALE_COMMISSION_RATE = 0.1
+
 /** Flat fee (THB) for premium placement in search and matching. */
 export const PREMIUM_PLACEMENT_FEE = 49
 
@@ -42,6 +47,14 @@ export function escrowHandlingFee(deposit: number): number {
 /** Buyer protection fee for a protected sale: `10 + round(price * 3%)`. */
 export function buyerProtectionFee(price: number): number {
   return BUYER_PROTECTION_BASE_FEE + Math.round(price * BUYER_PROTECTION_RATE)
+}
+
+/**
+ * Sale commission on the amount the seller keeps: `round(amount * 10%)`.
+ * Pass the price, or the price minus any dispute refund.
+ */
+export function saleCommission(amount: number): number {
+  return Math.round(Math.max(0, amount) * SALE_COMMISSION_RATE)
 }
 
 // ─── Rental quote ────────────────────────────────────────────────────────────
@@ -92,20 +105,28 @@ export type SalePaymentMode = 'in-person' | 'protected'
 export interface SaleQuote {
   mode: SalePaymentMode
   price: number
-  /** Zero for in-person sales. */
+  /** Paid by the buyer. Zero for in-person sales. */
   protectionFee: number
+  /** What the buyer pays: price plus protection fee. */
   total: number
+  /** Taken from the seller's payout. Zero for in-person sales. */
+  sellerCommission: number
+  /** What the seller receives: price minus commission. */
+  sellerPayout: number
   /** Protected sales are held in escrow and get the dispute window. */
   escrow: boolean
 }
 
 export function computeSaleQuote(price: number, mode: SalePaymentMode): SaleQuote {
   const protectionFee = mode === 'protected' ? buyerProtectionFee(price) : 0
+  const sellerCommission = mode === 'protected' ? saleCommission(price) : 0
   return {
     mode,
     price,
     protectionFee,
     total: price + protectionFee,
+    sellerCommission,
+    sellerPayout: price - sellerCommission,
     escrow: mode === 'protected',
   }
 }

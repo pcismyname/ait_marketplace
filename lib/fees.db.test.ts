@@ -66,5 +66,8 @@ test('quote_sale matches computeSaleQuote for both modes', async () => {
 
 test('worked examples from BusinessRules.md', async () => {
   assert.equal((await rpc('quote_rental', { p_price: 250, p_deposit: 800 })).totalDueNow, 1105)
-  assert.equal((await rpc('quote_sale', { p_price: 1000, p_mode: 'protected' })).total, 1040)
+  const sale = await rpc('quote_sale', { p_price: 1000, p_mode: 'protected' })
+  assert.equal(sale.total, 1040)
+  assert.equal(sale.sellerCommission, 100)
+  assert.equal(sale.sellerPayout, 900)
 })

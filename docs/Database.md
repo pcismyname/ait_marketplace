@@ -3,7 +3,7 @@
 **Owns:** the Supabase schema, the rental and sale state machines as built, every RPC, Row Level Security, storage paths, and how to run, test and deploy the database.
 **Follows:** [BusinessRules.md](BusinessRules.md) for every money rule. If this file and BusinessRules.md disagree, BusinessRules.md wins: fix the SQL.
 
-Schema: [`supabase/migrations/`](../supabase/migrations/) (`20261025000000_remote_baseline.sql` is the live schema before P0; `20261025010000_p0_core.sql` adds everything below, the `20261025020…` files add features, and `20261025030000_review_fixes.sql` applies the final-review fixes listed in section 4.1). Client wrappers: [`lib/api/`](../lib/api/). Tests: [`supabase/tests/`](../supabase/tests/) and [`lib/fees.db.test.ts`](../lib/fees.db.test.ts).
+Schema: [`supabase/migrations/`](../supabase/migrations/) (`20261025000000_remote_baseline.sql` is the live schema before P0; `20261025010000_p0_core.sql` adds everything below, the `20261025020…` files add features, `20261025030000_review_fixes.sql` applies the final-review fixes listed in section 4.1, and `20261026000000_sale_commission.sql` adds the seller's sale commission, section 3.2). Client wrappers: [`lib/api/`](../lib/api/). Tests: [`supabase/tests/`](../supabase/tests/) and [`lib/fees.db.test.ts`](../lib/fees.db.test.ts).
 
 **All money is simulated** (BusinessRules §7). Payments, escrow holds, payouts and refunds are rows in `wallet_ledger` plus state changes. There is no gateway and no test mode.
 
@@ -131,8 +131,9 @@ protected:  create_sale(protected, method) ──► paid ── confirm_sale_ha
 ```
 
 - In-person sales never touch the ledger and have no disputes. An in-person intent doesn't reserve the listing. `mark_sold` completes the chosen buyer's pending purchase and cancels the others (each gets a notification). A buyer id without a pending purchase is refused, so a seller can't record a sale to (and then review) a student who never asked to buy.
-- Protected: on payment the price is held for the seller, the protection fee goes to the platform, and the listing becomes `reserved`. On release the seller gets the price and the listing becomes `sold` (`times_changed_hands + 1`, plus a history row); other buyers' pending in-person purchases are cancelled and those buyers notified.
-- Resolution for sales: `not-as-described` refunds `amount` (default: the full price, capped at the price) to the buyer's wallet, and the seller gets the rest. A full refund pauses the listing instead of marking it sold. `normal-wear` rejects the claim, and the seller is paid in full. The protection fee is not refunded.
+- Protected: on payment the price is held for the seller, the protection fee goes to the platform, and the listing becomes `reserved`. The seller's held balance shows the gross price until release. On release (`private.release_sale`) the seller gets the price minus the 10% sale commission, the commission goes to the platform, and the listing becomes `sold` (`times_changed_hands + 1`, plus a history row); other buyers' pending in-person purchases are cancelled and those buyers notified.
+- `transactions.seller_commission` (`numeric not null default 0`, added by `20261026000000_sale_commission.sql`): the sale commission, BusinessRules §2. `create_sale` sets it to `round(price * 0.10)` for protected sales; it is 0 for in-person sales and for purchases paid before 2026-10-26. After release it holds the commission actually charged, and `seller_amount` = price − refund − commission.
+- Resolution for sales: `not-as-described` refunds `amount` (default: the full price, capped at the price) to the buyer's wallet, and the seller gets the rest minus a commission of `round((price - refund) * 0.10)`, so a full refund charges no commission. A full refund pauses the listing instead of marking it sold. `normal-wear` rejects the claim, and the seller is paid the price minus the commission. The protection fee is not refunded.
 
 ### 3.3 Pre-arrival matching (`20261025020500_needs_matching.sql`)
 
@@ -149,7 +150,7 @@ Each RPC checks `auth.uid()`, locks the row, validates the from-state and raises
 | RPC (args) | Caller | From → to | Side effects |
 |---|---|---|---|
 | `quote_rental(p_price, p_deposit?)` → jsonb `RentalQuote` | anyone (anon too) | — (pure) | — |
-| `quote_sale(p_price, p_mode)` → jsonb `SaleQuote` | anyone | — (pure) | — |
+| `quote_sale(p_price, p_mode)` → jsonb `SaleQuote` | anyone | — (pure) | — Includes `sellerCommission` and `sellerPayout` (0 and the price for in person) |
 | `request_rental(p_listing_id, p_message?)` → rentals | renter (not the owner) | listing `available`, valid deposit → `requested` | Quote stored; owner notified |
 | `respond_rental(p_rental_id, p_approve, p_reason?)` | owner | `requested` → `approved` / `declined` | Approve: listing `reserved` (only one approved booking per item). Renter notified |
 | `cancel_rental(p_rental_id, p_reason?)` | either | `requested` / `approved` → `cancelled` | Listing back to `available` if it was reserved; other party notified |
@@ -157,13 +158,13 @@ Each RPC checks `auth.uid()`, locks the row, validates the from-state and raises
 | `confirm_handover(p_rental_id, p_photos)` | renter | `paid` → `active` | Needs ≥ 1 photo. Due date and payout time start; owner notified |
 | `mark_returned(p_rental_id, p_photos)` | either | `active` / `overdue` → `return-pending` (or `missing` if more than 7 days late) | Needs ≥ 1 photo. Late fee fixed; 48 h window opens; other party notified |
 | `confirm_return(p_rental_id, p_photos?)` | owner | `return-pending` (or `active` / `overdue`, which records the return first) → `released` | Needs ≥ 1 return photo (either party's). Deposit settled (owner: late fee; renter: the rest); listing `available`; payout if due |
-| `create_sale(p_listing_id, p_mode, p_method?)` → transactions | buyer (not the seller) | listing `available` → `pending` (in person) / `paid` (protected) | Protected: ledger payment, price held, fee to the platform, listing `reserved`. Seller notified |
+| `create_sale(p_listing_id, p_mode, p_method?)` → transactions | buyer (not the seller) | listing `available` → `pending` (in person) / `paid` (protected) | Protected: ledger payment, price held, fee to the platform, `seller_commission` stored from the quote, listing `reserved`. Seller notified |
 | `confirm_sale_handover(p_transaction_id, p_photos?)` | either | `paid` → `handed-over` | 48 h window; buyer notified |
-| `confirm_sale_receipt(p_transaction_id)` | buyer | `paid` / `handed-over` → `released` | Seller paid now; listing `sold` |
+| `confirm_sale_receipt(p_transaction_id)` | buyer | `paid` / `handed-over` → `released` | Seller paid now (price minus the sale commission, which goes to the platform); listing `sold` |
 | `mark_sold(p_listing_id, p_buyer_id?)` | seller | sale listing, no protected sale open → `completed` | `p_buyer_id` must have a pending in-person purchase. Listing `sold`; other pending purchases cancelled |
 | `cancel_sale(p_transaction_id)` | either | `pending` → `cancelled` | Other party notified. Protected purchases can't be cancelled. |
 | `file_dispute(p_reason, p_description?, p_rental_id?, p_transaction_id?, p_evidence?, p_claim_amount?)` → disputes | rental: either party; sale: buyer | rental `return-pending` / sale `handed-over`, before `dispute_window_ends_at` → `disputed` | Evidence paths must be under `rental/<id>/` or `sale/<id>/`; claim is whole baht, ≥ 0 and ≤ deposit / price. Other party and all admins notified |
-| `resolve_dispute(p_dispute_id, p_finding, p_amount?, p_note?)` → disputes | admin | dispute `open` → `resolved`; deal → `resolved` | Amount is whole baht. Settlement per §3 above; ledger rows carry `dispute_id`; both parties notified |
+| `resolve_dispute(p_dispute_id, p_finding, p_amount?, p_note?)` → disputes | admin | dispute `open` → `resolved`; deal → `resolved` | Amount is whole baht. Settlement per §3 above (sales: the commission is on the price minus the refund); ledger rows carry `dispute_id`; both parties notified |
 | `run_escrow_jobs()` → jsonb counts | any signed-in user, pg_cron | — | Idempotent. Overdue, missing, rental auto-release, owner payouts, sale auto-release, reminders 24 h and 2 h before a window closes (each sent once) |
 | `get_wallet_summary()` → `{held, available, pending_payouts, deposits_held}[]` | self | — | — |
 | `wallet_withdraw(p_amount)` → wallet_ledger | self | — | Simulated withdrawal (−available). Takes the per-user wallet lock, like every `wallet` payment (`private.take_payment`), so a payment and a withdrawal can't both spend the same balance |
@@ -198,7 +199,7 @@ Each row is `(user_id, kind, bucket, amount, memo, rental_id | transaction_id | 
 | `held` | The platform holds this for the user: a renter's deposit, or an owner's or seller's payout that isn't released yet |
 | `available` | The user's in-app wallet (refunds, payouts). It can pay with method `wallet`. |
 | `external` | Paid in from PromptPay or card. History only; not a balance. |
-| `platform` | Platform revenue (`user_id` is null): commission, escrow fee, protection fee, premium placement |
+| `platform` | Platform revenue (`user_id` is null): rental commission, escrow fee, protection fee, sale commission, premium placement |
 
 Kinds: `payment`, `hold`, `hold_release`, `payout`, `refund`, `claim` (deposit share to the owner), `platform_fee`, `withdrawal`. Balances: `held = Σ held`, `available = Σ available` (`get_wallet_summary`). Example, the mini fridge (฿250 + ฿25 + ฿30 + ฿800):
 
@@ -207,6 +208,15 @@ Kinds: `payment`, `hold`, `hold_release`, `payout`, `refund`, `claim` (deposit s
 | `pay_rental` (PromptPay) | external −1105, held +800 | held +250 | +25, +30 |
 | 48 h after handover | | held −250, available +250 | |
 | `confirm_return` (on time) | held −800, available +800 | | |
+
+A protected sale, the desk lamp (฿400 + ฿22 protection fee, ฿40 sale commission):
+
+| Event | Buyer | Seller | Platform |
+|---|---|---|---|
+| `create_sale` (PromptPay) | external −422 | held +400 (`hold`) | +22 (protection fee) |
+| Release (`private.release_sale`) | | held −400 (`hold_release`), available +360 (`payout`) | +40 (`platform_fee`, memo 'Sale commission') |
+
+With a partial refund the release also writes the buyer's `refund`, and the seller's payout is price − refund − commission.
 
 ---
 
@@ -295,6 +305,8 @@ Add `supabase/migrations/<timestamp>_<name>.sql`, run `npm run db:reset && npm r
 ### Production push (manual, after review)
 
 > **Done on 25 Oct 2026** for the seven P0 migrations (through `20261025040000_legacy_escrow_backfill.sql`), followed straight away by the PR #4 deploy. Use the same steps for any future migration: push first, then deploy the code that needs it.
+>
+> **Pending:** `20261026000000_sale_commission.sql` (branch `feat/seller-sale-commission`) is not on production yet. Push it (`db push --dry-run` should list only that file, then `db push`) right before deploying that branch, because the new code reads `quote_sale`'s `sellerCommission` / `sellerPayout` and `transactions.seller_commission`.
 
 **Order matters: migrations first, then the Vercel deploy right after.** The new app code needs the new schema (with the old schema the store's first listings query fails on `listings.featured_until`, and the RPCs, tables and buckets are missing), and the live `master` code writes `rentals` directly, which `20261025010000_p0_core.sql` forbids. So push the migrations and deploy `feat/p0-core` in one sitting, with no gap; until the deploy finishes, the old app can't create bookings. The migrations don't fail on existing rows (the new check constraints are supersets of the baseline ones; `owner_id` and `period_days` are backfilled before `SET NOT NULL`).
 

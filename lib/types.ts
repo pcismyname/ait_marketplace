@@ -218,6 +218,12 @@ export interface Transaction {
   price: number
   protectionFee: number
   total: number
+  /**
+   * 10% sale commission taken from the seller's payout (protected sales only).
+   * Quoted at checkout; after release, the amount charged. 0 for in-person
+   * sales and purchases paid before 2026-10-26.
+   */
+  sellerCommission: number
   paymentMethod?: PaymentMethod
   status: SaleStatus
   refundToBuyer: number

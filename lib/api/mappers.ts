@@ -132,6 +132,7 @@ export function mapTransaction(row: TransactionRow): Transaction {
     price: Number(row.price),
     protectionFee: Number(row.protection_fee),
     total: Number(row.total),
+    sellerCommission: Number(row.seller_commission ?? 0),
     paymentMethod: opt(row.payment_method) as PaymentMethod | undefined,
     status: row.status as SaleStatus,
     refundToBuyer: Number(row.refund_to_buyer),

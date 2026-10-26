@@ -2,7 +2,7 @@
 // Money rules: docs/BusinessRules.md §6. Amounts always come from database
 // columns or lib/fees.ts.
 
-import { settleDeposit, type DepositSettlement } from '@/lib/fees'
+import { saleCommission, settleDeposit, type DepositSettlement } from '@/lib/fees'
 import type { Dispute, DisputeFinding, Rental, Transaction } from '@/lib/types'
 
 export type DealKind = 'rental' | 'sale'
@@ -14,7 +14,7 @@ export const FINDING_LABELS: Record<DisputeFinding, string> = {
   'not-as-described': 'Not as described',
 }
 
-/** Sale disputes decided as "normal-wear" mean the claim was rejected (seller paid in full). */
+/** Sale disputes decided as "normal-wear" mean the claim was rejected (no refund to the buyer). */
 export function findingLabel(finding: DisputeFinding, kind: DealKind): string {
   if (kind === 'sale' && finding === 'normal-wear') return 'As described (claim rejected)'
   return FINDING_LABELS[finding]
@@ -94,11 +94,14 @@ export function filingBlocker(
 /**
  * Preview of a resolution, the same maths as resolve_dispute:
  *   rental: owner gets min(deposit, lateFee + claim), renter the rest
- *   sale:   buyer gets the refund, seller the rest of the price
+ *   sale:   buyer gets the refund, seller the rest of the price minus the
+ *           10% sale commission on it (when the purchase carries one)
  * `toOwner` is the owner's / seller's share, `toRenter` the renter's / buyer's.
  */
 export function previewResolution(
-  input: { kind: 'rental'; deposit: number; lateFee: number } | { kind: 'sale'; price: number },
+  input:
+    | { kind: 'rental'; deposit: number; lateFee: number }
+    | { kind: 'sale'; price: number; commission: boolean },
   finding: DisputeFinding,
   amount: number,
 ): DepositSettlement {
@@ -108,7 +111,8 @@ export function previewResolution(
     return settleDeposit(input.deposit, input.lateFee + claim)
   }
   const refund = finding === 'not-as-described' ? Math.min(input.price, Math.max(0, amount)) : 0
-  return settleDeposit(input.price, input.price - refund)
+  const kept = input.price - refund
+  return { toOwner: kept - (input.commission ? saleCommission(kept) : 0), toRenter: refund }
 }
 
 /** The amounts a resolved dispute settled, from the dispute row. */

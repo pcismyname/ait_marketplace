@@ -28,7 +28,7 @@ import {
 } from '@/lib/api'
 import type { Listing, Rental, Transaction } from '@/lib/types'
 import { useMarketplace } from '@/lib/store'
-import { DISPUTE_WINDOW_HOURS, MISSING_AFTER_DAYS, lateReturnSettlement } from '@/lib/fees'
+import { DISPUTE_WINDOW_HOURS, MISSING_AFTER_DAYS, SALE_COMMISSION_RATE, lateReturnSettlement } from '@/lib/fees'
 import { formatPrice } from '@/lib/format'
 import { canFileDispute, dealRole, fileDisputeHref, formatDateTime } from '@/lib/deal-status'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -190,7 +190,7 @@ function ConfirmReceipt({
     flow.setSubmitting(true)
     try {
       await confirmSaleReceipt(t.id)
-      toast.success('Payment released to the seller', { description: `${formatPrice(t.price)} (simulated).` })
+      toast.success('Payment released to the seller', { description: `${formatPrice(t.price - t.sellerCommission)} (simulated).` })
       router.push(`/transaction/${t.id}?review=1`)
     } catch (error) {
       toast.error('Could not confirm receipt', { description: error instanceof Error ? error.message : String(error) })
@@ -205,7 +205,7 @@ function ConfirmReceipt({
       <p className="label-tag mb-2">Protected purchase</p>
       <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Confirm receipt</h1>
       <p className="mt-2 text-[14px] text-muted-foreground">
-        {listing?.title ?? 'Your item'} · release {formatPrice(t.price)} to the seller now instead of waiting for the{' '}
+        {listing?.title ?? 'Your item'} · release {formatPrice(t.price - t.sellerCommission)} to the seller now instead of waiting for the{' '}
         {DISPUTE_WINDOW_HOURS}-hour window
         {t.disputeWindowEndsAt ? ` (closes ${formatDateTime(t.disputeWindowEndsAt)})` : ''}.
       </p>
@@ -220,7 +220,10 @@ function ConfirmReceipt({
         </div>
 
         <dl className="mb-6 space-y-1.5 text-[13px]">
-          <div className="flex justify-between"><dt className="text-muted-foreground">Released to the seller</dt><dd className="font-medium tabular-nums">{formatPrice(t.price)}</dd></div>
+          <div className="flex justify-between"><dt className="text-muted-foreground">Released to the seller</dt><dd className="font-medium tabular-nums">{formatPrice(t.price - t.sellerCommission)}</dd></div>
+          {t.sellerCommission > 0 && (
+            <div className="flex justify-between"><dt className="text-muted-foreground">Sale commission ({Math.round(SALE_COMMISSION_RATE * 100)}%, from the seller)</dt><dd className="font-medium tabular-nums">{formatPrice(t.sellerCommission)}</dd></div>
+          )}
           <div className="flex justify-between"><dt className="text-muted-foreground">Buyer protection fee (kept)</dt><dd className="font-medium tabular-nums">{formatPrice(t.protectionFee)}</dd></div>
           <div className="flex justify-between border-t border-border pt-1.5"><dt className="font-semibold">You paid</dt><dd className="font-display font-semibold tabular-nums">{formatPrice(t.total)}</dd></div>
         </dl>
@@ -240,7 +243,7 @@ function ConfirmReceipt({
             </span>
           </label>
           <Button type="submit" disabled={!checked || submitting} className="h-11 w-full text-[13px] font-semibold">
-            {submitting ? 'Releasing…' : `Confirm & release ${formatPrice(t.price)}`}
+            {submitting ? 'Releasing…' : `Confirm & release ${formatPrice(t.price - t.sellerCommission)}`}
           </Button>
           <SimulatedPaymentsNote />
         </form>

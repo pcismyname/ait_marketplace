@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   RENTAL_COMMISSION_RATE,
+  SALE_COMMISSION_RATE,
   ESCROW_FEE_MIN,
   ESCROW_FEE_RATE,
   PREMIUM_PLACEMENT_FEE,
@@ -25,6 +26,7 @@ import {
   ownerPayoutAt,
   rentalDueDate,
   returnStatus,
+  saleCommission,
   settleDeposit,
   suggestedDeposit,
   validateDeposit,
@@ -35,6 +37,7 @@ const HOUR = 3_600_000
 
 test('fee constants match BusinessRules.md §2', () => {
   assert.equal(RENTAL_COMMISSION_RATE, 0.1)
+  assert.equal(SALE_COMMISSION_RATE, 0.1)
   assert.equal(ESCROW_FEE_MIN, 30)
   assert.equal(ESCROW_FEE_RATE, 0.03)
   assert.equal(PREMIUM_PLACEMENT_FEE, 49)
@@ -78,6 +81,8 @@ test('sale paid in person is free and unprotected', () => {
   assert.equal(q.protectionFee, 0)
   assert.equal(q.total, 1200)
   assert.equal(q.escrow, false)
+  assert.equal(q.sellerCommission, 0)
+  assert.equal(q.sellerPayout, 1200)
 })
 
 test('sale paid with protection adds 10 + 3% of price', () => {
@@ -87,6 +92,25 @@ test('sale paid with protection adds 10 + 3% of price', () => {
   assert.equal(q.protectionFee, 40)
   assert.equal(q.total, 1040)
   assert.equal(q.escrow, true)
+})
+
+test('protected sale takes a 10% commission from the seller payout', () => {
+  const q = computeSaleQuote(1000, 'protected')
+  assert.equal(q.sellerCommission, 100)
+  assert.equal(q.sellerPayout, 900)
+  // Worked example in BusinessRules.md §2: ฿400 lamp.
+  const lamp = computeSaleQuote(400, 'protected')
+  assert.equal(lamp.total, 422)
+  assert.equal(lamp.sellerPayout, 360)
+  assert.equal(lamp.protectionFee + lamp.sellerCommission, 62)
+})
+
+test('sale commission is rounded to whole baht and charged on what the seller keeps', () => {
+  assert.equal(saleCommission(85), 9) // round(8.5)
+  assert.equal(saleCommission(84), 8)
+  assert.equal(saleCommission(1000 - 400), 60) // partial refund of 400
+  assert.equal(saleCommission(0), 0) // full refund
+  assert.equal(saleCommission(-5), 0)
 })
 
 test('deposit suggestions by category match BusinessRules.md §3', () => {

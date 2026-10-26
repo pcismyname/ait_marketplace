@@ -10,8 +10,8 @@ import {
   BUYER_PROTECTION_BASE_FEE, BUYER_PROTECTION_RATE,
   DEPOSIT_MAX, DEPOSIT_MIN, DEPOSIT_VALUE_MAX_RATE, DEPOSIT_VALUE_MIN_RATE,
   ESCROW_FEE_MIN, ESCROW_FEE_RATE, HIGH_VALUE_RENTAL_THRESHOLD,
-  PREMIUM_PLACEMENT_DAYS, PREMIUM_PLACEMENT_FEE, RENTAL_COMMISSION_RATE,
-  suggestedDeposit,
+  PREMIUM_PLACEMENT_DAYS, PREMIUM_PLACEMENT_FEE, RENTAL_COMMISSION_RATE, SALE_COMMISSION_RATE,
+  computeSaleQuote, suggestedDeposit,
 } from '@/lib/fees'
 import { formatPrice } from '@/lib/format'
 import type { CategoryId, Condition, ListingType } from '@/lib/types'
@@ -117,7 +117,7 @@ export default function SellPage() {
           <p className="label-tag mb-3">Listing type</p>
           <div className="flex gap-6 border-b border-border pb-4">
             {[
-              { value: 'sale' as ListingType, title: 'For sale', sub: 'No platform fee.' },
+              { value: 'sale' as ListingType, title: 'For sale', sub: 'Free in person.' },
               { value: 'rent' as ListingType, title: 'For rent', sub: 'Deposit in escrow.' },
             ].map(({ value, title: t, sub }) => (
               <button
@@ -312,9 +312,13 @@ export default function SellPage() {
           <div className="flex items-start gap-2.5 border border-border bg-surface p-4">
             <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-[12px] leading-relaxed text-muted-foreground">
-              Free to list, free to sell. No platform fee for you. Buyers pay you in person, or can choose
-              &ldquo;Pay with protection&rdquo; for {formatPrice(BUYER_PROTECTION_BASE_FEE)} + {pct(BUYER_PROTECTION_RATE)}%,
-              paid by them.
+              Free to list. Buyers pay you in person (free for both of you), or choose &ldquo;Pay with
+              protection&rdquo; for {formatPrice(BUYER_PROTECTION_BASE_FEE)} + {pct(BUYER_PROTECTION_RATE)}%, paid by them. On
+              a protected sale, {BRAND} keeps a {pct(SALE_COMMISSION_RATE)}% commission from your payout
+              {Number(price) > 0 && (
+                <> (you receive {formatPrice(computeSaleQuote(Number(price), 'protected').sellerPayout)} of{' '}
+                {formatPrice(Number(price))})</>
+              )}.
             </p>
           </div>
         )}

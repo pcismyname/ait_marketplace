@@ -52,7 +52,7 @@ Start by applying the instructor's feedback from 8 October.
 - [ ] Supabase: database for users, listings, rentals, messages; AIT email login (`@ait.asia` only).
 - [ ] Fees per BusinessRules.md: escrow fee `max(฿30, 3% of deposit)` in `lib/fees.ts`.
 - [ ] Deposit rules on the sell form: category suggestion, ฿200 – ฿3,000 limits, no rental without a deposit.
-- [ ] Sales checkout: *Pay in person* (free) or *Pay with protection* (฿10 + 3%), simulated.
+- [ ] Sales checkout: *Pay in person* (free) or *Pay with protection* (buyer pays ฿10 + 3%; seller pays a 10% sale commission from the payout, added 2026-10-26), simulated.
 - [ ] Escrow state machine (simulated): requested → approved → paid → active → return-pending → released / disputed, plus owner payout 48 h after handover.
 - [ ] Ratings after a completed exchange.
 

@@ -21,12 +21,12 @@ flowchart TD
     N --> O[Item handed over to buyer]
     O --> P["48-hour dispute window opens at handover"]
     P --> Q{Buyer files dispute within window?}
-    Q -- "No dispute - window closes after 48 h" --> R["Funds auto-released: seller gets full listing price"]
+    Q -- "No dispute - window closes after 48 h" --> R["Funds auto-released: seller gets listing price minus 10% sale commission"]
     Q -- "Buyer confirms early" --> R
     Q -- "Yes, dispute filed" --> T["Admin reviews dispute (chat history, photos)"]
     T --> U{Item not as described?}
     U -- No --> R
-    U -- Yes --> V[Full or partial refund to buyer]
+    U -- Yes --> V["Full or partial refund to buyer; seller gets the rest minus 10% commission"]
 
     R --> S[Seller rates buyer]
     V --> S

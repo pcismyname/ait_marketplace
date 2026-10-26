@@ -15,7 +15,7 @@ import { ArrowDownLeft, ArrowUpRight, Landmark, Lock, Wallet } from 'lucide-reac
 import { getWalletSummary, listLedger, withdraw } from '@/lib/api'
 import type { LedgerBucket, LedgerEntry, LedgerKind, WalletSummary } from '@/lib/types'
 import { BRAND } from '@/lib/data'
-import { DISPUTE_WINDOW_HOURS, OWNER_PAYOUT_DELAY_HOURS } from '@/lib/fees'
+import { DISPUTE_WINDOW_HOURS, OWNER_PAYOUT_DELAY_HOURS, SALE_COMMISSION_RATE } from '@/lib/fees'
 import { formatPrice } from '@/lib/format'
 import { formatDateTime } from '@/lib/deal-status'
 import { Button } from '@/components/ui/button'
@@ -183,7 +183,8 @@ export default function WalletPage() {
           )}
           <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
             Deposits are held by {BRAND}, never the owner, and settled after the return ({DISPUTE_WINDOW_HOURS} h window).
-            Rental fees are paid {OWNER_PAYOUT_DELAY_HOURS} h after handover; protected sales {DISPUTE_WINDOW_HOURS} h after handover.
+            Rental fees are paid {OWNER_PAYOUT_DELAY_HOURS} h after handover; protected sales {DISPUTE_WINDOW_HOURS} h after handover,
+            minus a {Math.round(SALE_COMMISSION_RATE * 100)}% sale commission (payouts on the way show the full price).
           </p>
         </div>
 

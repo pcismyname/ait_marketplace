@@ -18,6 +18,7 @@ import {
 } from './lib.mjs'
 
 const protectionFee = (price) => 10 + Math.round(price * 0.03)
+const saleCommission = (price) => Math.round(price * 0.1)
 
 export async function main(flow, browser) {
   const inPersonListing = await createListing('seller', { title: 'study chair (in person)', type: 'sale', price: 300, category: 'furniture' })
@@ -103,8 +104,9 @@ export async function main(flow, browser) {
     return 'released, listing sold'
   })
 
-  await flow.step('protected: the seller is paid the full ฿500 (fee stays with the platform)', async () => {
-    const after = await waitFor(() => walletBalance('seller', 'available'), (v) => v - sellerAvailableBefore === 500, { what: 'seller payout' })
+  const sellerPayout = 500 - saleCommission(500)
+  await flow.step(`protected: the seller is paid ฿${sellerPayout} (฿500 minus the 10% sale commission; fees stay with the platform)`, async () => {
+    const after = await waitFor(() => walletBalance('seller', 'available'), (v) => v - sellerAvailableBefore === sellerPayout, { what: 'seller payout' })
     return `seller available +฿${after - sellerAvailableBefore}`
   })
 

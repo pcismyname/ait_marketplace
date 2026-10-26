@@ -1,7 +1,7 @@
 flowchart TD
     A[Buyer logs in] --> B[Browse/Search marketplace]
     B --> C[Filter by category, price, location]
-    C --> D["View listing detail page (listing price shown, no commission on sales)"]
+    C --> D["View listing detail page (listing price shown; buyer pays no commission)"]
     D --> E{Interested?}
     E -- No --> B
     E -- Yes --> F[Send chat message to seller]
@@ -20,7 +20,7 @@ flowchart TD
     O --> P["48-hour dispute window opens at handover"]
     P --> Q{Item matches listing description?}
     Q -- Yes --> S["Buyer confirms receipt (releases at once) - or takes no action and the window closes"]
-    S --> T["Escrow releases payment to seller (full listing price)"]
+    S --> T["Escrow releases payment to seller (listing price minus 10% sale commission)"]
     Q -- No --> U[Buyer files dispute with evidence within 48 hours]
     U --> V["Admin reviews dispute (chat history, photos)"]
     V --> W{Item not as described?}

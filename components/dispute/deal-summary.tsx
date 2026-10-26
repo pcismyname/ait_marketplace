@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
 import { formatPrice } from '@/lib/format'
+import { SALE_COMMISSION_RATE } from '@/lib/fees'
 import type { Listing, Rental, Transaction } from '@/lib/types'
 import { formatDateTime } from './dispute-helpers'
 
@@ -83,6 +84,12 @@ export function DealSummary({
           <Row label="Seller" value={getUser(transaction.sellerId).name} />
           <Row label={transaction.releasedAt ? 'Price (was held in escrow)' : 'Price held in escrow'} value={formatPrice(transaction.price)} strong />
           <Row label="Buyer protection fee" value={formatPrice(transaction.protectionFee)} />
+          {transaction.sellerCommission > 0 && (
+            <Row
+              label={transaction.releasedAt ? 'Sale commission (charged)' : `Sale commission (${Math.round(SALE_COMMISSION_RATE * 100)}%, before any refund)`}
+              value={formatPrice(transaction.sellerCommission)}
+            />
+          )}
           <Row label="Handed over" value={formatDateTime(transaction.handoverAt)} />
           <Row label="Dispute window closes" value={formatDateTime(transaction.disputeWindowEndsAt)} />
           {transaction.releasedAt && (

@@ -25,6 +25,7 @@ AST02.21 E-Business Development and Technology · August 2026 Semester
 | 2026-10-07 | Escrow fee set to `max(฿30, 3% of deposit)`; commission 10%; premium placement ฿49 / 7 days | [BusinessRules.md](BusinessRules.md#2-fees) |
 | 2026-10-07 | Deposits are guided by the platform: suggested by category, ฿200 – ฿3,000 | [BusinessRules.md](BusinessRules.md#3-deposits) |
 | 2026-10-07 | Course build has no payment gateway; payments and escrow are simulated in the app | [Timeline.md](Timeline.md#scope-decision-no-payment-gateway) |
+| 2026-10-26 | Sale commission: the seller pays 10% of the sale price on protected sales only, taken from the payout; in-person sales stay free | [BusinessRules.md](BusinessRules.md#2-fees) |
 
 ---
 
@@ -101,10 +102,11 @@ PassItOn **monetizes trust, not access**: the core "replace Facebook groups" use
 - **Free listing.** Every sale and rental listing is free, and a sale paid in person stays free. This keeps adoption frictionless and encourages students to migrate off Facebook/LINE groups without a paywall.
 - **Rental commission.** 10% of the rental fee, paid by the renter at booking. This is the platform's primary revenue stream, justified by transaction volume rather than by charging for access: students only pay when they complete a rental.
 - **Escrow/deposit handling fee.** `max(฿30, 3% of deposit)` per rental, paid by the renter, for holding the refundable deposit and administering dispute resolution. It scales with the deposit so payment fees on large deposits are covered. This fee is the platform's core differentiator: it monetizes the one function a Facebook or LINE group is structurally incapable of providing, a neutral third party holding funds and adjudicating disputes. Lu and Zhang's (2020) finding that dispute-resolution effectiveness is the single most important factor in buyers' marketplace choice directly supports building revenue around this service rather than around advertising or listing fees.
-- **Buyer protection fee (optional).** ฿10 + 3% of the price when a buyer chooses to pay for a sale with protection. This follows the Vinted model: free to sell, buyers pay for protection.
+- **Buyer protection fee (optional).** ฿10 + 3% of the price when a buyer chooses to pay for a sale with protection. This follows the Vinted model: buyers pay for protection.
+- **Sale commission.** 10% of the sale price, paid by the seller on protected sales only and taken from the payout when escrow releases. Like the rental commission, it is charged only where the platform holds the money; sales paid in person stay free for both sides. Example: a ฿1,000 sale paid with protection costs the buyer ฿1,040, the seller receives ฿900 and the platform keeps ฿140.
 - **Premium placement.** ฿49 for 7 days at the top of search and matching, for frequent listers.
 
-Sellers and owners always receive their full price; platform fees are paid on top by the buyer or renter.
+Owners always receive their full rental fee, and sellers paid in person keep the full price; the rental fees are paid on top by the renter. On a protected sale the buyer pays the protection fee on top and the seller's payout is the price minus the 10% sale commission.
 
 ## Target Customers / Users
 

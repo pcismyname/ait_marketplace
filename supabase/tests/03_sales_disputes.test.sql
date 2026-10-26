@@ -2,7 +2,7 @@
 -- sales without escrow, the 48 h window, admin findings and the deposit cap.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(55);
+select plan(59);
 
 -- ── helpers (same block in every test file) ────────────────────────────────
 create function pg_temp.new_user(p_email text, p_name text default null) returns text
@@ -89,6 +89,7 @@ select pg_temp.set_id('t1', t.id) from public.create_sale('l-desk', 'protected',
 select is(pg_temp.status(pg_temp.id('t1')), 'paid', 'protected sale starts paid (held)');
 select is((select array[price, protection_fee, total] from public.transactions where id = pg_temp.id('t1')), array[1000, 40, 1040]::numeric[], '฿1,000 + ฿40 = ฿1,040');
 select is((select status from public.listings where id = 'l-desk'), 'reserved', 'the listing is reserved');
+select is((select seller_commission from public.transactions where id = pg_temp.id('t1')), 100::numeric, 'the 10% sale commission is quoted at checkout');
 select throws_ok($$ select public.create_sale('l-fridge', 'protected', 'card') $$, 'P0001', null, 'rental listings cannot be bought');
 select throws_ok(format($$ select public.file_dispute('Broken', '', null, %L) $$, pg_temp.id('t1')), 'P0001', null, 'no dispute before handover');
 select pg_temp.logout();
@@ -131,7 +132,10 @@ select is(d.status, 'resolved', 'the admin resolves: not as described, ฿400 ba
 select throws_ok(format($$ select public.resolve_dispute(%L, 'normal-wear') $$, pg_temp.id('d1')), 'P0001', null, 'a dispute is resolved once');
 select pg_temp.logout();
 select is(pg_temp.status(pg_temp.id('t1')), 'resolved', 'the sale is resolved');
-select is(pg_temp.bal(pg_temp.id('seller'), 'available'), 600::numeric, 'seller gets ฿600');
+select is(pg_temp.bal(pg_temp.id('seller'), 'available'), 540::numeric, 'seller gets ฿600 minus 10% commission on it = ฿540');
+select is((select array[seller_amount, seller_commission] from public.transactions where id = pg_temp.id('t1')), array[540, 60]::numeric[], 'commission is charged on what the seller keeps');
+select is((select seller_amount from public.disputes where id = pg_temp.id('d1')), 540::numeric, 'the dispute records the net payout');
+select is((select sum(amount) from public.wallet_ledger where bucket = 'platform' and transaction_id = pg_temp.id('t1')), 100::numeric, 'platform keeps ฿40 protection + ฿60 commission');
 select is(pg_temp.bal(pg_temp.id('buyer'), 'available'), 400::numeric, 'buyer gets ฿400 back in the wallet');
 select is(pg_temp.bal(pg_temp.id('seller'), 'held'), 0::numeric, 'nothing stays held');
 select is((select status from public.listings where id = 'l-desk'), 'sold', 'a partly refunded item is sold');
@@ -147,7 +151,7 @@ select throws_ok(format($$ select public.file_dispute('Late', '', null, %L) $$, 
 select pg_temp.logout();
 select public.run_escrow_jobs();
 select is(pg_temp.status(pg_temp.id('t2')), 'released', 'auto-released when the window closes');
-select is(pg_temp.bal(pg_temp.id('seller'), 'available'), 1100::numeric, 'seller now has ฿600 + ฿500');
+select is(pg_temp.bal(pg_temp.id('seller'), 'available'), 990::numeric, 'seller now has ฿540 + ฿450 (฿500 minus commission)');
 select is((select times_changed_hands from public.listings where id = 'l-chair'), 2, 'the item changed hands once more');
 
 -- ═══ In person: no escrow, no dispute, seller marks it sold

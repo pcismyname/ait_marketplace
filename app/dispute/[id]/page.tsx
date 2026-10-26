@@ -251,7 +251,7 @@ export default function DisputePage() {
             ) : (
               <ul className="list-disc space-y-1 pl-4">
                 <li>Not as described: a full or partial refund to the buyer.</li>
-                <li>As described: the seller is paid in full.</li>
+                <li>As described: no refund; the seller is paid the price minus the 10% sale commission (protected sales).</li>
               </ul>
             )}
           </section>

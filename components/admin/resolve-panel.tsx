@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Gavel } from 'lucide-react'
 import { resolveDispute } from '@/lib/api'
+import { SALE_COMMISSION_RATE } from '@/lib/fees'
 import { formatPrice } from '@/lib/format'
 import type { Dispute, DisputeFinding, Rental, Transaction } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -43,7 +44,7 @@ const SALE_OUTCOMES: Outcome[] = [
     amountLabel: 'Refund to the buyer',
   },
   // buyer_userflow figure: "Item not as described? — No → escrow releases payment to seller".
-  { finding: 'normal-wear', label: 'As described', rule: 'Claim rejected, the seller is paid in full' },
+  { finding: 'normal-wear', label: 'As described', rule: 'Claim rejected, no refund; the seller is paid the price minus any sale commission' },
 ]
 
 export function ResolvePanel({
@@ -78,7 +79,7 @@ export function ResolvePanel({
   const preview =
     finding && !amountInvalid
       ? previewResolution(
-          rental ? { kind: 'rental', deposit: rental.deposit, lateFee } : { kind: 'sale', price: held },
+          rental ? { kind: 'rental', deposit: rental.deposit, lateFee } : { kind: 'sale', price: held, commission: (transaction?.sellerCommission ?? 0) > 0 },
           finding,
           needsAmount ? amountValue : 0,
         )
@@ -122,7 +123,11 @@ export function ResolvePanel({
       <p className="mb-4 text-[12px] text-muted-foreground">
         {rental
           ? `Deposit held: ${formatPrice(held)}${lateFee > 0 ? ` (late fee ${formatPrice(lateFee)} goes to the owner on top of any claim)` : ''}. The owner never receives more than the deposit.`
-          : `Price held: ${formatPrice(held)}. The buyer protection fee (${formatPrice(transaction?.protectionFee ?? 0)}) is not refunded.`}
+          : `Price held: ${formatPrice(held)}. The buyer protection fee (${formatPrice(transaction?.protectionFee ?? 0)}) is not refunded.${
+              (transaction?.sellerCommission ?? 0) > 0
+                ? ` The seller pays a ${Math.round(SALE_COMMISSION_RATE * 100)}% commission on what they keep (none on a full refund).`
+                : ''
+            }`}
       </p>
 
       <div className="grid gap-2">

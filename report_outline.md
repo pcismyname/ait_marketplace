@@ -71,11 +71,12 @@ All amounts in THB; every computed fee is rounded to the nearest baht.
 | Escrow handling fee | Renter | `max(฿30, 3% of deposit)` | At booking | No |
 | Deposit | Renter | Suggested by category; owner adjusts within 30–50% of replacement value, ฿200–฿3,000 | At booking | Yes, minus late fees or the dispute outcome |
 | Buyer protection fee (sales) | Buyer, only if they choose "Pay with protection" | ฿10 + 3% of the sale price | At checkout | No |
+| Sale commission (protected sales only, from 2026-10-26) | Seller | 10% of the sale price the seller keeps | Taken from the seller's payout | No |
 | Premium placement | Lister | ฿49 for 7 days | When enabled | No |
 | Listing | — | Free | — | — |
 | Sale paid in person | — | Free, no escrow, no dispute support | — | — |
 
-Sellers and owners always receive their full price; platform fees are paid on top by the buyer or renter. The owner never holds the deposit.
+Owners receive the full rental fee and a seller paid in person keeps the full price; the renter or buyer pays the fees on top. On a protected sale the seller receives the price minus the 10% sale commission. The owner never holds the deposit.
 
 Suggested deposits by category: kitchen & household 300 · textbooks 200 · sports 300 · furniture 500 · electronics 800 · bicycles 1,000 · other 300. Renting items worth more than about ฿6,000 needs admin approval (how is still open; describe it as future work).
 
@@ -88,15 +89,16 @@ Suggested deposits by category: kitchen & household 300 · textbooks 200 · spor
 | Rental commission (10%) | — | — | 25 |
 | Escrow handling fee `max(30, 3%)` | — | — | 30 (3% = 24, so the ฿30 minimum applies) |
 | Buyer protection fee (10 + 3%) | — | 40 | — |
+| Sale commission (10%, from the seller) | — | 100 | — |
 | **Customer pays** | **1,000** | **1,040** | **1,105** |
-| Seller / owner receives | 1,000 (directly) | 1,000 (after handover + 48 h) | 250 (48 h after handover) |
+| Seller / owner receives | 1,000 (directly) | 900 (after handover + 48 h) | 250 (48 h after handover) |
 | Deposit returned (good return) | — | — | 800 |
-| **Platform gross revenue** | **0** | **40** | **55** |
+| **Platform gross revenue** | **0** | **140** | **55** |
 
 Extra cases worth one line each in the report:
 - **Larger deposit:** rental fee 500, deposit 2,000 → commission 50 + escrow fee 60 → renter pays 2,610; platform keeps 110. Shows the fee scaling above the ฿30 floor.
 - **Late return:** mini fridge at ฿250 per month (30 days) → late fee `ceil(250 / 30)` = ฿9 per day, taken from the deposit; 3 days late → ฿27 to the owner, ฿773 refunded. More than 7 days late counts as missing: the full ฿800 goes to the owner.
-- **Dispute outcomes** (the admin decides from chat history and before/after photos, within the 48-hour window): normal wear → ฿0 to the owner, full deposit refunded; repairable damage → repair cost to the owner, the rest refunded; lost or destroyed → full deposit to the owner; sale item not as described → full or partial refund to the buyer. The owner can never receive more than the deposit.
+- **Dispute outcomes** (the admin decides from chat history and before/after photos, within the 48-hour window): normal wear → ฿0 to the owner, full deposit refunded; repairable damage → repair cost to the owner, the rest refunded; lost or destroyed → full deposit to the owner; sale item not as described → full or partial refund to the buyer, and the seller gets the rest minus 10% commission on it. The owner can never receive more than the deposit.
 
 ### Why the escrow handling fee is `max(฿30, 3% of deposit)` (rationale to include)
 1. **Gateway fees on a deposit are not returned when the deposit is refunded.** In a real launch the deposit is charged through the gateway and refunded later, so the platform pays the processing cost on money it never keeps. A flat ฿30 loses money on large deposits paid by card: an ฿800 deposit costs about ฿31 by card (Omise 3.65% + 7% VAT). Scaling at 3% covers that cost on large deposits; the ฿30 floor covers small ones. Cite Omise's published pricing and refund policy.

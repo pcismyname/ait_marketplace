@@ -23,6 +23,7 @@ import {
 } from '@/lib/api'
 import { useMarketplace } from '@/lib/store'
 import { DISPUTE_WINDOW_HOURS, settleDeposit } from '@/lib/fees'
+import { previewResolution } from '@/components/dispute/dispute-helpers'
 import { formatPrice } from '@/lib/format'
 import type { Dispute, Listing } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -184,7 +185,11 @@ function NewDispute() {
     showClaim && claimValue !== null && !claimInvalid
       ? role === 'owner'
         ? settleDeposit(held, lateFee + claimValue)
-        : settleDeposit(held, held - claimValue)
+        : previewResolution(
+            { kind: 'sale', price: held, commission: !isRental && deal.transaction.sellerCommission > 0 },
+            'not-as-described',
+            claimValue,
+          )
       : null
 
   const addFiles = (list: FileList | null) => {
