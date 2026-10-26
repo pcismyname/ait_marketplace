@@ -844,7 +844,10 @@ function AmountsCard({ deal, role, now }: { deal: Deal; role: DealRole; now: num
                   value={`− ${formatPrice(t.sellerCommission)}`}
                   muted
                 />
-                <Row label="Seller receives on release" value={formatPrice(t.price - t.sellerCommission)} />
+                <Row
+                  label={t.status === 'disputed' ? 'Seller receives (before any refund)' : 'Seller receives on release'}
+                  value={formatPrice(t.price - t.sellerCommission)}
+                />
               </>
             )}
           </>
@@ -852,7 +855,7 @@ function AmountsCard({ deal, role, now }: { deal: Deal; role: DealRole; now: num
       </dl>
       {t.sellerCommission > 0 && (
         <p className="mt-2 text-[11px] text-muted-foreground">
-          {BRAND} keeps {Math.round(SALE_COMMISSION_RATE * 100)}% of what the seller is paid on protected sales. A
+          {BRAND} keeps {Math.round(SALE_COMMISSION_RATE * 100)}% of the price the seller keeps on protected sales. A
           refund lowers the commission with it.
         </p>
       )}

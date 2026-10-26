@@ -3,7 +3,7 @@
 -- the rule. Migration 20261026000000_sale_commission.sql.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(14);
 
 -- ── helpers (same block in every test file) ────────────────────────────────
 create function pg_temp.new_user(p_email text, p_name text default null) returns text
@@ -69,7 +69,7 @@ select pg_temp.set_id('t-desk', t.id) from public.create_sale('sc-desk', 'protec
 select public.confirm_sale_handover(pg_temp.id('t-desk'));
 select pg_temp.set_id('d-desk', d.id) from public.file_dispute('Wobbly', '', null, pg_temp.id('t-desk')) d;
 select pg_temp.login(pg_temp.id('admin'));
-select public.resolve_dispute(pg_temp.id('d-desk'), 'normal-wear');
+select is(d.seller_amount, 900::numeric, 'resolve_dispute returns the net seller amount') from public.resolve_dispute(pg_temp.id('d-desk'), 'normal-wear') d;
 select pg_temp.logout();
 select is((select array[seller_amount, seller_commission, refund_to_buyer] from public.transactions where id = pg_temp.id('t-desk')),
   array[900, 100, 0]::numeric[], 'claim rejected: ฿900 to the seller, ฿100 commission');

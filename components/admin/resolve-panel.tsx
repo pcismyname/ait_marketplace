@@ -44,7 +44,7 @@ const SALE_OUTCOMES: Outcome[] = [
     amountLabel: 'Refund to the buyer',
   },
   // buyer_userflow figure: "Item not as described? — No → escrow releases payment to seller".
-  { finding: 'normal-wear', label: 'As described', rule: 'Claim rejected, the seller is paid in full' },
+  { finding: 'normal-wear', label: 'As described', rule: 'Claim rejected, no refund; the seller is paid the price minus any sale commission' },
 ]
 
 export function ResolvePanel({
@@ -79,7 +79,7 @@ export function ResolvePanel({
   const preview =
     finding && !amountInvalid
       ? previewResolution(
-          rental ? { kind: 'rental', deposit: rental.deposit, lateFee } : { kind: 'sale', price: held },
+          rental ? { kind: 'rental', deposit: rental.deposit, lateFee } : { kind: 'sale', price: held, commission: (transaction?.sellerCommission ?? 0) > 0 },
           finding,
           needsAmount ? amountValue : 0,
         )

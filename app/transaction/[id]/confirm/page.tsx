@@ -190,7 +190,7 @@ function ConfirmReceipt({
     flow.setSubmitting(true)
     try {
       await confirmSaleReceipt(t.id)
-      toast.success('Payment released to the seller', { description: `${formatPrice(t.price)} (simulated).` })
+      toast.success('Payment released to the seller', { description: `${formatPrice(t.price - t.sellerCommission)} (simulated).` })
       router.push(`/transaction/${t.id}?review=1`)
     } catch (error) {
       toast.error('Could not confirm receipt', { description: error instanceof Error ? error.message : String(error) })
@@ -243,7 +243,7 @@ function ConfirmReceipt({
             </span>
           </label>
           <Button type="submit" disabled={!checked || submitting} className="h-11 w-full text-[13px] font-semibold">
-            {submitting ? 'Releasing…' : `Confirm & release ${formatPrice(t.price)}`}
+            {submitting ? 'Releasing…' : `Confirm & release ${formatPrice(t.price - t.sellerCommission)}`}
           </Button>
           <SimulatedPaymentsNote />
         </form>

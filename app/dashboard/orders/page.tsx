@@ -59,6 +59,8 @@ export default function OrdersPage() {
           : t.mode === 'protected'
           ? side === 'buyer'
             ? `Protected · incl. ${formatPrice(t.protectionFee)} fee`
+            : t.status === 'resolved' && t.refundToBuyer >= t.price
+            ? 'Protected · refunded to the buyer'
             : t.sellerCommission > 0
             ? `Protected · after ${formatPrice(t.sellerCommission)} commission`
             : 'Protected · paid out after the window'

@@ -14,6 +14,8 @@
 --      round((price - refund) * 10%), so a full refund means no commission.
 --      The commission is booked as a platform_fee; the dispute's
 --      seller_amount is updated to the net payout.
+--   5. resolve_dispute returns the dispute after release_sale, so callers
+--      see the net seller_amount (body otherwise as in review_fixes §5).
 
 -- ─── 1. Column ──────────────────────────────────────────────────────────────
 alter table public.transactions
@@ -120,8 +122,10 @@ begin
   update public.listings set status = 'reserved' where id = l.id;
 
   perform private.notify(l.seller_id, 'sale_paid', 'Item paid with protection',
-    format('%s paid ฿%s for "%s". Pass It On holds it until handover plus 48 hours, then pays you ฿%s (after the %s%% sale commission). Meet at %s.',
-           private.user_name(v_uid), t.price, l.title, t.price - t.seller_commission, 10, l.pickup_location),
+    format('%s paid ฿%s for "%s". Pass It On holds it until handover plus 48 hours, then pays you ฿%s%s. Meet at %s.',
+           private.user_name(v_uid), t.price, l.title, t.price - t.seller_commission,
+           case when t.seller_commission > 0 then format(' (after the ฿%s sale commission)', t.seller_commission) else '' end,
+           l.pickup_location),
     private.deal_link(t.id));
   return t;
 end
@@ -201,5 +205,90 @@ begin
       format('฿%s for "%s" was refunded to your wallet.', v_refund, v_title), private.deal_link(t.id));
   end if;
   return t;
+end
+$$;
+
+-- ─── 5. resolve_dispute returns the net seller amount ─────────────────────
+create or replace function public.resolve_dispute(
+  p_dispute_id text, p_finding text, p_amount numeric default null, p_note text default null
+)
+returns public.disputes
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_uid text := private.require_uid();
+  d public.disputes;
+  r public.rentals;
+  t public.transactions;
+  v_claim numeric;
+  v_to_owner numeric;
+begin
+  if not public.is_admin() then
+    raise exception 'Only an admin can resolve disputes.';
+  end if;
+  select * into d from public.disputes where id = p_dispute_id for update;
+  if not found then
+    raise exception 'Dispute not found.';
+  end if;
+  if d.status <> 'open' then
+    raise exception 'This dispute is already resolved.';
+  end if;
+  if p_amount is not null and p_amount < 0 then
+    raise exception 'The amount can''t be negative.';
+  end if;
+  if p_amount is not null and p_amount <> trunc(p_amount) then
+    raise exception 'The amount must be a whole number of baht.';
+  end if;
+
+  if d.rental_id is not null then
+    select * into r from public.rentals where id = d.rental_id for update;
+    if p_finding = 'normal-wear' then
+      v_claim := 0;
+    elsif p_finding = 'repairable-damage' then
+      if p_amount is null then
+        raise exception 'Enter the repair cost for repairable damage.';
+      end if;
+      if p_amount > r.deposit then
+        raise exception 'The repair cost (฿%) can''t exceed the ฿% deposit: the owner never receives more than the deposit.', p_amount, r.deposit;
+      end if;
+      v_claim := p_amount;
+    elsif p_finding = 'lost-or-destroyed' then
+      v_claim := r.deposit;
+    elsif p_finding = 'not-as-described' then
+      raise exception '"Not as described" applies to sales; for a rental choose normal-wear, repairable-damage or lost-or-destroyed.';
+    else
+      raise exception 'Unknown finding "%".', p_finding;
+    end if;
+    v_to_owner := least(r.deposit, r.late_fee + v_claim);
+    update public.disputes
+    set status = 'resolved', finding = p_finding, resolution_amount = v_claim,
+        deposit_to_owner = v_to_owner, deposit_to_renter = r.deposit - v_to_owner,
+        resolution_note = nullif(trim(p_note), ''), resolved_by = v_uid, resolved_at = now()
+    where id = d.id returning * into d;
+    perform private.settle_rental(r.id, 'resolved', v_to_owner,
+      format('Admin finding: %s.', replace(p_finding, '-', ' ')), d.id);
+  else
+    select * into t from public.transactions where id = d.transaction_id for update;
+    if p_finding = 'not-as-described' then
+      v_claim := coalesce(p_amount, t.price);
+      if v_claim > t.price then
+        raise exception 'The refund (฿%) can''t exceed the ฿% price.', v_claim, t.price;
+      end if;
+    elsif p_finding = 'normal-wear' then
+      v_claim := 0;
+    else
+      raise exception 'For a purchase choose not-as-described (with a refund amount) or normal-wear (no refund).';
+    end if;
+    update public.disputes
+    set status = 'resolved', finding = p_finding, resolution_amount = v_claim,
+        refund_to_buyer = v_claim, seller_amount = t.price - v_claim,
+        resolution_note = nullif(trim(p_note), ''), resolved_by = v_uid, resolved_at = now()
+    where id = d.id returning * into d;
+    perform private.release_sale(t.id, v_claim, 'resolved', d.id);
+    -- release_sale wrote the net seller_amount (after commission): return that.
+    select * into d from public.disputes where id = d.id;
+  end if;
+  return d;
 end
 $$;

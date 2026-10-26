@@ -99,7 +99,8 @@ export async function getDisputeContext(disputeId: string): Promise<DisputeConte
  *            · 'lost-or-destroyed' (full deposit). Any late fee is added; the owner
  *            never gets more than the deposit.
  *   sale:    'not-as-described' + amount = refund (default: full price)
- *            · 'normal-wear' (claim rejected, seller paid in full).
+ *            · 'normal-wear' (claim rejected, no refund; seller paid the price
+ *            minus the sale commission). The returned row has the net seller_amount.
  */
 export async function resolveDispute(
   disputeId: string,

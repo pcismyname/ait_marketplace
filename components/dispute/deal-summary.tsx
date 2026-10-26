@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 import { useMarketplace } from '@/lib/store'
 import { formatPrice } from '@/lib/format'
+import { SALE_COMMISSION_RATE } from '@/lib/fees'
 import type { Listing, Rental, Transaction } from '@/lib/types'
 import { formatDateTime } from './dispute-helpers'
 
@@ -85,7 +86,7 @@ export function DealSummary({
           <Row label="Buyer protection fee" value={formatPrice(transaction.protectionFee)} />
           {transaction.sellerCommission > 0 && (
             <Row
-              label={transaction.releasedAt ? 'Sale commission (charged)' : 'Sale commission (10% of what the seller keeps)'}
+              label={transaction.releasedAt ? 'Sale commission (charged)' : `Sale commission (${Math.round(SALE_COMMISSION_RATE * 100)}%, before any refund)`}
               value={formatPrice(transaction.sellerCommission)}
             />
           )}
