@@ -9,6 +9,10 @@ Diagrams for the report. Every label follows [docs/BusinessRules.md](../docs/Bus
 | `owner_userflow.png` | `src/owner_userflow.mmd` | Suggested deposit (฿200–3,000), request → approve → pay, full rental fee 48 h after handover, return photos, late fee / missing, dispute outcomes |
 | `renter_userflow.png` | `src/renter_userflow.mmd` | Rental fee + 10% + escrow fee `max(฿30, 3%)` + deposit, late fee / missing, 48-hour window from return, dispute outcomes |
 | `usecase_diagram.svg` / `.png` | `usecase_diagram.svg` (hand-written SVG) | What each kind of user can do; payments are simulated in-app (no gateway) |
+| `architecture.svg` / `.png` (report Figure 9) | `architecture.svg` (hand-written SVG) | Vercel + Supabase stack; every money change goes through SQL functions; the payment gateway is a dashed real-launch box |
+| `erd.png` (Figure 10) | `src/erd.mmd` | Final schema: tables, key columns, foreign keys ([docs/Database.md](../docs/Database.md) section 2) |
+| `rental_states.png` (Figure 11a) | `src/rental_states.mmd` | `rentals.phase` as built ([docs/Database.md](../docs/Database.md) section 3.1) |
+| `sale_states.png` (Figure 11b) | `src/sale_states.mmd` | `transactions.status`, in person and protected (section 3.2) |
 
 The four Mermaid sources are also copied into [docs/Mapping&UF.md](../docs/Mapping&UF.md). Keep the two the same.
 
@@ -20,7 +24,7 @@ Uses [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) with the shared st
 npx -y @mermaid-js/mermaid-cli@11.4.2 -i src/renter_userflow.mmd -o renter_userflow.png -c src/mermaid-config.json -b white -s 2
 ```
 
-Repeat for `buyer`, `seller` and `owner`. If puppeteer can't download Chrome, point it at an installed browser with a puppeteer config file and add `-p puppeteer.json`:
+Repeat for `buyer`, `seller`, `owner`, `erd`, `rental_states` and `sale_states`. The architecture diagram is a hand-written SVG; render it like the use case diagram below, at 1400 × 1080. If puppeteer can't download Chrome, point it at an installed browser with a puppeteer config file and add `-p puppeteer.json`:
 
 ```json
 { "executablePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe" }
