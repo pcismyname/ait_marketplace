@@ -1,0 +1,150 @@
+erDiagram
+    users ||--o{ listings : "sells"
+    users ||--o{ needs : "posts"
+    users ||--o{ favorites : "saves"
+    listings ||--o{ favorites : "saved in"
+    listings ||--o{ listing_history : "has"
+    listings ||--o{ rentals : "booked as"
+    users ||--o{ rentals : "rents or owns"
+    listings ||--o{ transactions : "sold as"
+    users ||--o{ transactions : "buys or sells"
+    rentals |o--o{ disputes : "may have"
+    transactions |o--o{ disputes : "may have"
+    users ||--o{ disputes : "files or is named in"
+    disputes ||--o{ dispute_comments : "has"
+    users ||--o{ dispute_comments : "writes"
+    users |o--o{ wallet_ledger : "balance rows"
+    rentals |o--o{ wallet_ledger : "money for"
+    transactions |o--o{ wallet_ledger : "money for"
+    disputes |o--o{ wallet_ledger : "settles"
+    listings ||--o{ threads : "chat about"
+    threads ||--o{ thread_participants : "has"
+    users ||--o{ thread_participants : "joins"
+    threads ||--o{ messages : "contains"
+    users ||--o{ messages : "sends"
+    users ||--o{ reviews : "writes or receives"
+    listings ||--o{ reviews : "about"
+    users ||--o{ notifications : "receives"
+
+    users {
+        text id PK
+        text name
+        text email "ait.asia only"
+        text kind "student or shop"
+        bool is_admin
+        text pickup_location
+        date arrival_date
+        date departure_date
+        numeric rating
+    }
+    listings {
+        text id PK
+        text seller_id FK
+        text title
+        text category
+        text type "sale or rent"
+        numeric price
+        numeric deposit "200 to 3000"
+        numeric replacement_value
+        text status
+        timestamptz featured_until
+        int times_changed_hands
+    }
+    rentals {
+        text id PK
+        text listing_id FK
+        text renter_id FK
+        text owner_id FK
+        text phase
+        numeric rental_fee
+        numeric commission
+        numeric escrow_fee
+        numeric deposit
+        timestamptz handover_at
+        timestamptz payout_at
+        timestamptz due_date
+        numeric late_fee
+    }
+    transactions {
+        text id PK
+        text listing_id FK
+        text buyer_id FK
+        text seller_id FK
+        text mode "in-person or protected"
+        text status
+        numeric price
+        numeric protection_fee
+        numeric seller_commission
+        timestamptz dispute_window_ends_at
+    }
+    disputes {
+        text id PK
+        text rental_id FK "rental or sale"
+        text transaction_id FK "never both"
+        text filed_by FK
+        text against_id FK
+        numeric claim_amount
+        text finding
+        text status "open or resolved"
+    }
+    dispute_comments {
+        text id PK
+        text dispute_id FK
+        text author_id FK
+        text body
+    }
+    wallet_ledger {
+        text id PK
+        text user_id FK "null for platform"
+        text rental_id FK
+        text transaction_id FK
+        text dispute_id FK
+        text kind
+        text bucket "held available external platform"
+        numeric amount "signed"
+    }
+    threads {
+        text id PK
+        text listing_id FK
+    }
+    thread_participants {
+        text thread_id FK
+        text user_id FK
+        timestamptz last_read_at
+    }
+    messages {
+        text id PK
+        text thread_id FK
+        text sender_id FK
+        text text "cannot be edited"
+    }
+    reviews {
+        text id PK
+        text author_id FK
+        text subject_id FK
+        text listing_id FK
+        int rating
+    }
+    needs {
+        text id PK
+        text user_id FK
+        text category
+        text listing_type
+        date needed_by
+    }
+    favorites {
+        text user_id FK
+        text listing_id FK
+    }
+    listing_history {
+        text id PK
+        text listing_id FK
+        text action
+    }
+    notifications {
+        text id PK
+        text user_id FK
+        text kind
+        text link
+        timestamptz read_at
+    }

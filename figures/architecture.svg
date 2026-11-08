@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1080" viewBox="0 0 1400 1080" font-family="Segoe UI, Leelawadee UI, Arial, sans-serif" font-size="15" fill="#1f2a37">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f2a37"/>
+    </marker>
+    <marker id="arrow-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/>
+    </marker>
+    <filter id="shadow" x="-5%" y="-5%" width="115%" height="125%">
+      <feDropShadow dx="2" dy="2" stdDeviation="0" flood-color="#2b2d42" flood-opacity="0.18"/>
+    </filter>
+    <style>
+      .box { fill: #ffffff; stroke: #2b2d42; stroke-width: 2; filter: url(#shadow); }
+      .group { fill: #f8fafc; stroke: #9ca3af; stroke-width: 1.5; }
+      .glabel { font-size: 18px; font-weight: 700; }
+      .title { font-weight: 700; }
+      .small { font-size: 13.5px; fill: #374151; }
+      .edge { stroke: #1f2a37; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+      .plain { stroke: #1f2a37; stroke-width: 2; fill: none; }
+      .future { stroke: #6b7280; stroke-width: 2; fill: none; stroke-dasharray: 7 5; marker-end: url(#arrow-grey); }
+      .elabel { font-size: 13.5px; fill: #1f2a37; }
+      .elabel-bg { fill: #e5e7eb; }
+    </style>
+  </defs>
+
+  <rect width="1400" height="1080" fill="#ffffff"/>
+
+  <!-- Row 1: people and outside services -->
+  <rect class="box" x="80" y="40" width="260" height="70" rx="6"/>
+  <text x="210" y="70" text-anchor="middle" class="title">Cloudflare Turnstile</text>
+  <text x="210" y="92" text-anchor="middle" class="small">bot check at login</text>
+
+  <rect class="box" x="570" y="40" width="260" height="70" rx="6"/>
+  <text x="700" y="70" text-anchor="middle" class="title">Student or admin</text>
+  <text x="700" y="92" text-anchor="middle" class="small">browser on phone or laptop</text>
+
+  <rect class="box" x="1060" y="40" width="260" height="70" rx="6"/>
+  <text x="1190" y="70" text-anchor="middle" class="title">GitHub repository</text>
+  <text x="1190" y="92" text-anchor="middle" class="small">master branch</text>
+
+  <!-- Vercel -->
+  <rect class="group" x="60" y="160" width="1280" height="170" rx="10"/>
+  <text x="84" y="190" class="glabel">Vercel</text>
+
+  <rect class="box" x="480" y="200" width="480" height="100" rx="6"/>
+  <text x="720" y="230" text-anchor="middle" class="title">Next.js 16 web app</text>
+  <text x="720" y="253" text-anchor="middle" class="small">App Router, React 19, Tailwind CSS 4</text>
+  <text x="720" y="275" text-anchor="middle" class="small">proxy.ts refreshes the login session on every request</text>
+
+  <rect class="box" x="1060" y="224" width="220" height="52" rx="6"/>
+  <text x="1170" y="255" text-anchor="middle" class="title">Vercel Analytics</text>
+
+  <!-- Supabase -->
+  <rect class="group" x="60" y="380" width="1280" height="560" rx="10"/>
+  <text x="84" y="410" class="glabel">Supabase</text>
+
+  <rect class="box" x="90" y="430" width="240" height="90" rx="6"/>
+  <text x="210" y="462" text-anchor="middle" class="title">Auth</text>
+  <text x="210" y="485" text-anchor="middle" class="small">@ait.asia only (trigger + hook)</text>
+  <text x="210" y="505" text-anchor="middle" class="small">email verification, sessions</text>
+
+  <rect class="box" x="380" y="430" width="240" height="90" rx="6"/>
+  <text x="500" y="462" text-anchor="middle" class="title">PostgREST API</text>
+  <text x="500" y="485" text-anchor="middle" class="small">reads and RPC calls,</text>
+  <text x="500" y="505" text-anchor="middle" class="small">as the signed-in user</text>
+
+  <rect class="box" x="670" y="430" width="220" height="90" rx="6"/>
+  <text x="780" y="462" text-anchor="middle" class="title">Storage</text>
+  <text x="780" y="485" text-anchor="middle" class="small">listing photos (public)</text>
+  <text x="780" y="505" text-anchor="middle" class="small">deal evidence (private)</text>
+
+  <rect class="box" x="90" y="580" width="240" height="100" rx="6"/>
+  <text x="210" y="612" text-anchor="middle" class="title">pg_cron, every 10 min</text>
+  <text x="210" y="635" text-anchor="middle" class="small">owner payouts, auto-release,</text>
+  <text x="210" y="655" text-anchor="middle" class="small">overdue checks, reminders</text>
+
+  <rect class="box" x="380" y="580" width="380" height="100" rx="6"/>
+  <text x="570" y="612" text-anchor="middle" class="title">SQL functions (RPCs)</text>
+  <text x="570" y="635" text-anchor="middle" class="small">every payment, payout, refund and status change;</text>
+  <text x="570" y="655" text-anchor="middle" class="small">fees recomputed on the server</text>
+
+  <rect class="box" x="840" y="580" width="220" height="100" rx="6"/>
+  <text x="950" y="612" text-anchor="middle" class="title">Realtime</text>
+  <text x="950" y="635" text-anchor="middle" class="small">chat, notifications,</text>
+  <text x="950" y="655" text-anchor="middle" class="small">deal updates</text>
+
+  <!-- PostgreSQL cylinder -->
+  <g filter="url(#shadow)">
+    <path d="M440,758 v124 a160,18 0 0 0 320,0 v-124" fill="#ffffff" stroke="#2b2d42" stroke-width="2"/>
+    <ellipse cx="600" cy="758" rx="160" ry="18" fill="#ffffff" stroke="#2b2d42" stroke-width="2"/>
+  </g>
+  <text x="600" y="810" text-anchor="middle" class="title">PostgreSQL</text>
+  <text x="600" y="833" text-anchor="middle" class="small">Row Level Security on every table</text>
+  <text x="600" y="853" text-anchor="middle" class="small">wallet_ledger: simulated holds and payouts</text>
+
+  <!-- Payment gateway, real launch only -->
+  <rect x="270" y="975" width="260" height="70" rx="6" fill="#ffffff" stroke="#6b7280" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="400" y="1005" text-anchor="middle" class="title" fill="#4b5563">Payment gateway (Omise)</text>
+  <text x="400" y="1027" text-anchor="middle" class="small" fill="#6b7280">real launch only, not built</text>
+
+  <!-- Edges -->
+  <path class="edge" d="M700,110 V198"/>
+  <rect class="elabel-bg" x="672" y="140" width="56" height="22" rx="3"/>
+  <text x="700" y="156" text-anchor="middle" class="elabel">HTTPS</text>
+
+  <path class="future" d="M568,75 H342"/>
+  <rect class="elabel-bg" x="400" y="52" width="110" height="22" rx="3"/>
+  <text x="455" y="68" text-anchor="middle" class="elabel">login check</text>
+
+  <path class="edge" d="M1190,110 V150 H900 V198"/>
+  <rect class="elabel-bg" x="985" y="139" width="120" height="22" rx="3"/>
+  <text x="1045" y="155" text-anchor="middle" class="elabel">deploys on push</text>
+
+  <path class="plain" d="M960,250 H1060"/>
+
+  <path class="edge" d="M560,300 L240,428"/>
+  <path class="edge" d="M620,300 L520,428"/>
+  <path class="edge" d="M740,300 L770,428"/>
+
+  <path class="edge" d="M950,578 V302"/>
+  <rect class="elabel-bg" x="958" y="400" width="96" height="22" rx="3"/>
+  <text x="1006" y="416" text-anchor="middle" class="elabel">live updates</text>
+
+  <path class="edge" d="M500,520 V578"/>
+  <path class="edge" d="M330,630 H378"/>
+  <path class="edge" d="M600,680 V738"/>
+  <path class="edge" d="M740,750 L870,682"/>
+  <rect class="elabel-bg" x="812" y="718" width="70" height="22" rx="3"/>
+  <text x="847" y="734" text-anchor="middle" class="elabel">changes</text>
+
+  <path class="future" d="M400,680 V973"/>
+  <rect class="elabel-bg" x="180" y="880" width="210" height="22" rx="3"/>
+  <text x="285" y="896" text-anchor="middle" class="elabel">real launch: charge, hold, pay out</text>
+</svg>

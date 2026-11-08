@@ -1,0 +1,27 @@
+stateDiagram-v2
+    direction TB
+    state "return-pending" as return_pending
+
+    [*] --> requested: renter sends request
+    requested --> declined: owner declines
+    requested --> approved: owner approves
+    requested --> cancelled: either side cancels
+    approved --> cancelled: either side cancels before payment
+    approved --> paid: renter pays fee + 10% + escrow fee + deposit
+    paid --> active: renter confirms handover with photo
+    note right of active
+        Owner gets the rental fee 48 h after handover.
+        The deposit stays held until the return.
+    end note
+    active --> return_pending: item returned with photos
+    active --> overdue: due date passes (job)
+    overdue --> return_pending: returned late, late fee from deposit
+    overdue --> missing: more than 7 days late (job)
+    return_pending --> released: owner confirms, or 48 h with no dispute
+    return_pending --> disputed: owner files within 48 h
+    disputed --> resolved: admin decides, owner gets at most the deposit
+    released --> [*]
+    resolved --> [*]
+    missing --> [*]: full deposit to owner
+    declined --> [*]
+    cancelled --> [*]

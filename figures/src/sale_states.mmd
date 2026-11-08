@@ -1,0 +1,20 @@
+stateDiagram-v2
+    direction LR
+    state "In person: free, no escrow" as inperson {
+        [*] --> pending: buyer asks to buy
+        pending --> completed: seller marks sold
+        pending --> cancelled: either side cancels
+        completed --> [*]
+        cancelled --> [*]
+    }
+    state "With protection: price + ฿10 + 3%" as protected {
+        state "handed-over" as handed_over
+        [*] --> paid: buyer pays, price held
+        paid --> handed_over: either side confirms handover
+        paid --> released: buyer confirms receipt
+        handed_over --> released: buyer confirms, or 48 h with no dispute
+        handed_over --> disputed: buyer files within 48 h
+        disputed --> resolved: admin decides full, partial or no refund
+        released --> [*]: seller gets price minus 10%
+        resolved --> [*]
+    }
