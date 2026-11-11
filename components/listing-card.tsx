@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { Heart } from 'lucide-react'
+import { Heart, Eye } from 'lucide-react'
 import type { Listing } from '@/lib/types'
 import { formatPrice } from '@/lib/format'
 import { CONDITION_LABELS } from '@/lib/data'
@@ -115,6 +115,9 @@ export function ProductCard({ listing }: { listing: Listing }) {
           {CONDITION_LABELS[listing.condition]}
           {listing.pickupLocation && (
             <> &middot; {listing.pickupLocation.replace(' Lobby', '').replace(' Building', '')}</>
+          )}
+          {(listing.viewCount ?? 0) > 0 && (
+            <> &middot; <Eye className="inline h-3 w-3 -mt-px" /> {listing.viewCount}</>
           )}
         </p>
       </div>

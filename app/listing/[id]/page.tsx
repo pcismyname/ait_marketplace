@@ -27,6 +27,14 @@ import { formatPrice, relativeTime, initials } from '@/lib/format'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Rating } from '@/components/rating'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { ContactSellerDialog } from '@/components/contact-seller-dialog'
 import { ProductCard } from '@/components/listing-card'
 import { ImagePlaceholder } from '@/components/image-placeholder'
@@ -442,6 +450,8 @@ export default function ListingDetailPage() {
 function RentCta({ listing }: { listing: Listing }) {
   const { rentals, currentUserId, cancelRental } = useMarketplace()
   const [busy, setBusy] = useState(false)
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
 
   if (listing.sellerId === currentUserId) {
     const forListing = rentals.filter((r) => r.listingId === listing.id)
@@ -471,10 +481,10 @@ function RentCta({ listing }: { listing: Listing }) {
   if (open) {
     const meta = PHASE_META[open.phase]
     const total = rentalQuote(open).totalDueNow
-    const cancel = async () => {
+    const doCancel = async (reason?: string) => {
       setBusy(true)
       try {
-        await cancelRental(open.id)
+        await cancelRental(open.id, reason)
         toast('Request cancelled', { description: 'Nothing was paid.' })
       } catch (error) {
         toast.error('Could not cancel the request', {
@@ -494,9 +504,46 @@ function RentCta({ listing }: { listing: Listing }) {
             <p className="text-[12px] leading-relaxed text-muted-foreground">
               Sent {relativeTime(open.requestedAt)}. The owner approves first; then you pay {formatPrice(total)} here.
             </p>
-            <Button size="lg" variant="outline" className="w-full" onClick={cancel} disabled={busy}>
+            <Button size="lg" variant="outline" className="w-full" onClick={() => setShowCancelDialog(true)} disabled={busy}>
               Cancel request
             </Button>
+            <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Cancel this request?</DialogTitle>
+                  <DialogDescription>
+                    Nothing has been paid. The owner will be notified and the item will become available again.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Reason (optional)
+                  </label>
+                  <textarea
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="e.g. Found another item"
+                    className="h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-[13px] resize-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    maxLength={200}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowCancelDialog(false)}>
+                    Keep request
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    disabled={busy}
+                    onClick={() => {
+                      setShowCancelDialog(false)
+                      doCancel(cancelReason.trim() || undefined)
+                    }}
+                  >
+                    Cancel request
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </>
         )}
         {open.phase === 'approved' && (

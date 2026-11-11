@@ -22,7 +22,7 @@ import { getHiddenListings, type HiddenFlag } from '@/lib/api/listing-owner'
 import { BRAND } from '@/lib/data'
 import { formatPrice } from '@/lib/format'
 import { OPEN_DEAL_MESSAGE, historyMessage, listingLocks, type ListingLocks } from '@/lib/listing-locks'
-import type { Listing, ListingStatus } from '@/lib/types'
+import type { Listing, ListingStatus, Rental, Transaction } from '@/lib/types'
 import { ImagePlaceholder } from '@/components/image-placeholder'
 import { deleteStoredPhotos } from '@/components/photo-uploader'
 import { cn } from '@/lib/utils'
@@ -73,6 +73,21 @@ const STATUS_LABELS: Record<ListingStatus, string> = {
 }
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
+/**
+ * Derives the effective listing status for tab-filtering, using live rental /
+ * transaction state from the store when the DB status hasn't propagated yet.
+ * Falls back to listing.status when no active deal overrides it.
+ */
+function effectiveTabStatus(listing: Listing, rentals: Rental[], transactions: Transaction[]): ListingStatus {
+  if (listing.status !== 'available') return listing.status
+  const lr = rentals.filter((r) => r.listingId === listing.id)
+  const lt = transactions.filter((t) => t.listingId === listing.id)
+  if (lr.some((r) => ['paid', 'active', 'return-pending', 'disputed', 'overdue'].includes(r.phase))) return 'rented'
+  if (lr.some((r) => r.phase === 'approved')) return 'reserved'
+  if (lt.some((t) => ['paid', 'handed-over', 'disputed'].includes(t.status))) return 'reserved'
+  return listing.status
+}
 
 function MyListingsInner() {
   const {
@@ -134,12 +149,12 @@ function MyListingsInner() {
     () => new Map(myListings.map((l) => [l.id, listingLocks(l, rentals, transactions)])),
     [myListings, rentals, transactions],
   )
-  const visible = tab === 'all' ? myListings : myListings.filter((l) => l.status === tab)
+  const visible = tab === 'all' ? myListings : myListings.filter((l) => effectiveTabStatus(l, rentals, transactions) === tab)
   const counts = useMemo(() => {
     const c: Record<StatusFilter, number> = { all: myListings.length, available: 0, reserved: 0, rented: 0, sold: 0, paused: 0 }
-    for (const l of myListings) c[l.status] += 1
+    for (const l of myListings) c[effectiveTabStatus(l, rentals, transactions)] += 1
     return c
-  }, [myListings])
+  }, [myListings, rentals, transactions])
   const pendingTotal = useMemo(
     () => [...locksById.values()].reduce((n, locks) => n + locks.pendingRequests.length, 0),
     [locksById],

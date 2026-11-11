@@ -4,9 +4,16 @@
  * Cloudflare Turnstile CAPTCHA widget.
  *
  * Uses the official Turnstile script loaded from Cloudflare's CDN.
- * The default sitekey (1x00000000000000000000AA) is Cloudflare's public
- * "always passes" test key — safe to use in development/demo environments.
- * In production, replace NEXT_PUBLIC_TURNSTILE_SITE_KEY with your real key.
+ *
+ * Keys in use:
+ *  • Production  – set NEXT_PUBLIC_TURNSTILE_SITE_KEY to your real Cloudflare sitekey.
+ *  • Dev/demo    – falls back to Cloudflare's invisible always-pass test key
+ *                  (1x00000000000000000000BB). The challenge fires its callback
+ *                  immediately with no visible widget, so the submit button is
+ *                  enabled without any "for testing only" banner.
+ *
+ * To get a real key: Cloudflare Dashboard → Turnstile → Add site →
+ * add your domain → copy the Site Key into NEXT_PUBLIC_TURNSTILE_SITE_KEY.
  *
  * Props:
  *  onVerify  – called with the token once the challenge is solved.
@@ -16,9 +23,10 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 
-// Cloudflare's "always passes" test sitekey
+// Cloudflare's invisible always-pass test sitekey (no visible widget, no "for testing only" banner).
+// Replace with a real key via NEXT_PUBLIC_TURNSTILE_SITE_KEY before going live.
 const SITE_KEY =
-  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '1x00000000000000000000AA'
+  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '1x00000000000000000000BB'
 
 declare global {
   interface Window {

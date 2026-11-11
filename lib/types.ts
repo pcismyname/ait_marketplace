@@ -11,7 +11,7 @@ export type CategoryId =
 
 export type ListingType = 'sale' | 'rent'
 
-export type Condition = 'new' | 'like-new' | 'good' | 'fair'
+export type Condition = 'new' | 'like-new' | 'good' | 'fair' | 'parts-only'
 
 export type ListingStatus = 'available' | 'reserved' | 'sold' | 'rented' | 'paused'
 

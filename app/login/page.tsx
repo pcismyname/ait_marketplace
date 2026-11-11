@@ -5,22 +5,19 @@
 // or home. Unconfirmed accounts get a link to /verify-email to resend the
 // confirmation mail.
 //
-// Includes:
-//  - Cloudflare Turnstile CAPTCHA (must pass before submit is allowed)
-//  - Accepts both @ait.asia and @ait.ac.th email addresses
+// Accepts both @ait.asia and @ait.ac.th email addresses.
 
-import { Suspense, useState, useCallback } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { ArrowRight, Mail, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useMarketplace } from '@/lib/store'
 import { AuthNotice } from '@/components/auth-notice'
-import { Turnstile } from '@/components/turnstile'
 
 /** Accept both AIT email domains. */
 const isAitEmail = (email: string) =>
-  /^[^@\s]+@(ait\.asia|ait\.ac\.th)$/i.test(email)
+  /^[^\s@]+@(ait\.asia|ait\.ac\.th)$/i.test(email)
 
 function LoginInner() {
   const { login } = useMarketplace()
@@ -29,21 +26,9 @@ function LoginInner() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<{ message: string; unconfirmed?: boolean } | null>(null)
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
-  const [captchaExpired, setCaptchaExpired] = useState(false)
 
   const next = searchParams.get('next')
   const signupHref = next ? `/signup?next=${encodeURIComponent(next)}` : '/signup'
-
-  const onCaptchaVerify = useCallback((token: string) => {
-    setCaptchaToken(token)
-    setCaptchaExpired(false)
-  }, [])
-
-  const onCaptchaExpire = useCallback(() => {
-    setCaptchaToken(null)
-    setCaptchaExpired(true)
-  }, [])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -51,11 +36,6 @@ function LoginInner() {
 
     if (!isAitEmail(address)) {
       setError({ message: 'PassItOn is only open to @ait.asia or @ait.ac.th email addresses.' })
-      return
-    }
-
-    if (!captchaToken) {
-      setError({ message: 'Please complete the security check below.' })
       return
     }
 
@@ -77,7 +57,7 @@ function LoginInner() {
     // On success the AuthGuard redirects; keep the button in its loading state.
   }
 
-  const canSubmit = !loading && !!email && !!password && !!captchaToken
+  const canSubmit = !loading && !!email && !!password
 
   return (
     <div className="mx-auto max-w-md px-4 py-12 sm:py-20">
@@ -103,12 +83,6 @@ function LoginInner() {
         {searchParams.get('reason') === 'session_expired' && !error && (
           <AuthNotice tone="info" className="mb-5">
             Your session expired due to inactivity. Please log in again.
-          </AuthNotice>
-        )}
-
-        {captchaExpired && (
-          <AuthNotice tone="error" className="mb-5">
-            The security check expired. Please complete it again.
           </AuthNotice>
         )}
 
@@ -187,25 +161,6 @@ function LoginInner() {
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
               required
             />
-          </div>
-
-          {/* Cloudflare Turnstile CAPTCHA */}
-          <div className="pt-1">
-            <p className="mb-2 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Security Check
-            </p>
-            <div className="overflow-hidden rounded-md border border-border bg-muted/30">
-              <Turnstile
-                onVerify={onCaptchaVerify}
-                onExpire={onCaptchaExpire}
-                theme="auto"
-              />
-            </div>
-            {!captchaToken && (
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Complete the Cloudflare security check to continue.
-              </p>
-            )}
           </div>
 
           <Button

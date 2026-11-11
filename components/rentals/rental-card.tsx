@@ -28,6 +28,14 @@ import type { Dispute, Listing, Rental } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { RateDealButton } from '@/components/rate-deal-button'
 import { EvidencePhotos } from './evidence-photos'
 import { PhotoActionDialog } from './photo-action-dialog'
@@ -70,6 +78,8 @@ export function RentalCard({
 }) {
   const { getUser, rentals, threads, cancelRental, confirmHandover, markReturned, confirmReturn } = useMarketplace()
   const [busy, setBusy] = useState(false)
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
   const [dispute, setDispute] = useState<Dispute | null>(null)
   const other = getUser(role === 'renter' ? rental.ownerId : rental.renterId)
   const firstName = other.name.split(' ')[0]
@@ -119,14 +129,52 @@ export function RentalCard({
   let actions: ReactNode = null
 
   const cancelButton = (label: string) => (
-    <Button
-      size="sm"
-      variant="ghost"
-      disabled={busy}
-      onClick={() => run(() => cancelRental(rental.id), 'Booking cancelled', `${firstName} has been notified.`)}
-    >
-      {label}
-    </Button>
+    <>
+      <Button size="sm" variant="ghost" disabled={busy} onClick={() => setShowCancelDialog(true)}>
+        {label}
+      </Button>
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel booking?</DialogTitle>
+            <DialogDescription>
+              This will notify {firstName}. Nothing has been paid and the item will become available again.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Reason (optional)
+            </label>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="e.g. Found another item"
+              className="h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-[13px] resize-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              maxLength={200}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelDialog(false)}>
+              Keep booking
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy}
+              onClick={() => {
+                setShowCancelDialog(false)
+                run(
+                  () => cancelRental(rental.id, cancelReason.trim() || undefined),
+                  'Booking cancelled',
+                  `${firstName} has been notified.`,
+                )
+              }}
+            >
+              Cancel booking
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 
   const handoverDialog = (

@@ -87,6 +87,7 @@ export function SiteHeader() {
   }
 
   const NAV_PAGES = [
+    { href: '/how-it-works', label: 'How it works' },
     { href: '/browse', label: 'Browse' },
     { href: '/needs', label: 'Pre-arrival Needs' },
     { href: '/rentals', label: 'My Rentals' },
@@ -151,6 +152,12 @@ export function SiteHeader() {
 
           {!signedIn && (
             <div className="flex items-center gap-2">
+              <Link
+                href="/how-it-works"
+                className="rounded-sm px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+              >
+                How it works
+              </Link>
               <Link
                 href="/login"
                 className="rounded-sm px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"

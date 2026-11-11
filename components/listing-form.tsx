@@ -126,6 +126,7 @@ export function useListingForm() {
   else if (!Number.isInteger(Number(price))) missing.push('a price in whole baht')
   if (!pickup) missing.push('a pickup location')
   if (type === 'rent' && depositError) missing.push('a valid deposit')
+  if (photos.urls.length === 0) missing.push('at least one photo')
 
   const valid = missing.length === 0 && !photos.busy
 
@@ -145,7 +146,7 @@ export function useListingForm() {
       rentalPeriod: isRent ? rentalPeriod : undefined,
       replacementValue: isRent ? (itemValue ?? null) : null,
       condition: condition as Condition,
-      images: photos.urls.length > 0 ? photos.urls : ['/placeholder.svg'],
+      images: photos.urls,
       pickupLocation: pickup,
     }
   }

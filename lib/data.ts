@@ -43,6 +43,7 @@ export const CONDITION_LABELS: Record<string, string> = {
   'like-new': 'Like new',
   good: 'Good',
   fair: 'Fair',
+  'parts-only': 'Parts only',
 }
 
 export const PAYMENT_METHODS: { id: PaymentMethod; label: string; hint: string }[] = [
@@ -178,7 +179,7 @@ export const LISTINGS: Listing[] = [
     id: 'l_fridge',
     title: 'Mini fridge — perfect for dorm rooms',
     description:
-      'Compact 90L mini fridge. Quiet, energy efficient, keeps drinks cold and leftovers fresh. Ideal for a single dorm room. Available for rent per semester with deposit, or buy outright.',
+      'Compact 90L mini fridge. Quiet, energy efficient, keeps drinks cold and leftovers fresh. Ideal for a single dorm room. Available for rent per semester with a refundable deposit.',
     category: 'electronics',
     type: 'rent',
     price: 250,
@@ -328,7 +329,7 @@ export const LISTINGS: Listing[] = [
     id: 'l_cookware',
     title: 'Pots, pans & kettle starter set',
     description:
-      'Everything a new arrival needs to start cooking: two pots, a frying pan, a kettle and basic utensils. Rentable per semester with a small deposit, or buy the whole set.',
+      'Everything a new arrival needs to start cooking: two pots, a frying pan, a kettle and basic utensils. Rentable per semester with a small refundable deposit.',
     category: 'kitchen',
     type: 'rent',
     price: 150,
