@@ -17,7 +17,7 @@ import { siteOrigin } from '@/lib/utils'
 
 const RESEND_COOLDOWN_SECONDS = 60
 const MAILPIT_URL = 'http://127.0.0.1:54324'
-const OTP_LENGTH = 6
+const OTP_LENGTH = 8
 
 function isLocalSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
@@ -62,7 +62,7 @@ function VerifyEmailInner() {
     const { error } = await createClient().auth.verifyOtp({
       email: address,
       token: otp.trim(),
-      type: 'signup',
+      type: 'email',
     })
     setVerifying(false)
     if (error) {
@@ -151,7 +151,7 @@ function VerifyEmailInner() {
             setOtp(val)
             setOtpError(null)
           }}
-          placeholder="123456"
+          placeholder="12345678"
           maxLength={OTP_LENGTH}
           className="h-12 w-full rounded-md border border-input bg-background px-3 text-center text-2xl font-mono tracking-[0.5em] outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
           required
