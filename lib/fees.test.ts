@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  FREE_LISTING_QUOTA,
   RENTAL_COMMISSION_RATE,
   SALE_COMMISSION_RATE,
   ESCROW_FEE_MIN,
@@ -42,6 +43,11 @@ test('fee constants match BusinessRules.md §2', () => {
   assert.equal(ESCROW_FEE_RATE, 0.03)
   assert.equal(PREMIUM_PLACEMENT_FEE, 49)
   assert.equal(PREMIUM_PLACEMENT_DAYS, 7)
+})
+
+test('listing quota matches BusinessRules.md §2', () => {
+  // First 3 listings are commission-free; from the 4th onwards commissions apply.
+  assert.equal(FREE_LISTING_QUOTA, 3)
 })
 
 test('escrow fee is max(30, 3% of deposit)', () => {

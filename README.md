@@ -30,12 +30,14 @@ hold, payout and refund is a row in an in-app ledger. The app says
 
 | Fee | Who pays | Amount |
 |---|---|---|
-| Listing | — | Free |
-| Rental commission | Renter | 10% of the rental fee |
-| Escrow handling fee | Renter | `max(฿30, 3% of the deposit)` |
+| Listing | — | Always free |
+| Sale commission (first 3 listings) | — | Waived |
+| Rental commission (first 3 listings) | — | Waived |
+| Sale commission (4th listing onwards, protected sales) | Seller | 10% of the price, taken from the payout |
+| Rental commission (4th listing onwards) | Renter | 10% of the rental fee |
+| Escrow handling fee | Renter | `max(฿30, 3% of the deposit)` — applies on every rental |
 | Deposit | Renter | Refundable; 30–50% of replacement value, ฿200–฿3,000 |
-| Buyer protection (optional, sales) | Buyer | ฿10 + 3% of the price |
-| Sale commission (protected sales only) | Seller | 10% of the price, taken from the payout |
+| Buyer protection (optional, sales) | Buyer | ฿10 + 3% of the price — applies regardless of quota |
 | Sale paid in person | — | Free, no protection |
 | Premium placement | Lister | ฿49 for 7 days |
 
@@ -131,7 +133,25 @@ and create their own "E2E …" listings so they never touch the seeded deals.
 ## Deploy
 
 Production is a Supabase project plus Vercel (imported from GitHub; every push to
-`master` redeploys). Vercel needs `NEXT_PUBLIC_SUPABASE_URL` and
-`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Database migrations are pushed by hand after
+`master` redeploys). Vercel needs `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and **`NEXT_PUBLIC_SITE_URL`** (set to
+`https://ait-marketplace.vercel.app`). Database migrations are pushed by hand after
 review — follow [docs/Database.md §9](docs/Database.md) (it also lists the dashboard
 settings: auth hook, redirect URLs, pg_cron).
+
+### ⚠️ Required Supabase dashboard settings (Auth → URL Configuration)
+
+These must be set in the **hosted** Supabase project dashboard, not in `config.toml`
+(which only affects the local dev stack):
+
+| Setting | Value |
+|---|---|
+| **Site URL** | `https://ait-marketplace.vercel.app` |
+| **Redirect URLs** (add both) | `https://ait-marketplace.vercel.app/**` |
+| | `http://localhost:3000/**` (keep for local dev) |
+
+If Site URL still points to `http://localhost:3000`, confirmation emails will contain
+links like `http://localhost:3000/?code=…` that fail in production. The app reads
+`NEXT_PUBLIC_SITE_URL` for `emailRedirectTo` to avoid this, but Supabase also uses
+Site URL to construct its own internal links (e.g. the OTP confirmation URL), so the
+dashboard setting is essential.

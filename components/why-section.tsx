@@ -15,6 +15,7 @@ import {
   BUYER_PROTECTION_RATE,
   ESCROW_FEE_MIN,
   ESCROW_FEE_RATE,
+  FREE_LISTING_QUOTA,
   PREMIUM_PLACEMENT_DAYS,
   PREMIUM_PLACEMENT_FEE,
   RENTAL_COMMISSION_RATE,
@@ -103,14 +104,14 @@ export function WhySection() {
           <PriceRow
             icon={Tag}
             title="Peer-to-peer sales"
-            price="Free in person"
-            note={`No listing fee. Pay in person for free, or pay with protection: the buyer adds ${formatPrice(BUYER_PROTECTION_BASE_FEE)} + ${pct(BUYER_PROTECTION_RATE)}% and the seller pays a ${pct(SALE_COMMISSION_RATE)}% commission.`}
+            price={`First ${FREE_LISTING_QUOTA} listings free`}
+            note={`New users get ${FREE_LISTING_QUOTA} commission-free listings. From the ${FREE_LISTING_QUOTA + 1}th listing, the seller pays a ${pct(SALE_COMMISSION_RATE)}% commission on protected sales. Pay in person for free, or pay with protection: the buyer adds ${formatPrice(BUYER_PROTECTION_BASE_FEE)} + ${pct(BUYER_PROTECTION_RATE)}%.`}
           />
           <PriceRow
             icon={HandCoins}
             title="Rentals"
-            price={`${pct(RENTAL_COMMISSION_RATE)}% + max(${formatPrice(ESCROW_FEE_MIN)}, ${pct(ESCROW_FEE_RATE)}%)`}
-            note={`Commission on the rent, plus an escrow fee of ${pct(ESCROW_FEE_RATE)}% of the deposit (min ${formatPrice(ESCROW_FEE_MIN)}), at booking.`}
+            price={`${pct(RENTAL_COMMISSION_RATE)}% + escrow fee`}
+            note={`First ${FREE_LISTING_QUOTA} listings: no rental commission. From the ${FREE_LISTING_QUOTA + 1}th listing, a ${pct(RENTAL_COMMISSION_RATE)}% commission applies. Escrow fee of ${pct(ESCROW_FEE_RATE)}% of deposit (min ${formatPrice(ESCROW_FEE_MIN)}) always applies at booking.`}
           />
           <PriceRow
             icon={Sparkles}

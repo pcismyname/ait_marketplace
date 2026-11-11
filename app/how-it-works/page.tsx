@@ -6,6 +6,7 @@ import {
   DISPUTE_WINDOW_HOURS,
   ESCROW_FEE_MIN,
   ESCROW_FEE_RATE,
+  FREE_LISTING_QUOTA,
   MISSING_AFTER_DAYS,
   OWNER_PAYOUT_DELAY_HOURS,
   RENTAL_COMMISSION_RATE,
@@ -56,7 +57,10 @@ export default function HowItWorksPage() {
               <h2 className="text-2xl font-semibold tracking-tight">Escrow Protection</h2>
             </div>
             <p className="text-[14px] leading-relaxed text-muted-foreground mb-6">
-              Listing is always free. When you buy, you choose how to pay. Paying in person is free, but
+              Listing is always free. Every new user gets {FREE_LISTING_QUOTA} commission-free listings —
+              no sale or rental commission is taken on those deals. From the {FREE_LISTING_QUOTA + 1}th
+              listing onwards, the platform&apos;s standard commissions apply to both sales and rentals.
+              When you buy, you choose how to pay. Paying in person is free, but
               PassItOn can&apos;t step in if something goes wrong. Paying with protection lets us hold the
               money until the handover is done.
             </p>

@@ -9,7 +9,7 @@ import { BRAND, CATEGORIES, PICKUP_LOCATIONS, CONDITION_LABELS, categoryLabel } 
 import {
   BUYER_PROTECTION_BASE_FEE, BUYER_PROTECTION_RATE,
   DEPOSIT_MAX, DEPOSIT_MIN, DEPOSIT_VALUE_MAX_RATE, DEPOSIT_VALUE_MIN_RATE,
-  ESCROW_FEE_MIN, ESCROW_FEE_RATE, HIGH_VALUE_RENTAL_THRESHOLD,
+  ESCROW_FEE_MIN, ESCROW_FEE_RATE, FREE_LISTING_QUOTA, HIGH_VALUE_RENTAL_THRESHOLD,
   PREMIUM_PLACEMENT_DAYS, PREMIUM_PLACEMENT_FEE, RENTAL_COMMISSION_RATE, SALE_COMMISSION_RATE,
   computeSaleQuote, suggestedDeposit,
 } from '@/lib/fees'
@@ -305,20 +305,24 @@ export default function SellPage() {
               {pct(RENTAL_COMMISSION_RATE)}% commission and an escrow fee of {formatPrice(ESCROW_FEE_MIN)} or{' '}
               {pct(ESCROW_FEE_RATE)}% of the deposit, whichever is higher
               {escrowFee !== null && <> ({formatPrice(escrowFee)} for this deposit)</>}.
-              You receive the full rental price.
+              You receive the full rental price. Your first {FREE_LISTING_QUOTA} listings are
+              commission-free — the {pct(RENTAL_COMMISSION_RATE)}% rental commission only applies from your
+              {FREE_LISTING_QUOTA + 1}th listing onwards.
             </p>
           </div>
         ) : (
           <div className="flex items-start gap-2.5 border border-border bg-surface p-4">
             <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-[12px] leading-relaxed text-muted-foreground">
-              Free to list. Buyers pay you in person (free for both of you), or choose &ldquo;Pay with
-              protection&rdquo; for {formatPrice(BUYER_PROTECTION_BASE_FEE)} + {pct(BUYER_PROTECTION_RATE)}%, paid by them. On
-              a protected sale, {BRAND} keeps a {pct(SALE_COMMISSION_RATE)}% commission from your payout
+              Listing is free. Your first {FREE_LISTING_QUOTA} listings are commission-free. From your{' '}
+              {FREE_LISTING_QUOTA + 1}th listing, {BRAND} keeps a {pct(SALE_COMMISSION_RATE)}% commission from
+              your payout on protected sales
               {Number(price) > 0 && (
                 <> (you receive {formatPrice(computeSaleQuote(Number(price), 'protected').sellerPayout)} of{' '}
                 {formatPrice(Number(price))})</>
-              )}.
+              )}. Buyers can also pay in person for free, with no escrow or dispute support.
+              &ldquo;Pay with protection&rdquo; adds {formatPrice(BUYER_PROTECTION_BASE_FEE)} + {pct(BUYER_PROTECTION_RATE)}%
+              paid by the buyer.
             </p>
           </div>
         )}

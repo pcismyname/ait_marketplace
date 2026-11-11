@@ -14,7 +14,7 @@ Related: [Proposal.md](Proposal.md) (what and why), [Timeline.md](Timeline.md) (
 ## 1. Business model
 
 - **C2B2C, closed community.** Students trade with each other (C2C). Pass It On is the business in the middle providing trust: AIT email verification, deposit escrow, dispute resolution. Campus shops (`UserKind = 'shop'`) are partner sellers under the same rules.
-- **Monetize trust, not access** (the Vinted model). Listing is always free. Fees apply only where the platform holds money or gives visibility.
+- **Monetize trust, not access** (the Vinted model). Listing is always free. Every new user gets **3 commission-free listings**: no sale commission and no rental commission apply to those listings' transactions. From the 4th listing onwards, the full commission schedule applies to both sales and rentals.
 
 ## 2. Fees
 
@@ -22,12 +22,14 @@ All amounts in THB. Round every computed fee to the nearest baht.
 
 | Fee | Who pays | Amount | When |
 |---|---|---|---|
-| Rental commission | Renter | 10% of the rental fee | At booking |
-| Escrow handling fee | Renter | `max(30, 3% of deposit)` | At booking |
-| Buyer protection fee (sales) | Buyer, only if they choose "Pay with protection" | `10 + 3% of sale price` | At checkout |
-| Sale commission | Seller, on protected sales only | 10% of the sale price the seller keeps | Taken from the seller's payout |
+| Listing | — | Always free | — |
+| Sale commission (first 3 listings) | — | Waived | — |
+| Rental commission (first 3 listings) | — | Waived | — |
+| Sale commission (4th listing onwards) | Seller | 10% of the sale price the seller keeps | Taken from the seller's payout |
+| Rental commission (4th listing onwards) | Renter | 10% of the rental fee | At booking |
+| Escrow handling fee | Renter | `max(30, 3% of deposit)` | At booking (applies on every rental regardless of quota) |
+| Buyer protection fee (sales) | Buyer, only if they choose "Pay with protection" | `10 + 3% of sale price` | At checkout (applies regardless of quota) |
 | Premium placement | Lister | 49 for 7 days | When enabled |
-| Listing | — | Free | — |
 | Sale paid in person | — | Free for both sides, no protection | — |
 
 Why the escrow fee scales: gateway fees on a deposit are not returned when the deposit is refunded later, so a flat ฿30 loses money on large deposits paid by card (a ฿800 deposit costs about ฿31 by card).
@@ -163,8 +165,9 @@ Updated 2026-10-25 for branch `feat/p0-core`; sale commission added 2026-10-26 (
 
 | Rule | Code today | Change needed |
 |---|---|---|
+| Free commission quota: first 3 listings per new user pay no sale or rental commission; from the 4th listing onwards the full 10% commission applies to both sales and rentals | `FREE_LISTING_QUOTA = 3` in `lib/fees.ts`; quota constant exported and referenced in UI copy | Database: count the user's existing listings at publish time; pass an `is_within_quota` flag to `quote_rental` / `quote_sale` / `release_sale` and waive the commission when true; show remaining free-commission quota on the sell page and checkout |
 | Escrow fee `max(30, 3% of deposit)`; commission 10% | `lib/fees.ts` and server-side `quote_rental` (same JS rounding); parity tested (pgTAP + `npm run test:db`). `pay_rental` charges the server quote; checkout shows each line. | — |
-| Buyer protection fee `10 + 3%`; sale commission 10% from the seller on protected sales; sales in person or with protection | `computeSaleQuote` + `quote_sale` (protection fee, seller commission, seller payout); `transactions.seller_commission` stores the quote and `release_sale` deducts the commission on the kept amount, booking it as a `platform_fee` (migration `20261026000000_sale_commission.sql`); `transactions` with in-person (no escrow, no dispute, seller marks sold) and protected (held until handover + 48 h) states; status page `/transaction/[id]`, confirm receipt `/transaction/[id]/confirm` | — |
+| Buyer protection fee `10 + 3%`; sale commission 10% from the seller on protected sales; sales in person or with protection | `computeSaleQuote` + `quote_sale` (protection fee, seller commission, seller payout); `transactions.seller_commission` stores the quote and `release_sale` deducts the commission on the kept amount, booking it as a `platform_fee` (migration `20261026000000_sale_commission.sql`); `transactions` with in-person (no escrow, no dispute, seller marks sold) and protected (held until handover + 48 h) states; status page `/transaction/[id]`, confirm receipt `/transaction/[id]/confirm` | Extend `quote_sale` and `release_sale` to accept quota flag; waive `seller_commission` for in-quota listings |
 | Premium placement ฿49 for 7 days, paid by the lister | `enable_premium_placement` records the simulated ฿49 charge and sets `featured_until` server-side; clients can't write `featured` directly; featured listings sort first | — |
 | Deposit min ฿200 / max ฿3,000, suggested by category, 30–50% of value | Sell and edit forms enforce it (replacement value saved); the database refuses rental listings outside ฿200–฿3,000, fractional amounts, and (when a replacement value is given) deposits outside 30–50% of it; `request_rental` refuses listings without a valid deposit | Admin approval for items over ~฿6,000 (open): placeholder only (form note + `listings.replacement_value`) |
 | Payment methods `promptpay` / `card` / `wallet`, simulated | Recorded on the booking, purchase or premium charge; `wallet` pays from the in-app balance (refunds and payouts land there) under a per-user lock, so concurrent payments and withdrawals can't overdraw it; "Demo mode — payments are simulated" note wherever money moves | — |

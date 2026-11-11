@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { createClient } from '@/utils/supabase/client'
 import { useMarketplace } from '@/lib/store'
 import { AuthNotice } from '@/components/auth-notice'
+import { siteOrigin } from '@/lib/utils'
 
 const MIN_PASSWORD = 8
 const isAitEmail = (email: string) => /^[^@\s]+@ait\.asia$/i.test(email)
@@ -39,7 +40,7 @@ function RequestForm({ initialEmail, expired }: { initialEmail: string; expired:
     }
     setSending(true)
     const { error } = await createClient().auth.resetPasswordForEmail(address, {
-      redirectTo: `${window.location.origin}/reset-password?step=new`,
+      redirectTo: `${siteOrigin()}/reset-password?step=new`,
     })
     setSending(false)
     // Same message whether or not the account exists, so this can't be used to probe for accounts.

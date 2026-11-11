@@ -1,19 +1,30 @@
 // Money logic for Pass It On. Source of truth: docs/BusinessRules.md.
 // If this file and BusinessRules.md disagree, BusinessRules.md wins.
 //
-// - Listing is always free. Sales paid in person are free and unprotected.
-// - Sales paid "with protection" add a buyer protection fee (฿10 + 3%),
-//   paid by the buyer, and a 10% sale commission, taken from the seller's
-//   payout.
-// - Rentals add a 10% commission and an escrow fee of max(฿30, 3% of the
-//   deposit), both paid by the renter at booking. The deposit is held by the
-//   platform (never the owner) and refunded after the return.
+// - Listing is always free.
+// - Each new user gets FREE_LISTING_QUOTA (3) commission-free listings.
+//   For those listings, no sale or rental commission is charged on any
+//   transaction (sale or rental, in-person or protected).
+// - After FREE_LISTING_QUOTA listings, the full commission schedule applies:
+//   sales (all modes) attract a 10% sale commission from the seller's payout,
+//   and rentals attract a 10% rental commission paid by the renter at booking.
+// - Sales paid "with protection" additionally add a buyer protection fee
+//   (฿10 + 3%), paid by the buyer. This fee applies regardless of quota.
+// - Rentals add an escrow fee of max(฿30, 3% of the deposit), paid by the
+//   renter at booking. This fee applies regardless of quota.
 // - Premium placement costs ฿49 for 7 days.
 // All payments are simulated: no gateway is integrated in the course build.
 
 import type { CategoryId } from './types'
 
 // ─── Fees (BusinessRules.md §2) ──────────────────────────────────────────────
+
+/**
+ * Number of listings each new user may post before commissions apply.
+ * While a user's total listing count is ≤ FREE_LISTING_QUOTA, no sale or
+ * rental commission is charged on any of their transactions.
+ */
+export const FREE_LISTING_QUOTA = 3
 
 /** Share of the rental fee kept by the platform on every rental booking. */
 export const RENTAL_COMMISSION_RATE = 0.1
